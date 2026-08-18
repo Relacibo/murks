@@ -1,23 +1,43 @@
-import { Router, Route, Navigate } from '@solidjs/router'
-import { Layout } from './components/Layout'
-import { Config } from './pages/Config'
+import { createSignal, createMemo, onMount } from 'solid-js'
+import { Router, Route } from '@solidjs/router'
 import { Agent } from './pages/Agent'
+import { ConfigModal } from './pages/Config'
 import { state } from './state/store'
 
 const base =
   import.meta.env.BASE_URL === '/' ? undefined : import.meta.env.BASE_URL.replace(/\/+$/, '')
 
-function Home() {
-  return <Navigate href={state.defaultAgentId ? '/agent' : '/config'} />
+function hasValidAgent() {
+  const agent = state.agents.find((a) => a.id === state.defaultAgentId)
+  return Boolean(agent?.endpoint && agent?.model)
 }
 
 export default function App() {
+  const [configOpen, setConfigOpen] = createSignal(false)
+
+  onMount(() => {
+    if (!hasValidAgent()) setConfigOpen(true)
+  })
+
+  const dismissible = createMemo(() => hasValidAgent())
+
   return (
-    <Router root={Layout} base={base}>
-      <Route path="/" component={Home} />
-      <Route path="/config" component={Config} />
-      <Route path="/agent" component={Agent} />
-      <Route path="*" component={Home} />
-    </Router>
+    <div class="min-h-screen bg-zinc-950 text-zinc-100">
+      <Router base={base}>
+        <Route
+          path="*"
+          component={() => (
+            <Agent configOpen={configOpen} setConfigOpen={setConfigOpen} />
+          )}
+        />
+      </Router>
+      <ConfigModal
+        open={configOpen()}
+        onClose={() => {
+          if (dismissible()) setConfigOpen(false)
+        }}
+        dismissible={dismissible()}
+      />
+    </div>
   )
 }

@@ -11,8 +11,6 @@ export interface AgentProfile {
 
 export interface Config {
   displayName: string
-  defaultServings: number
-  units: 'metric' | 'imperial'
 }
 
 export interface AgentMessage {
@@ -35,8 +33,6 @@ const STORAGE_KEY = 'murks:state:v2'
 const defaults: AppState = {
   config: {
     displayName: '',
-    defaultServings: 2,
-    units: 'metric',
   },
   agents: [],
   defaultAgentId: null,
@@ -51,8 +47,9 @@ function load(): AppState {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return defaults
     const data = JSON.parse(raw)
+    const loadedConfig = data.config ?? {}
     return {
-      config: { ...defaults.config, ...(data.config ?? {}) },
+      config: { displayName: loadedConfig.displayName ?? '' },
       agents: Array.isArray(data.agents) ? data.agents : [],
       defaultAgentId: data.defaultAgentId ?? null,
       agent: {
