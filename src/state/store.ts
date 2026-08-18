@@ -7,6 +7,7 @@ export interface AgentProfile {
   endpoint: string
   model: string
   key: string
+  systemPrompt: string
 }
 
 export interface Config {
@@ -62,7 +63,9 @@ function load(): AppState {
     if (!raw) return defaults
     const data = JSON.parse(raw)
     const loadedConfig = data.config ?? {}
-    const agents: AgentProfile[] = Array.isArray(data.agents) ? data.agents : []
+    const agents: AgentProfile[] = (Array.isArray(data.agents) ? data.agents : []).map(
+      (a: AgentProfile) => ({ ...a, systemPrompt: a.systemPrompt ?? '' }),
+    )
     let defaultAgentId: string | null = data.defaultAgentId ?? null
     if (!agents.some((a) => a.id === defaultAgentId)) {
       defaultAgentId = agents[0]?.id ?? null
@@ -106,7 +109,10 @@ export function defaultAgent(): AgentProfile | undefined {
 
 export function addAgent(): string {
   const id = crypto.randomUUID()
-  setState('agents', (a) => [...a, { id, name: '', endpoint: '', model: '', key: '' }])
+  setState('agents', (a) => [
+    ...a,
+    { id, name: '', endpoint: '', model: '', key: '', systemPrompt: '' },
+  ])
   if (state.defaultAgentId === null) setState('defaultAgentId', id)
   return id
 }
@@ -143,6 +149,14 @@ export async function sendMessage(text: string) {
   setState('agent', 'messages', (m) => [...m, msg('user', text)])
   setState('agent', 'busy', true)
   try {
+    const system = agent.systemPrompt.trim()
+    const chatMessages = [
+      ...(system ? [{ role: 'system', content: system }] : []),
+      ...state.agent.messages.map((m) => ({
+        role: m.role === 'agent' ? 'assistant' : 'user',
+        content: m.text,
+      })),
+    ]
     const res = await fetch(`${agent.endpoint.replace(/\/+$/, '')}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -152,10 +166,7 @@ export async function sendMessage(text: string) {
       body: JSON.stringify({
         model: agent.model,
         stream: false,
-        messages: state.agent.messages.map((m) => ({
-          role: m.role === 'agent' ? 'assistant' : 'user',
-          content: m.text,
-        })),
+        messages: chatMessages,
       }),
     })
     const data = await res.json().catch(() => null)
