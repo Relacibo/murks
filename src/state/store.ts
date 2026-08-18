@@ -60,14 +60,19 @@ function load(): AppState {
     if (!raw) return defaults
     const data = JSON.parse(raw)
     const loadedConfig = data.config ?? {}
+    const agents: AgentProfile[] = Array.isArray(data.agents) ? data.agents : []
+    let defaultAgentId: string | null = data.defaultAgentId ?? null
+    if (!agents.some((a) => a.id === defaultAgentId)) {
+      defaultAgentId = agents[0]?.id ?? null
+    }
     return {
       config: { displayName: loadedConfig.displayName ?? '' },
       stt: {
         mode: data.stt?.mode === 'server' || data.stt?.mode === 'webspeech' ? data.stt.mode : 'wasm',
         endpoint: data.stt?.endpoint ?? '',
       },
-      agents: Array.isArray(data.agents) ? data.agents : [],
-      defaultAgentId: data.defaultAgentId ?? null,
+      agents,
+      defaultAgentId,
       agent: {
         messages: Array.isArray(data.agent?.messages) ? data.agent.messages : [],
         busy: false,
@@ -99,7 +104,7 @@ export function defaultAgent(): AgentProfile | undefined {
 export function addAgent(): string {
   const id = crypto.randomUUID()
   setState('agents', (a) => [...a, { id, name: '', endpoint: '', model: '', key: '' }])
-  setState('defaultAgentId', id)
+  if (state.defaultAgentId === null) setState('defaultAgentId', id)
   return id
 }
 
@@ -109,12 +114,12 @@ export function updateAgent(id: string, patch: Partial<AgentProfile>) {
 }
 
 export function removeAgent(id: string) {
+  if (id === state.defaultAgentId) return
   setState('agents', (a) => a.filter((x) => x.id !== id))
-  if (state.defaultAgentId === id) setState('defaultAgentId', null)
 }
 
-export function setDefaultAgent(id: string | null) {
-  setState('defaultAgentId', id)
+export function setDefaultAgent(id: string) {
+  if (state.agents.some((a) => a.id === id)) setState('defaultAgentId', id)
 }
 
 export function clearMessages() {

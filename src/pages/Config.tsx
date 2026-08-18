@@ -140,13 +140,15 @@ function AgentRow(props: AgentRowProps) {
         <Show when={props.isDefault}>
           <span class="text-xs text-zinc-400 shrink-0">Standard</span>
         </Show>
-        <button
-          class="w-7 h-7 flex items-center justify-center rounded-full text-zinc-600 hover:text-red-400 shrink-0 transition-colors"
-          onClick={(e) => { e.stopPropagation(); props.onDelete() }}
-          aria-label="Agent löschen"
-        >
-          ×
-        </button>
+        <Show when={!props.isDefault}>
+          <button
+            class="w-7 h-7 flex items-center justify-center rounded-full text-zinc-600 hover:text-red-400 shrink-0 transition-colors"
+            onClick={(e) => { e.stopPropagation(); props.onDelete() }}
+            aria-label="Agent löschen"
+          >
+            ×
+          </button>
+        </Show>
         <span class={`text-zinc-500 text-xs transition-transform ${props.expanded ? 'rotate-180' : ''}`}>
           ▾
         </span>
