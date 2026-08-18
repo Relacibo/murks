@@ -388,7 +388,7 @@ export function ConfigModal(props: ConfigModalProps) {
           {/* Erweitert */}
           <section class="space-y-4">
             <button
-              class="group flex w-full items-center justify-between rounded-lg py-2 transition-colors hover:bg-zinc-600/60"
+              class="group flex w-full items-center justify-between py-2 transition-colors"
               onClick={() => setAdvancedOpen((o) => !o)}
             >
               <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400 group-hover:text-zinc-300 transition-colors">
