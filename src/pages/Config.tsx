@@ -113,7 +113,6 @@ interface AgentRowProps {
   model: string
   endpoint: string
   key: string
-  systemPrompt: string
   isDefault: boolean
   expanded: boolean
   onToggle: () => void
@@ -213,19 +212,6 @@ function AgentRow(props: AgentRowProps) {
             apiKey={props.key}
             model={props.model}
           />
-          <label class="block space-y-1.5">
-            <span class="text-xs text-zinc-500">System-Prompt</span>
-            <textarea
-              class={`${inputCls} min-h-20 resize-y`}
-              placeholder="Du bist MURKS. Trocken, direkt, keine Floskeln."
-              value={props.systemPrompt}
-              onInput={(e) => updateAgent(props.id, { systemPrompt: e.currentTarget.value })}
-            />
-            <span class="block text-xs text-zinc-600">
-              Wird jeder Anfrage als stabiler Präfix vorangestellt — ändern nur, wenn der
-              Kontext neu aufgebaut werden darf.
-            </span>
-          </label>
           <Show when={!props.isDefault}>
             <button
               class="text-xs text-zinc-400 hover:text-zinc-100 transition-colors pt-1"
@@ -340,7 +326,6 @@ export function ConfigModal(props: ConfigModalProps) {
                   model={a.model}
                   endpoint={a.endpoint}
                   key={a.key}
-                  systemPrompt={a.systemPrompt}
                   isDefault={a.id === state.defaultAgentId}
                   expanded={expandedId() === a.id}
                   onToggle={() => toggle(a.id)}

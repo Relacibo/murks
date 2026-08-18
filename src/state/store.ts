@@ -7,8 +7,14 @@ export interface AgentProfile {
   endpoint: string
   model: string
   key: string
-  systemPrompt: string
 }
+
+const DEFAULT_SYSTEM_PROMPT = [
+  'Du bist MURKS, eine minimalistische Rezept- und Küchensoftware.',
+  'Du hilfst beim Kochen: Gerichte planen, Schritte koordinieren, Timer setzen, parallele Kochstränge im Blick behalten.',
+  'Ton: trocken, direkt, präzise. Keine Höflichkeitsfloskeln, keine Emojis, kein Smalltalk.',
+  'Antworte so kurz wie möglich. Nutze verfügbare Werkzeuge, statt Dinge in Text zu beschreiben.',
+].join(' ')
 
 export interface Config {
   displayName: string
@@ -63,9 +69,7 @@ function load(): AppState {
     if (!raw) return defaults
     const data = JSON.parse(raw)
     const loadedConfig = data.config ?? {}
-    const agents: AgentProfile[] = (Array.isArray(data.agents) ? data.agents : []).map(
-      (a: AgentProfile) => ({ ...a, systemPrompt: a.systemPrompt ?? '' }),
-    )
+    const agents: AgentProfile[] = Array.isArray(data.agents) ? data.agents : []
     let defaultAgentId: string | null = data.defaultAgentId ?? null
     if (!agents.some((a) => a.id === defaultAgentId)) {
       defaultAgentId = agents[0]?.id ?? null
@@ -109,10 +113,7 @@ export function defaultAgent(): AgentProfile | undefined {
 
 export function addAgent(): string {
   const id = crypto.randomUUID()
-  setState('agents', (a) => [
-    ...a,
-    { id, name: '', endpoint: '', model: '', key: '', systemPrompt: '' },
-  ])
+  setState('agents', (a) => [...a, { id, name: '', endpoint: '', model: '', key: '' }])
   if (state.defaultAgentId === null) setState('defaultAgentId', id)
   return id
 }
@@ -149,9 +150,8 @@ export async function sendMessage(text: string) {
   setState('agent', 'messages', (m) => [...m, msg('user', text)])
   setState('agent', 'busy', true)
   try {
-    const system = agent.systemPrompt.trim()
     const chatMessages = [
-      ...(system ? [{ role: 'system', content: system }] : []),
+      { role: 'system', content: DEFAULT_SYSTEM_PROMPT },
       ...state.agent.messages.map((m) => ({
         role: m.role === 'agent' ? 'assistant' : 'user',
         content: m.text,
