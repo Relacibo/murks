@@ -293,6 +293,20 @@ export function ConfigModal(props: ConfigModalProps) {
             </button>
           </section>
 
+          {/* Persönlich */}
+          <section class="space-y-4">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Persönlich</h2>
+            <label class="block space-y-1.5">
+              <span class="text-sm text-zinc-400">Wie heißt du?</span>
+              <input
+                class={inputCls}
+                placeholder="Dein Name"
+                value={state.config.displayName}
+                onInput={(e) => setConfig({ displayName: e.currentTarget.value })}
+              />
+            </label>
+          </section>
+
           {/* Erweitert */}
           <section class="space-y-4">
             <button
@@ -338,20 +352,6 @@ export function ConfigModal(props: ConfigModalProps) {
                 </Show>
               </div>
             </Show>
-          </section>
-
-          {/* Persönlich */}
-          <section class="space-y-4">
-            <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Persönlich</h2>
-            <label class="block space-y-1.5">
-              <span class="text-sm text-zinc-400">Wie heißt du?</span>
-              <input
-                class={inputCls}
-                placeholder="Dein Name"
-                value={state.config.displayName}
-                onInput={(e) => setConfig({ displayName: e.currentTarget.value })}
-              />
-            </label>
           </section>
 
           <p class="text-xs text-zinc-600 pb-2">Alles lokal gespeichert · Kein Backend</p>
