@@ -67,6 +67,9 @@ function getPipeline(): Promise<AsrPipeline> {
 }
 
 async function transcribeWasm(audio: Float32Array): Promise<string> {
+  if (!(await isSttModelCached())) {
+    throw new Error('STT-Modell nicht heruntergeladen. In der Config unter „Speicher“ herunterladen.')
+  }
   const pipe = await getPipeline()
   const out = await pipe(audio, {
     language: 'de',
@@ -148,6 +151,8 @@ export async function downloadSttModel(): Promise<void> {
 
 export async function deleteSttModel(): Promise<void> {
   await caches.delete(MODEL_CACHE_KEY)
+  pipelinePromise = null
+  pipelineModel = null
 }
 
 type SpeechRecognitionEvent = {
