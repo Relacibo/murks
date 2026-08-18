@@ -5,6 +5,15 @@
 PWA auf Basis von Vite + SolidJS + Tailwind. Trocken, minimalistisch, direkt.
 Keine Höflichkeitsfloskeln.
 
+## Agent
+
+Die Agent-View spricht ein OpenAI-kompatibles Chat-Endpoint an
+(`POST {base}/chat/completions`). Endpoint und Model werden in der
+Config-Seite gesetzt. Lokale AIs funktionieren damit auch offline:
+
+- Ollama: `http://localhost:11434/v1` (ggf. `OLLAMA_ORIGINS=*` für CORS)
+- LM Studio: `http://localhost:1234/v1`
+
 ## Entwicklung
 
 ```sh
