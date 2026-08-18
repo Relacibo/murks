@@ -1,6 +1,8 @@
 import { For, Show, createMemo, createSignal, onCleanup, type Accessor, type Setter } from 'solid-js'
+import type { MicVAD } from '@ricky0123/vad-web'
 import { state, sendMessage, clearMessages, pushAgentMessage } from '../state/store'
 import { transcribeAudio, createWebSpeechRecognition } from '../lib/stt'
+import { createVoice } from '../lib/voice'
 
 interface AgentProps {
   configOpen: Accessor<boolean>
@@ -10,37 +12,44 @@ interface AgentProps {
 export function Agent(props: AgentProps) {
   const [input, setInput] = createSignal('')
   const [listening, setListening] = createSignal(false)
+  const [speaking, setSpeaking] = createSignal(false)
+  const [transcribing, setTranscribing] = createSignal(false)
 
   const agent = createMemo(() => state.agents.find((a) => a.id === state.defaultAgentId))
   const ready = createMemo(() => Boolean(agent()?.endpoint && agent()?.model))
 
-  let recorder: MediaRecorder | null = null
-  let chunks: Blob[] = []
-  let stream: MediaStream | null = null
+  let vad: MicVAD | null = null
   let recognition: ReturnType<typeof createWebSpeechRecognition> = null
 
   onCleanup(() => {
-    recorder?.stop()
-    stream?.getTracks().forEach((t) => t.stop())
     recognition?.stop()
+    vad?.destroy()
   })
 
   function pushError(message: string) {
     pushAgentMessage('agent', `STT-Fehler: ${message}`)
   }
 
-  function toggleMic() {
-    if (listening()) {
-      stopListening()
-      return
-    }
-    startListening()
+  function finishUtterance(text: string) {
+    if (!text) return
+    if (ready()) sendMessage(text)
+    else setInput(text)
   }
 
-  async function startListening() {
+  function toggleMic() {
+    if (listening()) {
+      stopVoice()
+      return
+    }
+    startVoice()
+  }
+
+  async function startVoice() {
     if (state.stt.mode === 'webspeech') {
       recognition = createWebSpeechRecognition(
-        (transcript) => setInput(transcript),
+        (transcript, isFinal) => {
+          if (isFinal) finishUtterance(transcript)
+        },
         pushError,
         () => {
           recognition = null
@@ -54,36 +63,45 @@ export function Agent(props: AgentProps) {
       return
     }
 
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      recorder = new MediaRecorder(stream)
-      chunks = []
-      recorder.ondataavailable = (e) => chunks.push(e.data)
-      recorder.onstop = async () => {
-        const blob = new Blob(chunks, { type: recorder?.mimeType || 'audio/webm' })
-        try {
-          const text = await transcribeAudio(blob)
-          setInput(text)
-        } catch (e) {
-          pushError(e instanceof Error ? e.message : String(e))
-        } finally {
-          setListening(false)
-        }
+    if (!vad) {
+      try {
+        vad = await createVoice({
+          onSpeechStart: () => setSpeaking(true),
+          onMisfire: () => setSpeaking(false),
+          onSpeechEnd: async (audio) => {
+            setSpeaking(false)
+            setTranscribing(true)
+            try {
+              const text = await transcribeAudio(audio)
+              finishUtterance(text)
+            } catch (e) {
+              pushError(e instanceof Error ? e.message : String(e))
+            } finally {
+              setTranscribing(false)
+              if (listening()) await vad?.start()
+            }
+          },
+          onError: pushError,
+        })
+      } catch (e) {
+        pushError(e instanceof Error ? e.message : String(e))
+        return
       }
-      recorder.start()
+    }
+    try {
+      await vad.start()
       setListening(true)
     } catch (e) {
       pushError(e instanceof Error ? e.message : String(e))
     }
   }
 
-  function stopListening() {
-    if (recorder && recorder.state !== 'inactive') recorder.stop()
-    stream?.getTracks().forEach((t) => t.stop())
-    stream = null
+  async function stopVoice() {
+    setListening(false)
+    setSpeaking(false)
     recognition?.stop()
     recognition = null
-    setListening(false)
+    await vad?.pause()
   }
 
   let touchStartY = 0
@@ -100,6 +118,13 @@ export function Agent(props: AgentProps) {
     if (!text) return
     sendMessage(text)
     setInput('')
+  }
+
+  function micTitle() {
+    if (transcribing()) return 'Transkribiere …'
+    if (speaking()) return 'Sprache erkannt'
+    if (listening()) return 'Höre zu — tippen zum Stoppen'
+    return `Hören starten (${state.stt.mode === 'wasm' ? 'lokal' : state.stt.mode})`
   }
 
   return (
@@ -157,6 +182,9 @@ export function Agent(props: AgentProps) {
         <Show when={state.agent.messages.length === 0 && ready()}>
           <p class="text-sm text-zinc-500">Noch keine Nachrichten.</p>
         </Show>
+        <Show when={transcribing()}>
+          <p class="text-sm text-zinc-500 animate-pulse">Transkribiere …</p>
+        </Show>
         <For each={state.agent.messages}>
           {(m) => (
             <div
@@ -177,18 +205,16 @@ export function Agent(props: AgentProps) {
           type="button"
           onClick={toggleMic}
           disabled={state.agent.busy}
-          title={
-            listening()
-              ? 'Aufnahme stoppen'
-              : `Aufnahme starten (${state.stt.mode === 'wasm' ? 'lokal' : state.stt.mode})`
-          }
+          title={micTitle()}
           class={`h-11 w-11 shrink-0 rounded-full border text-base transition-colors ${
-            listening()
+            speaking()
               ? 'border-red-500 bg-red-500/20 text-red-400 animate-pulse ring-2 ring-red-500/40'
-              : 'border-zinc-600 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 hover:bg-zinc-600 active:scale-95'
+              : listening()
+                ? 'border-zinc-300 text-zinc-100 bg-zinc-600'
+                : 'border-zinc-600 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 hover:bg-zinc-600 active:scale-95'
           }`}
         >
-          {listening() ? '■' : '🎤'}
+          {transcribing() ? '…' : listening() ? '■' : '🎤'}
         </button>
         <input
           class="flex-1 bg-zinc-700 border border-zinc-600 rounded-lg px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-zinc-500 placeholder:text-zinc-500 w-full"

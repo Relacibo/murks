@@ -14,11 +14,13 @@
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",
+    "@ricky0123/vad-web": "^0.0.30",
     "@solidjs/router": "^1.0.0",
     "solid-js": "^1.9.15"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
+    "playwright-core": "^1.62.1",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vite": "^8.2.1",

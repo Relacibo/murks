@@ -1,6 +1,7 @@
 import { state } from '../state/store'
 
 const WASM_MODEL = 'Xenova/whisper-small'
+const ORT_WASM_PATH = `${import.meta.env.BASE_URL}ort/`
 
 interface AsrPipeline {
   (audio: Float32Array, options: Record<string, unknown>): Promise<{ text: string }>
@@ -14,6 +15,8 @@ async function createPipeline(
   mod: TransformersModule,
   device: 'webgpu' | 'wasm',
 ): Promise<AsrPipeline> {
+  const onnxBackend = mod.env.backends?.onnx
+  if (onnxBackend?.wasm) onnxBackend.wasm.wasmPaths = ORT_WASM_PATH
   return (await mod.pipeline('automatic-speech-recognition', WASM_MODEL, {
     device,
     dtype: 'q8',
@@ -52,34 +55,7 @@ function getPipeline(): Promise<AsrPipeline> {
   return pipelinePromise
 }
 
-function resample(audio: Float32Array, fromRate: number, toRate = 16000): Float32Array {
-  if (fromRate === toRate) return audio
-  const ratio = fromRate / toRate
-  const outLen = Math.round(audio.length / ratio)
-  const out = new Float32Array(outLen)
-  for (let i = 0; i < outLen; i++) {
-    const pos = i * ratio
-    const i0 = Math.floor(pos)
-    const i1 = Math.min(i0 + 1, audio.length - 1)
-    const frac = pos - i0
-    out[i] = audio[i0] * (1 - frac) + audio[i1] * frac
-  }
-  return out
-}
-
-async function decodeAudio(blob: Blob): Promise<Float32Array> {
-  const arrayBuffer = await blob.arrayBuffer()
-  const ctx = new AudioContext()
-  try {
-    const buffer = await ctx.decodeAudioData(arrayBuffer)
-    return resample(buffer.getChannelData(0), buffer.sampleRate)
-  } finally {
-    ctx.close()
-  }
-}
-
-async function transcribeWasm(blob: Blob): Promise<string> {
-  const audio = await decodeAudio(blob)
+async function transcribeWasm(audio: Float32Array): Promise<string> {
   const pipe = await getPipeline()
   const out = await pipe(audio, {
     language: 'de',
@@ -90,11 +66,37 @@ async function transcribeWasm(blob: Blob): Promise<string> {
   return out.text.trim()
 }
 
-async function transcribeServer(blob: Blob): Promise<string> {
+function float32ToWavBlob(audio: Float32Array): Blob {
+  const buffer = new ArrayBuffer(44 + audio.length * 2)
+  const view = new DataView(buffer)
+  const writeString = (offset: number, s: string) => {
+    for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i))
+  }
+  writeString(0, 'RIFF')
+  view.setUint32(4, 36 + audio.length * 2, true)
+  writeString(8, 'WAVE')
+  writeString(12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, 16000, true)
+  view.setUint32(28, 32000, true)
+  view.setUint16(32, 2, true)
+  view.setUint16(34, 16, true)
+  writeString(36, 'data')
+  view.setUint32(40, audio.length * 2, true)
+  let offset = 44
+  for (let i = 0; i < audio.length; i++, offset += 2) {
+    view.setInt16(offset, Math.max(-1, Math.min(1, audio[i])) * 0x7fff, true)
+  }
+  return new Blob([buffer], { type: 'audio/wav' })
+}
+
+async function transcribeServer(audio: Float32Array): Promise<string> {
   const endpoint = state.stt.endpoint
   if (!endpoint) throw new Error('Kein STT-Endpoint konfiguriert')
   const fd = new FormData()
-  fd.append('file', blob, 'audio.webm')
+  fd.append('file', float32ToWavBlob(audio), 'audio.wav')
   const res = await fetch(`${endpoint.replace(/\/+$/, '')}/audio/transcriptions`, {
     method: 'POST',
     headers: state.stt.key ? { Authorization: `Bearer ${state.stt.key}` } : {},
@@ -106,13 +108,13 @@ async function transcribeServer(blob: Blob): Promise<string> {
   return data.text.trim()
 }
 
-export async function transcribeAudio(blob: Blob): Promise<string> {
+export async function transcribeAudio(audio: Float32Array): Promise<string> {
   switch (state.stt.mode) {
     case 'server':
-      return transcribeServer(blob)
+      return transcribeServer(audio)
     case 'wasm':
     default:
-      return transcribeWasm(blob)
+      return transcribeWasm(audio)
   }
 }
 
