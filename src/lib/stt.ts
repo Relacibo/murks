@@ -79,6 +79,7 @@ async function transcribeServer(blob: Blob): Promise<string> {
   fd.append('file', blob, 'audio.webm')
   const res = await fetch(`${endpoint.replace(/\/+$/, '')}/audio/transcriptions`, {
     method: 'POST',
+    headers: state.stt.key ? { Authorization: `Bearer ${state.stt.key}` } : {},
     body: fd,
   })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -95,6 +96,26 @@ export async function transcribeAudio(blob: Blob): Promise<string> {
     default:
       return transcribeWasm(blob)
   }
+}
+
+const MODEL_CACHE_KEY = 'transformers-cache'
+
+export async function isSttModelCached(): Promise<boolean> {
+  try {
+    const cache = await caches.open(MODEL_CACHE_KEY)
+    const keys = await cache.keys()
+    return keys.some((r) => r.url.includes('whisper-small'))
+  } catch {
+    return false
+  }
+}
+
+export async function downloadSttModel(): Promise<void> {
+  await getPipeline()
+}
+
+export async function deleteSttModel(): Promise<void> {
+  await caches.delete(MODEL_CACHE_KEY)
 }
 
 type SpeechRecognitionEvent = {

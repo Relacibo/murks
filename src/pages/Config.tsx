@@ -1,4 +1,4 @@
-import { For, Show, createSignal } from 'solid-js'
+import { For, Show, createSignal, onMount } from 'solid-js'
 import {
   state,
   setConfig,
@@ -8,9 +8,12 @@ import {
   removeAgent,
   setDefaultAgent,
 } from '../state/store'
+import { isSttModelCached, downloadSttModel, deleteSttModel } from '../lib/stt'
 
 const inputCls =
-  'bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-zinc-500 placeholder:text-zinc-600 w-full'
+  'bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-zinc-500 placeholder:text-zinc-600 w-full transition-colors hover:border-zinc-500'
+
+const selectCls = `${inputCls} cursor-pointer`
 
 interface ConfigModalProps {
   open: boolean
@@ -86,7 +89,7 @@ function ModelPicker(props: ModelPickerProps) {
         }
       >
         <select
-          class={inputCls}
+          class={selectCls}
           value={props.model}
           onChange={(e) => updateAgent(props.agentId, { model: e.currentTarget.value })}
         >
@@ -142,14 +145,32 @@ function AgentRow(props: AgentRowProps) {
         </Show>
         <Show when={!props.isDefault}>
           <button
-            class="w-7 h-7 flex items-center justify-center rounded-full text-zinc-600 hover:text-red-400 shrink-0 transition-colors"
+            class="w-11 h-11 flex items-center justify-center rounded-full text-zinc-600 hover:text-red-400 hover:bg-red-500/10 shrink-0 transition-colors"
             onClick={(e) => { e.stopPropagation(); props.onDelete() }}
             aria-label="Agent löschen"
           >
-            ×
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="h-5 w-5"
+            >
+              <path d="M3 6h18" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              <line x1="10" y1="11" x2="10" y2="17" />
+              <line x1="14" y1="11" x2="14" y2="17" />
+            </svg>
           </button>
         </Show>
-        <span class={`text-zinc-500 text-xs transition-transform ${props.expanded ? 'rotate-180' : ''}`}>
+        <span
+          class={`flex h-11 w-11 shrink-0 items-center justify-center text-sm text-zinc-500 transition-transform duration-200 ${
+            props.expanded ? 'rotate-180' : ''
+          }`}
+        >
           ▾
         </span>
       </div>
@@ -210,6 +231,32 @@ function AgentRow(props: AgentRowProps) {
 export function ConfigModal(props: ConfigModalProps) {
   const [expandedId, setExpandedId] = createSignal<string | null>(null)
   const [advancedOpen, setAdvancedOpen] = createSignal(false)
+  const [sttCached, setSttCached] = createSignal<boolean | null>(null)
+  const [sttBusy, setSttBusy] = createSignal(false)
+  const [sttCacheError, setSttCacheError] = createSignal<string | null>(null)
+
+  onMount(() => {
+    isSttModelCached().then(setSttCached)
+  })
+
+  async function handleSttCache() {
+    if (sttBusy()) return
+    setSttBusy(true)
+    setSttCacheError(null)
+    try {
+      if (sttCached()) {
+        await deleteSttModel()
+        setSttCached(false)
+      } else {
+        await downloadSttModel()
+        setSttCached(true)
+      }
+    } catch (e) {
+      setSttCacheError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSttBusy(false)
+    }
+  }
 
   function toggle(id: string) {
     setExpandedId((cur) => (cur === id ? null : id))
@@ -258,7 +305,7 @@ export function ConfigModal(props: ConfigModalProps) {
           <h1 class="text-base font-semibold text-zinc-100">Konfiguration</h1>
           <Show when={props.dismissible}>
             <button
-              class="w-8 h-8 flex items-center justify-center rounded-full text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 text-lg"
+              class="w-11 h-11 flex items-center justify-center rounded-full text-zinc-500 hover:text-zinc-100 hover:bg-zinc-800 text-xl transition-colors"
               onClick={props.onClose}
               aria-label="Schließen"
             >
@@ -288,7 +335,7 @@ export function ConfigModal(props: ConfigModalProps) {
               )}
             </For>
             <button
-              class="w-full rounded-xl border border-dashed border-zinc-700 px-3 py-2.5 text-sm text-zinc-500 hover:border-zinc-500 hover:text-zinc-300 transition-colors"
+              class="w-full rounded-xl border border-dashed border-zinc-700 px-3 py-3 text-sm text-zinc-500 hover:border-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 active:bg-zinc-800 transition-colors"
               onClick={handleAddAgent}
             >
               + Neuer Agent
@@ -309,43 +356,90 @@ export function ConfigModal(props: ConfigModalProps) {
             </label>
           </section>
 
+          {/* Speicher */}
+          <section class="space-y-4">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Speicher</h2>
+            <div class="flex items-center gap-3">
+              <p class="min-w-0 flex-1 text-sm text-zinc-400">
+                STT-Modell (Whisper small, ~250 MB)
+                <span class="block text-xs text-zinc-600">
+                  {sttBusy()
+                    ? 'Bitte warten …'
+                    : sttCached() === null
+                      ? 'Prüfe …'
+                      : sttCached()
+                        ? 'Heruntergeladen (Browser-Cache)'
+                        : 'Nicht heruntergeladen'}
+                </span>
+              </p>
+              <button
+                class="h-11 shrink-0 rounded-lg border border-zinc-700 px-4 text-sm text-zinc-300 hover:border-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition-colors disabled:opacity-40"
+                disabled={sttBusy() || sttCached() === null}
+                onClick={handleSttCache}
+              >
+                {sttBusy() ? '…' : sttCached() ? 'Löschen' : 'Herunterladen'}
+              </button>
+            </div>
+            <Show when={sttCacheError()}>
+              <p class="text-xs text-red-400">{sttCacheError()}</p>
+            </Show>
+          </section>
+
           {/* Erweitert */}
           <section class="space-y-4">
             <button
-              class="flex w-full items-center justify-between py-1"
+              class="group flex w-full items-center justify-between py-1.5 transition-colors"
               onClick={() => setAdvancedOpen((o) => !o)}
             >
-              <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Erweitert</h2>
-              <span class="text-zinc-600">{advancedOpen() ? '▾' : '▸'}</span>
+              <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-500 group-hover:text-zinc-300 transition-colors">
+                Erweitert
+              </h2>
+              <span
+                class={`flex h-8 w-8 items-center justify-center text-sm text-zinc-600 group-hover:text-zinc-300 transition-transform duration-200 ${
+                  advancedOpen() ? 'rotate-180' : ''
+                }`}
+              >
+                ▾
+              </span>
             </button>
             <Show when={advancedOpen()}>
               <div class="space-y-4">
-                <label class="block space-y-1.5">
-                  <span class="text-sm text-zinc-400">STT-Modus</span>
-                  <select
-                    class={inputCls}
-                    value={state.stt.mode}
-                    onChange={(e) =>
-                      setStt({ mode: e.currentTarget.value as 'wasm' | 'server' | 'webspeech' })
-                    }
-                  >
-                    <option value="wasm">Lokal (Whisper small, ~250 MB Download, offline)</option>
-                    <option value="server">Server (OpenAI-kompatibel)</option>
-                    <option value="webspeech">Browser-Spracherkennung (online)</option>
-                  </select>
-                </label>
-                <Show when={state.stt.mode === 'server'}>
                   <label class="block space-y-1.5">
-                    <span class="text-sm text-zinc-400">STT-Endpoint (Base-URL)</span>
-                    <input
-                      class={inputCls}
-                      type="url"
-                      placeholder="http://localhost:8000/v1"
-                      value={state.stt.endpoint}
-                      onInput={(e) => setStt({ endpoint: e.currentTarget.value })}
-                    />
+                    <span class="text-sm text-zinc-400">STT-Modus</span>
+                    <select
+                      class={selectCls}
+                      value={state.stt.mode}
+                      onChange={(e) =>
+                        setStt({ mode: e.currentTarget.value as 'wasm' | 'server' | 'webspeech' })
+                      }
+                    >
+                      <option value="wasm">Lokal (Whisper small, ~250 MB Download, offline)</option>
+                      <option value="server">Server (OpenAI-kompatibel)</option>
+                      <option value="webspeech">Browser-Spracherkennung (online)</option>
+                    </select>
                   </label>
-                </Show>
+                  <Show when={state.stt.mode === 'server'}>
+                    <label class="block space-y-1.5">
+                      <span class="text-sm text-zinc-400">STT-Endpoint (Base-URL)</span>
+                      <input
+                        class={inputCls}
+                        type="url"
+                        placeholder="http://localhost:8000/v1"
+                        value={state.stt.endpoint}
+                        onInput={(e) => setStt({ endpoint: e.currentTarget.value })}
+                      />
+                    </label>
+                    <label class="block space-y-1.5">
+                      <span class="text-sm text-zinc-400">STT-API-Key (optional)</span>
+                      <input
+                        class={inputCls}
+                        type="password"
+                        placeholder="sk-…"
+                        value={state.stt.key}
+                        onInput={(e) => setStt({ key: e.currentTarget.value })}
+                      />
+                    </label>
+                  </Show>
                 <Show when={state.stt.mode === 'wasm'}>
                   <p class="text-xs text-zinc-600">
                     Whisper small läuft direkt im Browser (WebGPU, sonst WASM). Modell wird beim
