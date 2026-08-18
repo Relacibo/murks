@@ -113,7 +113,7 @@ export function Agent(props: AgentProps) {
       <div class="flex items-center justify-between pt-3 pr-14 md:hidden">
         <span class="text-sm text-zinc-400">{agent()?.name || '—'}</span>
         <button
-          class="text-xs text-zinc-500 hover:text-zinc-100 hover:underline transition-colors"
+          class="text-xs text-zinc-400 hover:text-zinc-100 hover:underline transition-colors"
           onClick={clearMessages}
         >
           Verlauf löschen
@@ -121,7 +121,7 @@ export function Agent(props: AgentProps) {
       </div>
 
       <button
-        class="absolute top-3 right-3 z-10 rounded-full border border-zinc-700 w-11 h-11 flex items-center justify-center text-zinc-400 hover:border-zinc-500 hover:text-zinc-100 hover:bg-zinc-800 transition-colors md:hidden"
+        class="absolute top-3 right-3 z-10 rounded-full border border-zinc-600 w-11 h-11 flex items-center justify-center text-zinc-400 hover:border-zinc-500 hover:text-zinc-100 hover:bg-zinc-600 transition-colors md:hidden"
         onClick={() => props.setConfigOpen(true)}
         title="Konfiguration"
       >
@@ -129,17 +129,17 @@ export function Agent(props: AgentProps) {
       </button>
 
       {/* Desktop header: full row with agent name, clear button, ⚙ button */}
-      <div class="hidden md:flex items-center gap-4 pt-3 border-b border-zinc-800 pb-3">
+      <div class="hidden md:flex items-center gap-4 pt-3 border-b border-zinc-600 pb-3">
         <span class="text-sm text-zinc-400">{agent()?.name || '—'}</span>
         <div class="flex-1" />
         <button
-          class="text-xs text-zinc-500 hover:text-zinc-100 hover:underline transition-colors"
+          class="text-xs text-zinc-400 hover:text-zinc-100 hover:underline transition-colors"
           onClick={clearMessages}
         >
           Verlauf löschen
         </button>
         <button
-          class="rounded-full border border-zinc-700 w-11 h-11 flex items-center justify-center text-zinc-400 hover:border-zinc-500 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+          class="rounded-full border border-zinc-600 w-11 h-11 flex items-center justify-center text-zinc-400 hover:border-zinc-500 hover:text-zinc-100 hover:bg-zinc-600 transition-colors"
           onClick={() => props.setConfigOpen(true)}
           title="Konfiguration"
         >
@@ -155,15 +155,15 @@ export function Agent(props: AgentProps) {
           </p>
         </Show>
         <Show when={state.agent.messages.length === 0 && ready()}>
-          <p class="text-sm text-zinc-600">Noch keine Nachrichten.</p>
+          <p class="text-sm text-zinc-500">Noch keine Nachrichten.</p>
         </Show>
         <For each={state.agent.messages}>
           {(m) => (
             <div
               class={`max-w-[85%] whitespace-pre-wrap rounded-lg p-3 text-sm ${
                 m.role === 'user'
-                  ? 'ml-auto bg-zinc-800 text-zinc-100'
-                  : 'border border-zinc-700 bg-zinc-900 text-zinc-100'
+                  ? 'ml-auto bg-zinc-700 text-zinc-100'
+                  : 'border border-zinc-600 bg-zinc-700 text-zinc-100'
               }`}
             >
               {m.text}
@@ -172,7 +172,7 @@ export function Agent(props: AgentProps) {
         </For>
       </div>
 
-      <form onSubmit={submit} class="flex items-center gap-2 border-t border-zinc-800 pt-3">
+      <form onSubmit={submit} class="flex items-center gap-2 border-t border-zinc-600 pt-3">
         <button
           type="button"
           onClick={toggleMic}
@@ -185,13 +185,13 @@ export function Agent(props: AgentProps) {
           class={`h-11 w-11 shrink-0 rounded-full border text-base transition-colors ${
             listening()
               ? 'border-red-500 bg-red-500/20 text-red-400 animate-pulse ring-2 ring-red-500/40'
-              : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 active:scale-95'
+              : 'border-zinc-600 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 hover:bg-zinc-600 active:scale-95'
           }`}
         >
           {listening() ? '■' : '🎤'}
         </button>
         <input
-          class="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-zinc-500 placeholder:text-zinc-600 w-full"
+          class="flex-1 bg-zinc-700 border border-zinc-600 rounded-lg px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-zinc-500 placeholder:text-zinc-500 w-full"
           placeholder="Nachricht an den Agenten …"
           value={input()}
           onInput={(e) => setInput(e.currentTarget.value)}

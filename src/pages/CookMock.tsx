@@ -99,25 +99,25 @@ export function CookMock() {
     <div class="h-screen bg-zinc-950 text-zinc-100 flex flex-col md:max-w-none max-w-[430px] mx-auto overflow-hidden">
 
       {/* ── Top bar ────────────────────────────────────────────────────── */}
-      <header class="shrink-0 flex items-center justify-between px-4 py-3 border-b border-zinc-800">
+      <header class="shrink-0 flex items-center justify-between px-4 py-3 border-b border-zinc-600">
         <span class="text-sm font-bold tracking-widest uppercase">MURKS</span>
         <div class="flex items-center gap-2">
           <button
-            class="w-9 h-9 flex items-center justify-center rounded-full border border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-zinc-100 hover:border-zinc-600 transition-colors"
+            class="w-9 h-9 flex items-center justify-center rounded-full border border-zinc-600 bg-zinc-700 text-zinc-400 hover:text-zinc-100 hover:border-zinc-600 transition-colors"
             onClick={() => setDemo('zutaten')}
             title="Zutaten"
           >
             🧾
           </button>
-          <button class="w-9 h-9 flex items-center justify-center rounded-full border border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-zinc-100 hover:border-zinc-600 transition-colors">
+          <button class="w-9 h-9 flex items-center justify-center rounded-full border border-zinc-600 bg-zinc-700 text-zinc-400 hover:text-zinc-100 hover:border-zinc-600 transition-colors">
             ⚙
           </button>
         </div>
       </header>
 
       {/* ── Demo toggles ───────────────────────────────────────────────── */}
-      <div class="shrink-0 flex items-center gap-1 px-4 py-2 bg-zinc-900 border-b border-zinc-800 overflow-x-auto">
-        <span class="text-xs text-zinc-600 shrink-0 mr-1">Demo:</span>
+      <div class="shrink-0 flex items-center gap-1 px-4 py-2 bg-zinc-700 border-b border-zinc-600 overflow-x-auto">
+        <span class="text-xs text-zinc-500 shrink-0 mr-1">Demo:</span>
         {(
           [
             ['normal', 'Normal'],
@@ -129,8 +129,8 @@ export function CookMock() {
           <button
             class={`text-xs px-2.5 py-1 rounded-full border transition-colors shrink-0 ${
               demo() === key
-                ? 'border-zinc-400 bg-zinc-800 text-zinc-100'
-                : 'border-zinc-700 text-zinc-500 hover:border-zinc-600'
+                ? 'border-zinc-400 bg-zinc-700 text-zinc-100'
+                : 'border-zinc-600 text-zinc-400 hover:border-zinc-600'
             }`}
             onClick={() => setDemo(key)}
           >
@@ -140,21 +140,21 @@ export function CookMock() {
       </div>
 
       {/* ── Strang-Chips (sticky timer overview) ───────────────────────── */}
-      <div class="shrink-0 flex items-center gap-2 px-4 py-2.5 border-b border-zinc-800 overflow-x-auto md:hidden">
+      <div class="shrink-0 flex items-center gap-2 px-4 py-2.5 border-b border-zinc-600 overflow-x-auto md:hidden">
         <For each={strangs()}>
           {(s, i) => (
             <button
               onClick={() => setActiveIdx(i())}
               class={`shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 border text-xs transition-colors ${
                 i() === activeIdx()
-                  ? 'border-zinc-300 bg-zinc-800 text-zinc-100'
+                  ? 'border-zinc-300 bg-zinc-700 text-zinc-100'
                   : s.expired
-                    ? 'border-orange-500 bg-zinc-900 text-orange-400'
+                    ? 'border-orange-500 bg-zinc-700 text-orange-400'
                     : s.timer?.urgent
-                      ? 'border-red-700 bg-zinc-900 text-red-400'
+                      ? 'border-red-700 bg-zinc-700 text-red-400'
                       : s.timer
-                        ? 'border-zinc-600 bg-zinc-900 text-zinc-300'
-                        : 'border-zinc-700 bg-zinc-900 text-zinc-500'
+                        ? 'border-zinc-600 bg-zinc-700 text-zinc-300'
+                        : 'border-zinc-600 bg-zinc-700 text-zinc-400'
               }`}
             >
               <span class="font-medium">{s.name}</span>
@@ -178,21 +178,21 @@ export function CookMock() {
         <div class="flex-1 flex flex-col overflow-hidden min-h-0">
 
           {/* Chip row — desktop only (mobile version is above) */}
-          <div class="hidden md:flex shrink-0 items-center gap-2 px-4 py-2.5 border-b border-zinc-800 overflow-x-auto">
+          <div class="hidden md:flex shrink-0 items-center gap-2 px-4 py-2.5 border-b border-zinc-600 overflow-x-auto">
             <For each={strangs()}>
               {(s, i) => (
                 <button
                   onClick={() => setActiveIdx(i())}
                   class={`shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 border text-xs transition-colors ${
                     i() === activeIdx()
-                      ? 'border-zinc-300 bg-zinc-800 text-zinc-100'
+                      ? 'border-zinc-300 bg-zinc-700 text-zinc-100'
                       : s.expired
-                        ? 'border-orange-500 bg-zinc-900 text-orange-400'
+                        ? 'border-orange-500 bg-zinc-700 text-orange-400'
                         : s.timer?.urgent
-                          ? 'border-red-700 bg-zinc-900 text-red-400'
+                          ? 'border-red-700 bg-zinc-700 text-red-400'
                           : s.timer
-                            ? 'border-zinc-600 bg-zinc-900 text-zinc-300'
-                            : 'border-zinc-700 bg-zinc-900 text-zinc-500'
+                            ? 'border-zinc-600 bg-zinc-700 text-zinc-300'
+                            : 'border-zinc-600 bg-zinc-700 text-zinc-400'
                   }`}
                 >
                   <span class="font-medium">{s.name}</span>
@@ -212,15 +212,15 @@ export function CookMock() {
           {/* ── Active strang card ─────────────────────────────────────── */}
           <main class="flex-1 flex flex-col px-4 py-4 min-h-0">
         <div
-          class={`flex-1 flex flex-col rounded-2xl border bg-zinc-900 p-5 transition-colors ${
-            active().expired ? 'border-orange-500' : 'border-zinc-700'
+          class={`flex-1 flex flex-col rounded-2xl border bg-zinc-700 p-5 transition-colors ${
+            active().expired ? 'border-orange-500' : 'border-zinc-600'
           }`}
         >
           {/* Card header */}
           <div class="flex items-start justify-between gap-2 mb-1">
             <span class="font-semibold text-zinc-100 text-lg leading-tight">{active().name}</span>
             <div class="flex items-center gap-2 shrink-0 mt-0.5">
-              <span class="text-xs text-zinc-500">
+              <span class="text-xs text-zinc-400">
                 Schritt {active().stepCurrent} / {active().stepTotal}
               </span>
               <Show when={active().expired}>
@@ -245,53 +245,55 @@ export function CookMock() {
           {/* Expired banner */}
           <Show when={active().expired}>
             <div class="text-sm font-semibold text-orange-400 mb-1">Timer abgelaufen!</div>
-            <div class="text-xs text-zinc-500 mb-2">Jetzt:</div>
+            <div class="text-xs text-zinc-400 mb-2">Jetzt:</div>
           </Show>
 
-          {/* Instruction — big, readable */}
-          <p class="text-base text-zinc-200 leading-relaxed flex-1">
-            {active().expired && active().expiredInstruction
-              ? active().expiredInstruction
-              : active().instruction}
-          </p>
+          {/* Instruction + timer — vertically centered in available space */}
+          <div class="flex-1 flex flex-col justify-center gap-5">
+            <p class="text-base text-zinc-200 leading-relaxed">
+              {active().expired && active().expiredInstruction
+                ? active().expiredInstruction
+                : active().instruction}
+            </p>
 
-          {/* Timer pill */}
-          <Show when={!active().expired && active().timer}>
-            <div class="flex items-center mt-4">
-              <div
-                class={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 border ${
-                  active().timer?.urgent
-                    ? 'bg-zinc-900 border-red-700'
-                    : 'bg-zinc-800 border-zinc-700'
-                }`}
-              >
-                <span class="text-base leading-none">⏱</span>
-                <span
-                  class={`font-mono text-2xl font-bold tabular-nums ${
-                    active().timer?.urgent ? 'text-red-400' : 'text-zinc-100'
+            {/* Timer pill */}
+            <Show when={!active().expired && active().timer}>
+              <div class="flex items-center">
+                <div
+                  class={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 border ${
+                    active().timer?.urgent
+                      ? 'bg-zinc-700 border-red-700'
+                      : 'bg-zinc-700 border-zinc-600'
                   }`}
                 >
-                  {active().timer?.display}
-                </span>
-                <span class="text-xs text-zinc-500">verbleib.</span>
+                  <span class="text-base leading-none">⏱</span>
+                  <span
+                    class={`font-mono text-2xl font-bold tabular-nums ${
+                      active().timer?.urgent ? 'text-red-400' : 'text-zinc-100'
+                    }`}
+                  >
+                    {active().timer?.display}
+                  </span>
+                  <span class="text-xs text-zinc-400">verbleib.</span>
+                </div>
               </div>
-            </div>
-          </Show>
+            </Show>
+          </div>
 
           {/* Bottom row: nav + done */}
-          <div class="flex items-center justify-between mt-5 pt-4 border-t border-zinc-800">
+          <div class="flex items-center justify-between mt-5 pt-4 border-t border-zinc-600">
             {/* Prev / Next strang navigation */}
             <div class="flex items-center gap-2">
               <button
                 onClick={prev}
-                class="w-10 h-10 flex items-center justify-center rounded-full border border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 transition-colors text-lg"
+                class="w-10 h-10 flex items-center justify-center rounded-full border border-zinc-600 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 transition-colors text-lg"
                 aria-label="Vorheriger Strang"
               >
                 ‹
               </button>
               <button
                 onClick={next}
-                class="w-10 h-10 flex items-center justify-center rounded-full border border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 transition-colors text-lg"
+                class="w-10 h-10 flex items-center justify-center rounded-full border border-zinc-600 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 transition-colors text-lg"
                 aria-label="Nächster Strang"
               >
                 ›
@@ -309,19 +311,19 @@ export function CookMock() {
           {/* ── Toast (expired demo) — left column ─────────────────────── */}
           <Show when={demo() === 'expired'}>
             <div class="shrink-0 px-4 pb-1">
-              <div class="bg-zinc-800 border border-zinc-700 rounded-full px-4 py-2 text-xs text-zinc-100 text-center">
+              <div class="bg-zinc-700 border border-zinc-600 rounded-full px-4 py-2 text-xs text-zinc-100 text-center">
                 🔔 Timer abgelaufen: Lasagne
               </div>
             </div>
           </Show>
 
           {/* ── Voice bar — mobile only ─────────────────────────────────── */}
-          <div class="md:hidden shrink-0 border-t border-zinc-800 bg-zinc-950 px-4 py-3">
+          <div class="md:hidden shrink-0 border-t border-zinc-600 bg-zinc-950 px-4 py-3">
             {/* Transcript strip */}
-            <div class="mb-3 min-h-[36px] flex items-center px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl">
+            <div class="mb-3 min-h-[36px] flex items-center px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-xl">
               <Show
                 when={listening()}
-                fallback={<p class="text-xs italic text-zinc-600">Sprechen, um mit dem Agenten zu interagieren …</p>}
+                fallback={<p class="text-xs italic text-zinc-500">Sprechen, um mit dem Agenten zu interagieren …</p>}
               >
                 <p class="text-xs italic text-zinc-400">„ok ich hab die lasagne in den ofen getan"</p>
               </Show>
@@ -337,7 +339,7 @@ export function CookMock() {
                   class={`relative w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all ${
                     listening()
                       ? 'bg-zinc-100 text-zinc-900 ring-2 ring-zinc-300'
-                      : 'bg-zinc-800 border border-zinc-600 text-zinc-300 hover:bg-zinc-700'
+                      : 'bg-zinc-700 border border-zinc-600 text-zinc-300 hover:bg-zinc-600'
                   }`}
                   onClick={() => setDemo(listening() ? 'normal' : 'listening')}
                   aria-label="Mikrofon umschalten"
@@ -349,7 +351,7 @@ export function CookMock() {
                 <span class="text-sm text-zinc-300">
                   {listening() ? 'Höre zu …' : 'Mikrofon einschalten'}
                 </span>
-                <span class="text-xs text-zinc-600">
+                <span class="text-xs text-zinc-500">
                   {listening() ? 'Tippen zum Beenden' : 'Tippen zum Starten'}
                 </span>
               </div>
@@ -359,23 +361,23 @@ export function CookMock() {
         </div>{/* end left column */}
 
         {/* ── Right panel — desktop only ─────────────────────────────────── */}
-        <div class="hidden md:flex flex-col bg-zinc-900 border-l border-zinc-800 overflow-hidden">
+        <div class="hidden md:flex flex-col bg-zinc-700 border-l border-zinc-600 overflow-hidden">
           {/* Header */}
-          <div class="shrink-0 px-4 py-3 border-b border-zinc-800">
+          <div class="shrink-0 px-4 py-3 border-b border-zinc-600">
             <span class="text-sm font-semibold text-zinc-300">Gespräch</span>
           </div>
 
           {/* Transcript history */}
           <div class="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
-            <div class="text-xs text-zinc-500 text-right">ok ich hab die lasagne in den ofen getan</div>
+            <div class="text-xs text-zinc-400 text-right">ok ich hab die lasagne in den ofen getan</div>
             <div class="text-xs text-zinc-400">Agent: Timer auf 45 Minuten gestellt.</div>
-            <div class="text-xs text-zinc-500 text-right">wieviel wasser für den reis</div>
+            <div class="text-xs text-zinc-400 text-right">wieviel wasser für den reis</div>
             <div class="text-xs text-zinc-400">Agent: 400 ml Wasser für 300 g Basmatireis.</div>
-            <div class="text-xs text-zinc-500 text-right">ok danke</div>
+            <div class="text-xs text-zinc-400 text-right">ok danke</div>
           </div>
 
           {/* Mic toggle */}
-          <div class="shrink-0 border-t border-zinc-800 px-4 py-4 flex items-center gap-3">
+          <div class="shrink-0 border-t border-zinc-600 px-4 py-4 flex items-center gap-3">
             <div class="relative shrink-0">
               <Show when={listening()}>
                 <div class="absolute inset-0 rounded-full animate-ping bg-zinc-400 opacity-20" />
@@ -384,7 +386,7 @@ export function CookMock() {
                 class={`relative w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all ${
                   listening()
                     ? 'bg-zinc-100 text-zinc-900 ring-2 ring-zinc-300'
-                    : 'bg-zinc-800 border border-zinc-600 text-zinc-300 hover:bg-zinc-700'
+                    : 'bg-zinc-700 border border-zinc-600 text-zinc-300 hover:bg-zinc-600'
                 }`}
                 onClick={() => setDemo(listening() ? 'normal' : 'listening')}
                 aria-label="Mikrofon umschalten"
@@ -396,7 +398,7 @@ export function CookMock() {
               <span class="text-sm text-zinc-300">
                 {listening() ? 'Höre zu …' : 'Mikrofon einschalten'}
               </span>
-              <span class="text-xs text-zinc-600">
+              <span class="text-xs text-zinc-500">
                 {listening() ? 'Tippen zum Beenden' : 'Tippen zum Starten'}
               </span>
             </div>
@@ -412,10 +414,10 @@ export function CookMock() {
           onClick={(e) => e.target === e.currentTarget && setDemo('normal')}
         >
           <div class="bg-zinc-950 rounded-t-2xl max-h-[80vh] overflow-y-auto">
-            <div class="flex items-center justify-between px-5 py-4 border-b border-zinc-800 sticky top-0 bg-zinc-950">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-zinc-600 sticky top-0 bg-zinc-950">
               <h2 class="text-base font-semibold">Zutaten</h2>
               <button
-                class="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:text-zinc-100"
+                class="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-700 text-zinc-400 hover:text-zinc-100"
                 onClick={() => setDemo('normal')}
               >
                 ✕
@@ -425,12 +427,12 @@ export function CookMock() {
               <For each={ZUTATEN}>
                 {(item) => (
                   <button
-                    class="flex items-center gap-3 py-3 px-1 border-b border-zinc-800 last:border-0 w-full text-left"
+                    class="flex items-center gap-3 py-3 px-1 border-b border-zinc-600 last:border-0 w-full text-left"
                     onClick={() => toggleChecked(item.id)}
                   >
                     <div
                       class={`w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                        checked().has(item.id) ? 'border-zinc-400 bg-zinc-700' : 'border-zinc-600 bg-zinc-900'
+                        checked().has(item.id) ? 'border-zinc-400 bg-zinc-700' : 'border-zinc-600 bg-zinc-700'
                       }`}
                     >
                       <Show when={checked().has(item.id)}>
@@ -439,12 +441,12 @@ export function CookMock() {
                     </div>
                     <span
                       class={`flex-1 text-sm ${
-                        checked().has(item.id) ? 'text-zinc-500 line-through' : 'text-zinc-100'
+                        checked().has(item.id) ? 'text-zinc-400 line-through' : 'text-zinc-100'
                       }`}
                     >
                       {item.name}
                     </span>
-                    <span class="text-xs text-zinc-500 shrink-0">{item.amount}</span>
+                    <span class="text-xs text-zinc-400 shrink-0">{item.amount}</span>
                   </button>
                 )}
               </For>

@@ -11,7 +11,7 @@ import {
 import { isSttModelCached, downloadSttModel, deleteSttModel } from '../lib/stt'
 
 const inputCls =
-  'bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-zinc-500 placeholder:text-zinc-600 w-full transition-colors hover:border-zinc-500'
+  'bg-zinc-700 border border-zinc-600 rounded-lg px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-zinc-500 placeholder:text-zinc-500 w-full transition-colors hover:border-zinc-500'
 
 const selectCls = `${inputCls} cursor-pointer`
 
@@ -64,12 +64,12 @@ function ModelPicker(props: ModelPickerProps) {
   return (
     <div class="space-y-1.5">
       <div class="flex items-center justify-between">
-        <span class="text-xs text-zinc-500">Modell</span>
+        <span class="text-xs text-zinc-400">Modell</span>
         <button
           class={`text-xs px-2 py-0.5 rounded border transition-colors ${
             canFetch()
               ? 'border-zinc-600 text-zinc-400 hover:border-zinc-400 hover:text-zinc-200'
-              : 'border-zinc-800 text-zinc-700 cursor-not-allowed'
+              : 'border-zinc-600 text-zinc-700 cursor-not-allowed'
           }`}
           disabled={!canFetch() || loading()}
           onClick={fetchModels}
@@ -124,7 +124,7 @@ function AgentRow(props: AgentRowProps) {
   return (
     <div
       class={`rounded-xl border transition-colors ${
-        props.expanded ? 'border-zinc-500 bg-zinc-900' : 'border-zinc-700 bg-zinc-900'
+        props.expanded ? 'border-zinc-500 bg-zinc-700' : 'border-zinc-600 bg-zinc-700'
       }`}
     >
       {/* Row header — always visible */}
@@ -135,7 +135,7 @@ function AgentRow(props: AgentRowProps) {
         <div class="min-w-0 flex-1">
           <div class="text-sm text-zinc-100 truncate">{props.name || 'Neuer Agent'}</div>
           <Show when={!props.expanded}>
-            <div class="text-xs text-zinc-500 truncate mt-0.5">
+            <div class="text-xs text-zinc-400 truncate mt-0.5">
               {props.model || '—'} · {props.endpoint || '—'}
             </div>
           </Show>
@@ -145,7 +145,7 @@ function AgentRow(props: AgentRowProps) {
         </Show>
         <Show when={!props.isDefault}>
           <button
-            class="w-11 h-11 flex items-center justify-center rounded-full text-zinc-600 hover:text-red-400 hover:bg-red-500/10 shrink-0 transition-colors"
+            class="w-11 h-11 flex items-center justify-center rounded-full text-zinc-500 hover:text-red-400 hover:bg-red-500/10 shrink-0 transition-colors"
             onClick={(e) => { e.stopPropagation(); props.onDelete() }}
             aria-label="Agent löschen"
           >
@@ -167,7 +167,7 @@ function AgentRow(props: AgentRowProps) {
           </button>
         </Show>
         <span
-          class={`flex h-11 w-11 shrink-0 items-center justify-center text-sm text-zinc-500 transition-transform duration-200 ${
+          class={`flex h-11 w-11 shrink-0 items-center justify-center text-sm text-zinc-400 transition-transform duration-200 ${
             props.expanded ? 'rotate-180' : ''
           }`}
         >
@@ -177,9 +177,9 @@ function AgentRow(props: AgentRowProps) {
 
       {/* Expanded form */}
       <Show when={props.expanded}>
-        <div class="px-3 pb-4 space-y-3 border-t border-zinc-800 pt-3">
+        <div class="px-3 pb-4 space-y-3 border-t border-zinc-600 pt-3">
           <label class="block space-y-1.5">
-            <span class="text-xs text-zinc-500">Name</span>
+            <span class="text-xs text-zinc-400">Name</span>
             <input
               class={inputCls}
               placeholder="Ollama lokal"
@@ -188,7 +188,7 @@ function AgentRow(props: AgentRowProps) {
             />
           </label>
           <label class="block space-y-1.5">
-            <span class="text-xs text-zinc-500">Endpoint (Base-URL)</span>
+            <span class="text-xs text-zinc-400">Endpoint (Base-URL)</span>
             <input
               class={inputCls}
               type="url"
@@ -198,7 +198,7 @@ function AgentRow(props: AgentRowProps) {
             />
           </label>
           <label class="block space-y-1.5">
-            <span class="text-xs text-zinc-500">API-Key (optional)</span>
+            <span class="text-xs text-zinc-400">API-Key (optional)</span>
             <input
               class={inputCls}
               type="password"
@@ -301,11 +301,11 @@ export function ConfigModal(props: ConfigModalProps) {
         onTouchEnd={onTouchEnd}
       >
         {/* Header */}
-        <div class="flex items-center justify-between px-5 py-4 border-b border-zinc-800 sticky top-0 bg-zinc-950 z-10">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-zinc-600 sticky top-0 bg-zinc-950 z-10">
           <h1 class="text-base font-semibold text-zinc-100">Konfiguration</h1>
           <Show when={props.dismissible}>
             <button
-              class="w-11 h-11 flex items-center justify-center rounded-full text-zinc-500 hover:text-zinc-100 hover:bg-zinc-800 text-xl transition-colors"
+              class="w-11 h-11 flex items-center justify-center rounded-full text-zinc-400 hover:text-zinc-100 hover:bg-zinc-600 text-xl transition-colors"
               onClick={props.onClose}
               aria-label="Schließen"
             >
@@ -317,7 +317,7 @@ export function ConfigModal(props: ConfigModalProps) {
         <div class="px-5 py-5 space-y-8">
           {/* Agents */}
           <section class="space-y-2">
-            <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Agenten</h2>
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Agenten</h2>
             <For each={state.agents}>
               {(a) => (
                 <AgentRow
@@ -335,7 +335,7 @@ export function ConfigModal(props: ConfigModalProps) {
               )}
             </For>
             <button
-              class="w-full rounded-xl border border-dashed border-zinc-700 px-3 py-3 text-sm text-zinc-500 hover:border-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 active:bg-zinc-800 transition-colors"
+              class="w-full rounded-xl border border-dashed border-zinc-600 px-3 py-3 text-sm text-zinc-400 hover:border-zinc-400 hover:text-zinc-200 hover:bg-zinc-600 active:bg-zinc-700 transition-colors"
               onClick={handleAddAgent}
             >
               + Neuer Agent
@@ -344,7 +344,7 @@ export function ConfigModal(props: ConfigModalProps) {
 
           {/* Persönlich */}
           <section class="space-y-4">
-            <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Persönlich</h2>
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Persönlich</h2>
             <label class="block space-y-1.5">
               <span class="text-sm text-zinc-400">Wie heißt du?</span>
               <input
@@ -358,11 +358,11 @@ export function ConfigModal(props: ConfigModalProps) {
 
           {/* Speicher */}
           <section class="space-y-4">
-            <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Speicher</h2>
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Speicher</h2>
             <div class="flex items-center gap-3">
               <p class="min-w-0 flex-1 text-sm text-zinc-400">
                 STT-Modell (Whisper small, ~250 MB)
-                <span class="block text-xs text-zinc-600">
+                <span class="block text-xs text-zinc-500">
                   {sttBusy()
                     ? 'Bitte warten …'
                     : sttCached() === null
@@ -373,7 +373,7 @@ export function ConfigModal(props: ConfigModalProps) {
                 </span>
               </p>
               <button
-                class="h-11 shrink-0 rounded-lg border border-zinc-700 px-4 text-sm text-zinc-300 hover:border-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors disabled:opacity-40"
+                class="h-11 shrink-0 rounded-lg border border-zinc-600 px-4 text-sm text-zinc-300 hover:border-zinc-400 hover:text-zinc-100 hover:bg-zinc-600 transition-colors disabled:opacity-40"
                 disabled={sttBusy() || sttCached() === null}
                 onClick={handleSttCache}
               >
@@ -388,14 +388,14 @@ export function ConfigModal(props: ConfigModalProps) {
           {/* Erweitert */}
           <section class="space-y-4">
             <button
-              class="group flex w-full items-center justify-between rounded-lg py-2 transition-colors hover:bg-zinc-800/60"
+              class="group flex w-full items-center justify-between rounded-lg py-2 transition-colors hover:bg-zinc-600/60"
               onClick={() => setAdvancedOpen((o) => !o)}
             >
-              <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-500 group-hover:text-zinc-300 transition-colors">
+              <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400 group-hover:text-zinc-300 transition-colors">
                 Erweitert
               </h2>
               <span
-                class={`flex h-8 w-8 items-center justify-center text-sm text-zinc-600 group-hover:text-zinc-300 transition-transform duration-200 ${
+                class={`flex h-8 w-8 items-center justify-center text-sm text-zinc-500 group-hover:text-zinc-300 transition-transform duration-200 ${
                   advancedOpen() ? 'rotate-180' : ''
                 }`}
               >
@@ -441,7 +441,7 @@ export function ConfigModal(props: ConfigModalProps) {
                     </label>
                   </Show>
                 <Show when={state.stt.mode === 'wasm'}>
-                  <p class="text-xs text-zinc-600">
+                  <p class="text-xs text-zinc-500">
                     Whisper small läuft direkt im Browser (WebGPU, sonst WASM). Modell wird beim
                     ersten Start geladen und gecacht.
                   </p>
@@ -450,7 +450,7 @@ export function ConfigModal(props: ConfigModalProps) {
             </Show>
           </section>
 
-          <p class="text-xs text-zinc-600 pb-2">Alles lokal gespeichert · Kein Backend</p>
+          <p class="text-xs text-zinc-500 pb-2">Alles lokal gespeichert · Kein Backend</p>
         </div>
       </div>
     </div>
