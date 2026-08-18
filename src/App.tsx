@@ -2,6 +2,7 @@ import { createSignal, createMemo, onMount } from 'solid-js'
 import { Router, Route } from '@solidjs/router'
 import { Agent } from './pages/Agent'
 import { ConfigModal } from './pages/Config'
+import { CookMock } from './pages/CookMock'
 import { state } from './state/store'
 
 const base =
@@ -16,7 +17,8 @@ export default function App() {
   const [configOpen, setConfigOpen] = createSignal(false)
 
   onMount(() => {
-    if (!hasValidAgent()) setConfigOpen(true)
+    const isMock = window.location.pathname.endsWith('/mock')
+    if (!hasValidAgent() && !isMock) setConfigOpen(true)
   })
 
   const dismissible = createMemo(() => hasValidAgent())
@@ -24,6 +26,7 @@ export default function App() {
   return (
     <div class="min-h-screen bg-zinc-950 text-zinc-100">
       <Router base={base}>
+        <Route path="/mock" component={CookMock} />
         <Route
           path="*"
           component={() => (
