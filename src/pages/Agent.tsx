@@ -121,7 +121,7 @@ export function Agent(props: AgentProps) {
       </div>
 
       <button
-        class="absolute top-3 right-3 z-10 rounded-full border border-zinc-700 w-11 h-11 flex items-center justify-center text-zinc-400 hover:border-zinc-500 hover:text-zinc-100 hover:bg-zinc-900 transition-colors md:hidden"
+        class="absolute top-3 right-3 z-10 rounded-full border border-zinc-700 w-11 h-11 flex items-center justify-center text-zinc-400 hover:border-zinc-500 hover:text-zinc-100 hover:bg-zinc-800 transition-colors md:hidden"
         onClick={() => props.setConfigOpen(true)}
         title="Konfiguration"
       >
@@ -139,7 +139,7 @@ export function Agent(props: AgentProps) {
           Verlauf löschen
         </button>
         <button
-          class="rounded-full border border-zinc-700 w-11 h-11 flex items-center justify-center text-zinc-400 hover:border-zinc-500 hover:text-zinc-100 hover:bg-zinc-900 transition-colors"
+          class="rounded-full border border-zinc-700 w-11 h-11 flex items-center justify-center text-zinc-400 hover:border-zinc-500 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
           onClick={() => props.setConfigOpen(true)}
           title="Konfiguration"
         >
@@ -185,7 +185,7 @@ export function Agent(props: AgentProps) {
           class={`h-11 w-11 shrink-0 rounded-full border text-base transition-colors ${
             listening()
               ? 'border-red-500 bg-red-500/20 text-red-400 animate-pulse ring-2 ring-red-500/40'
-              : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 hover:bg-zinc-900 active:scale-95'
+              : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 active:scale-95'
           }`}
         >
           {listening() ? '■' : '🎤'}

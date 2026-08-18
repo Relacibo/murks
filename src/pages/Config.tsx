@@ -335,7 +335,7 @@ export function ConfigModal(props: ConfigModalProps) {
               )}
             </For>
             <button
-              class="w-full rounded-xl border border-dashed border-zinc-700 px-3 py-3 text-sm text-zinc-500 hover:border-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 active:bg-zinc-800 transition-colors"
+              class="w-full rounded-xl border border-dashed border-zinc-700 px-3 py-3 text-sm text-zinc-500 hover:border-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 active:bg-zinc-800 transition-colors"
               onClick={handleAddAgent}
             >
               + Neuer Agent
@@ -373,7 +373,7 @@ export function ConfigModal(props: ConfigModalProps) {
                 </span>
               </p>
               <button
-                class="h-11 shrink-0 rounded-lg border border-zinc-700 px-4 text-sm text-zinc-300 hover:border-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition-colors disabled:opacity-40"
+                class="h-11 shrink-0 rounded-lg border border-zinc-700 px-4 text-sm text-zinc-300 hover:border-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors disabled:opacity-40"
                 disabled={sttBusy() || sttCached() === null}
                 onClick={handleSttCache}
               >
