@@ -231,7 +231,7 @@ export function ConfigModal(props: ConfigModalProps) {
 
   return (
     <div
-      class={`fixed inset-0 z-50 flex flex-col justify-end transition-all duration-300 ${
+      class={`fixed inset-0 z-50 flex flex-col justify-end md:items-center md:justify-center transition-all duration-300 ${
         props.open
           ? 'bg-zinc-950/80 backdrop-blur-sm pointer-events-auto'
           : 'bg-transparent pointer-events-none'
@@ -240,9 +240,13 @@ export function ConfigModal(props: ConfigModalProps) {
         if (e.target === e.currentTarget && props.dismissible) props.onClose()
       }}
     >
+      {/* Mobile: slide up from bottom. Desktop: scale in centered dialog */}
       <div
-        class={`bg-zinc-950 rounded-t-2xl max-h-[90vh] overflow-y-auto transition-transform duration-300 ease-out ${
-          props.open ? 'translate-y-0' : 'translate-y-full'
+        class={`bg-zinc-950 w-full max-h-[90vh] overflow-y-auto transition-all duration-300 ease-out
+          rounded-t-2xl md:rounded-2xl md:max-w-lg md:max-h-[85vh] md:shadow-2xl ${
+          props.open
+            ? 'translate-y-0 md:translate-y-0 md:scale-100 md:opacity-100'
+            : 'translate-y-full md:translate-y-0 md:scale-95 md:opacity-0'
         }`}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}

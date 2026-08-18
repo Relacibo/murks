@@ -104,7 +104,8 @@ export function addAgent(): string {
 }
 
 export function updateAgent(id: string, patch: Partial<AgentProfile>) {
-  setState('agents', (a) => a.map((x) => (x.id === id ? { ...x, ...patch } : x)))
+  const idx = state.agents.findIndex((a) => a.id === id)
+  if (idx !== -1) setState('agents', idx, patch)
 }
 
 export function removeAgent(id: string) {
