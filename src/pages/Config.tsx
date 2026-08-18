@@ -43,18 +43,23 @@ export function ConfigModal(props: ConfigModalProps) {
   }
 
   return (
-    <Show when={props.open}>
+    <div
+      class={`fixed inset-0 z-50 flex flex-col justify-end transition-all duration-300 ${
+        props.open
+          ? 'bg-zinc-950/80 backdrop-blur-sm pointer-events-auto'
+          : 'bg-transparent pointer-events-none'
+      }`}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && props.dismissible) props.onClose()
+      }}
+    >
       <div
-        class="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex flex-col justify-end"
-        onClick={(e) => {
-          if (e.target === e.currentTarget && props.dismissible) props.onClose()
-        }}
+        class={`bg-zinc-950 rounded-t-2xl max-h-[90vh] overflow-y-auto transition-transform duration-300 ease-out ${
+          props.open ? 'translate-y-0' : 'translate-y-full'
+        }`}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
       >
-        <div
-          class="bg-zinc-950 rounded-t-2xl max-h-[90vh] overflow-y-auto"
-          onTouchStart={onTouchStart}
-          onTouchEnd={onTouchEnd}
-        >
           {/* Header */}
           <div class="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
             <h1 class="text-base font-semibold text-zinc-100">Konfiguration</h1>
@@ -187,6 +192,5 @@ export function ConfigModal(props: ConfigModalProps) {
           </div>
         </div>
       </div>
-    </Show>
   )
 }

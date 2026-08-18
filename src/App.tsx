@@ -1,4 +1,5 @@
-import { createSignal, createMemo, onMount } from 'solid-js'
+import { createSignal, createMemo, onMount, createContext, useContext } from 'solid-js'
+import type { Accessor, Setter } from 'solid-js'
 import { Router, Route } from '@solidjs/router'
 import { Agent } from './pages/Agent'
 import { ConfigModal } from './pages/Config'
@@ -13,6 +14,25 @@ function hasValidAgent() {
   return Boolean(agent?.endpoint && agent?.model)
 }
 
+interface ConfigCtx {
+  configOpen: Accessor<boolean>
+  setConfigOpen: Setter<boolean>
+}
+
+export const ConfigContext = createContext<ConfigCtx>({
+  configOpen: () => false,
+  setConfigOpen: () => {},
+})
+
+export function useConfig() {
+  return useContext(ConfigContext)
+}
+
+function AgentPage() {
+  const ctx = useConfig()
+  return <Agent configOpen={ctx.configOpen} setConfigOpen={ctx.setConfigOpen} />
+}
+
 export default function App() {
   const [configOpen, setConfigOpen] = createSignal(false)
 
@@ -24,23 +44,20 @@ export default function App() {
   const dismissible = createMemo(() => hasValidAgent())
 
   return (
-    <div class="min-h-screen bg-zinc-950 text-zinc-100">
-      <Router base={base}>
-        <Route path="/mock" component={CookMock} />
-        <Route
-          path="*"
-          component={() => (
-            <Agent configOpen={configOpen} setConfigOpen={setConfigOpen} />
-          )}
+    <ConfigContext.Provider value={{ configOpen, setConfigOpen }}>
+      <div class="min-h-screen bg-zinc-950 text-zinc-100">
+        <Router base={base}>
+          <Route path="/mock" component={CookMock} />
+          <Route path="*" component={AgentPage} />
+        </Router>
+        <ConfigModal
+          open={configOpen()}
+          onClose={() => {
+            if (dismissible()) setConfigOpen(false)
+          }}
+          dismissible={dismissible()}
         />
-      </Router>
-      <ConfigModal
-        open={configOpen()}
-        onClose={() => {
-          if (dismissible()) setConfigOpen(false)
-        }}
-        dismissible={dismissible()}
-      />
-    </div>
+      </div>
+    </ConfigContext.Provider>
   )
 }
