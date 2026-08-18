@@ -35,4 +35,4 @@ GitHub Actions baut bei Push auf `main` und deployed nach GitHub Pages.
 
 ## Lizenz
 
-MIT — Reinhard Bronner
+AGPL-3.0-or-later — Reinhard Bronner

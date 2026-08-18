@@ -1,5 +1,6 @@
-import { For, Show, createMemo, createSignal, type Accessor, type Setter } from 'solid-js'
-import { state, sendMessage, clearMessages } from '../state/store'
+import { For, Show, createMemo, createSignal, onCleanup, type Accessor, type Setter } from 'solid-js'
+import { state, sendMessage, clearMessages, pushAgentMessage } from '../state/store'
+import { transcribeAudio, createWebSpeechRecognition } from '../lib/stt'
 
 interface AgentProps {
   configOpen: Accessor<boolean>
@@ -8,9 +9,82 @@ interface AgentProps {
 
 export function Agent(props: AgentProps) {
   const [input, setInput] = createSignal('')
+  const [listening, setListening] = createSignal(false)
 
   const agent = createMemo(() => state.agents.find((a) => a.id === state.defaultAgentId))
   const ready = createMemo(() => Boolean(agent()?.endpoint && agent()?.model))
+
+  let recorder: MediaRecorder | null = null
+  let chunks: Blob[] = []
+  let stream: MediaStream | null = null
+  let recognition: ReturnType<typeof createWebSpeechRecognition> = null
+
+  onCleanup(() => {
+    recorder?.stop()
+    stream?.getTracks().forEach((t) => t.stop())
+    recognition?.stop()
+  })
+
+  function pushError(message: string) {
+    pushAgentMessage('agent', `STT-Fehler: ${message}`)
+  }
+
+  function toggleMic() {
+    if (listening()) {
+      stopListening()
+      return
+    }
+    startListening()
+  }
+
+  async function startListening() {
+    if (state.stt.mode === 'webspeech') {
+      recognition = createWebSpeechRecognition(
+        (transcript) => setInput(transcript),
+        pushError,
+        () => {
+          recognition = null
+          setListening(false)
+        },
+      )
+      if (recognition) {
+        recognition.start()
+        setListening(true)
+      }
+      return
+    }
+
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      recorder = new MediaRecorder(stream)
+      chunks = []
+      recorder.ondataavailable = (e) => chunks.push(e.data)
+      recorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: recorder?.mimeType || 'audio/webm' })
+        try {
+          const text = await transcribeAudio(blob)
+          setInput(text)
+        } catch (e) {
+          pushError(e instanceof Error ? e.message : String(e))
+        } finally {
+          setListening(false)
+        }
+      }
+      recorder.start()
+      setListening(true)
+    } catch (e) {
+      pushError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  function stopListening() {
+    if (recorder && recorder.state !== 'inactive') recorder.stop()
+    stream?.getTracks().forEach((t) => t.stop())
+    stream = null
+    recognition?.stop()
+    recognition = null
+    setListening(false)
+  }
 
   let touchStartY = 0
   function onTouchStart(e: TouchEvent) {
@@ -77,7 +151,24 @@ export function Agent(props: AgentProps) {
         </For>
       </div>
 
-      <form onSubmit={submit} class="flex gap-2 border-t border-zinc-800 pt-3">
+      <form onSubmit={submit} class="flex items-center gap-2 border-t border-zinc-800 pt-3">
+        <button
+          type="button"
+          onClick={toggleMic}
+          disabled={state.agent.busy}
+          title={
+            listening()
+              ? 'Aufnahme stoppen'
+              : `Aufnahme starten (${state.stt.mode === 'wasm' ? 'lokal' : state.stt.mode})`
+          }
+          class={`h-11 w-11 shrink-0 rounded-full border text-base ${
+            listening()
+              ? 'border-red-500 bg-red-500/20 text-red-400 animate-pulse ring-2 ring-red-500/40'
+              : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
+          }`}
+        >
+          {listening() ? '■' : '🎤'}
+        </button>
         <input
           class="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-zinc-500 placeholder:text-zinc-600 w-full"
           placeholder="Nachricht an den Agenten …"

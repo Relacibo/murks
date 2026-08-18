@@ -2,6 +2,7 @@ import { For, Show, createMemo, createSignal } from 'solid-js'
 import {
   state,
   setConfig,
+  setStt,
   addAgent,
   updateAgent,
   removeAgent,
@@ -171,6 +172,45 @@ export function ConfigModal(props: ConfigModalProps) {
                 </section>
               )}
             </Show>
+
+            {/* Spracherkennung */}
+            <section class="space-y-4">
+              <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                Spracherkennung (STT)
+              </h2>
+              <label class="block space-y-1.5">
+                <span class="text-sm text-zinc-400">Modus</span>
+                <select
+                  class={inputCls}
+                  value={state.stt.mode}
+                  onChange={(e) =>
+                    setStt({ mode: e.currentTarget.value as 'wasm' | 'server' | 'webspeech' })
+                  }
+                >
+                  <option value="wasm">Lokal (Whisper small, ~250 MB Download, offline)</option>
+                  <option value="server">Server (OpenAI-kompatibel)</option>
+                  <option value="webspeech">Browser-Spracherkennung (online)</option>
+                </select>
+              </label>
+              <Show when={state.stt.mode === 'server'}>
+                <label class="block space-y-1.5">
+                  <span class="text-sm text-zinc-400">STT-Endpoint (Base-URL)</span>
+                  <input
+                    class={inputCls}
+                    type="url"
+                    placeholder="http://localhost:8000/v1"
+                    value={state.stt.endpoint}
+                    onInput={(e) => setStt({ endpoint: e.currentTarget.value })}
+                  />
+                </label>
+              </Show>
+              <Show when={state.stt.mode === 'wasm'}>
+                <p class="text-xs text-zinc-600">
+                  Whisper small läuft direkt im Browser (WebGPU, sonst WASM). Modell wird beim
+                  ersten Start geladen und gecacht.
+                </p>
+              </Show>
+            </section>
 
             {/* Personal */}
             <section class="space-y-4">

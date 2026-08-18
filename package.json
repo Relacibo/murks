@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "license": "MIT",
+  "license": "AGPL-3.0-or-later",
   "author": "Reinhard Bronner",
   "scripts": {
     "dev": "vite",
@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
     "@solidjs/router": "^1.0.0",
     "solid-js": "^1.9.15"
   },

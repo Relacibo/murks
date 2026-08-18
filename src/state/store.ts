@@ -13,6 +13,13 @@ export interface Config {
   displayName: string
 }
 
+export type SttMode = 'wasm' | 'server' | 'webspeech'
+
+export interface SttConfig {
+  mode: SttMode
+  endpoint: string
+}
+
 export interface AgentMessage {
   role: 'user' | 'agent'
   text: string
@@ -20,6 +27,7 @@ export interface AgentMessage {
 
 export interface AppState {
   config: Config
+  stt: SttConfig
   agents: AgentProfile[]
   defaultAgentId: string | null
   agent: {
@@ -33,6 +41,10 @@ const STORAGE_KEY = 'murks:state:v2'
 const defaults: AppState = {
   config: {
     displayName: '',
+  },
+  stt: {
+    mode: 'wasm',
+    endpoint: '',
   },
   agents: [],
   defaultAgentId: null,
@@ -50,6 +62,10 @@ function load(): AppState {
     const loadedConfig = data.config ?? {}
     return {
       config: { displayName: loadedConfig.displayName ?? '' },
+      stt: {
+        mode: data.stt?.mode === 'server' || data.stt?.mode === 'webspeech' ? data.stt.mode : 'wasm',
+        endpoint: data.stt?.endpoint ?? '',
+      },
       agents: Array.isArray(data.agents) ? data.agents : [],
       defaultAgentId: data.defaultAgentId ?? null,
       agent: {
@@ -70,6 +86,10 @@ createEffect(() => {
 
 export function setConfig(patch: Partial<Config>) {
   setState('config', patch)
+}
+
+export function setStt(patch: Partial<SttConfig>) {
+  setState('stt', patch)
 }
 
 export function defaultAgent(): AgentProfile | undefined {
@@ -98,6 +118,10 @@ export function setDefaultAgent(id: string | null) {
 
 export function clearMessages() {
   setState('agent', 'messages', [])
+}
+
+export function pushAgentMessage(role: AgentMessage['role'], text: string) {
+  setState('agent', 'messages', (m) => [...m, msg(role, text)])
 }
 
 function msg(role: AgentMessage['role'], text: string): AgentMessage {

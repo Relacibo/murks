@@ -13,7 +13,7 @@ Während der Findungsphase wurden verschiedene Alternativen diskutiert und verwo
 * **K.O.T.Z. (Küchen-Optimierte-Tool-Zusammenstellung):** Zunächst als humorvolles Akronym erdacht, aber letztlich verworfen. Der Hauptgrund war schlicht, dass sich kein wirklich eleganter, flüssiger Aufbau für das letzte Wort (wie "Zusammenstellung") finden ließ – es wirkte zu sperrig und erzwungen.
 
 ## Plattform
-MURKS ist eine **PWA** (installierbar, offlinefähig), gebaut mit **Vite + SolidJS + TypeScript + Tailwind**. Bewusst ohne UI-Komponentenbibliothek: keine klassische Website, sondern eine app-artige Oberfläche. Lizenz: MIT (Reinhard Bronner). Gehostet auf GitHub Pages, Deployment per GitHub Actions bei Push auf `main`.
+MURKS ist eine **PWA** (installierbar, offlinefähig), gebaut mit **Vite + SolidJS + TypeScript + Tailwind**. Bewusst ohne UI-Komponentenbibliothek: keine klassische Website, sondern eine app-artige Oberfläche. Lizenz: AGPL-3.0-or-later (Reinhard Bronner). Gehostet auf GitHub Pages, Deployment per GitHub Actions bei Push auf `main`.
 
 ## Architektur-Entscheidungen
 * **State:** `createStore` (Solid) mit automatischer Persistenz in `localStorage`. Kein Backend, keine Cloud – alles lokal im Browser.
@@ -112,3 +112,18 @@ Identisch zum restlichen App-Design (zinc-Palette, mobile-first). Spezifisch fü
 ### Mockup
 Ein statisches Mockup liegt unter `/mock` (Route `/mock`, Datei `src/pages/CookMock.tsx`).
 Zeigt alle UI-States: Normal, Timer abgelaufen, Hört zu, Zutaten-Modal.
+
+---
+
+## Spracherkennung (STT)
+
+**Entscheidung:** Transkription als austauschbares Backend mit drei Modi (Config-Auswahl):
+1. **Lokal (WASM/WebGPU)** — Standard: `onnx-community/whisper-small` (multilingual, quantisiert q8, ~250 MB) via `@huggingface/transformers`. WebGPU wenn verfügbar, sonst WASM-CPU (automatisch). Modell wird beim ersten Start geladen und im Browser gecacht → danach komplett offline. Kein Server nötig.
+2. **Server** — OpenAI-kompatibles Endpoint (`POST {base}/audio/transcriptions`), z.B. faster-whisper im LAN.
+3. **Web Speech API** — Fallback, online, kein Setup.
+
+**Audio-Flow:** Mic-Toggle → MediaRecorder (WebM/Opus) → decode + Resample auf 16 kHz → Transkription → Ergebnis ins Eingabefeld (editierbar, kein Auto-Send — Spracherkennung ist fehleranfällig).
+
+**Agent-Modelle:** Ein LLM (mit Tools) für alles; STT ist als einziges ein separates Modell (andere Modalität). Unterschiedliche Aufgaben = unterschiedliche Kontexte (System-Prompt + eigener Verlauf), nicht unterschiedliche Modelle.
+
+**Bundle:** transformers.js wird per dynamischem Import code-splitted (lazy, ~500 KB Chunk + 23,6 MB ONNX-Runtime-WASM, geprecacht).
