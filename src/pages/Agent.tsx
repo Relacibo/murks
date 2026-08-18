@@ -103,12 +103,14 @@ export function Agent(props: AgentProps) {
   }
 
   return (
+    <div class="flex justify-center min-h-screen bg-zinc-950">
     <div
-      class="relative flex h-screen flex-col px-4 pb-4"
+      class="relative flex h-screen w-full max-w-3xl flex-col px-4 pb-4"
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
-      <div class="flex items-center justify-between pt-3 pr-14">
+      {/* Mobile header: agent name + clear button, with absolute ⚙ button */}
+      <div class="flex items-center justify-between pt-3 pr-14 md:hidden">
         <span class="text-sm text-zinc-400">{agent()?.name || '—'}</span>
         <button
           class="text-xs text-zinc-600 hover:text-zinc-400"
@@ -119,12 +121,30 @@ export function Agent(props: AgentProps) {
       </div>
 
       <button
-        class="absolute top-3 right-3 z-10 rounded-full border border-zinc-700 w-8 h-8 flex items-center justify-center text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
+        class="absolute top-3 right-3 z-10 rounded-full border border-zinc-700 w-8 h-8 flex items-center justify-center text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 md:hidden"
         onClick={() => props.setConfigOpen(true)}
         title="Konfiguration"
       >
         ⚙
       </button>
+
+      {/* Desktop header: full row with agent name, clear button, ⚙ button */}
+      <div class="hidden md:flex items-center justify-between pt-3 border-b border-zinc-800 pb-3">
+        <span class="text-sm text-zinc-400">{agent()?.name || '—'}</span>
+        <button
+          class="text-xs text-zinc-600 hover:text-zinc-400"
+          onClick={clearMessages}
+        >
+          Verlauf löschen
+        </button>
+        <button
+          class="rounded-full border border-zinc-700 w-8 h-8 flex items-center justify-center text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
+          onClick={() => props.setConfigOpen(true)}
+          title="Konfiguration"
+        >
+          ⚙
+        </button>
+      </div>
 
       <div class="flex-1 space-y-3 overflow-y-auto py-4">
         <Show when={!ready()}>
@@ -183,6 +203,7 @@ export function Agent(props: AgentProps) {
           Senden
         </button>
       </form>
+    </div>
     </div>
   )
 }

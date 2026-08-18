@@ -96,7 +96,7 @@ export function CookMock() {
   }
 
   return (
-    <div class="h-screen bg-zinc-950 text-zinc-100 flex flex-col max-w-[430px] mx-auto overflow-hidden">
+    <div class="h-screen bg-zinc-950 text-zinc-100 flex flex-col md:max-w-none max-w-[430px] mx-auto overflow-hidden">
 
       {/* ── Top bar ────────────────────────────────────────────────────── */}
       <header class="shrink-0 flex items-center justify-between px-4 py-3 border-b border-zinc-800">
@@ -140,7 +140,7 @@ export function CookMock() {
       </div>
 
       {/* ── Strang-Chips (sticky timer overview) ───────────────────────── */}
-      <div class="shrink-0 flex items-center gap-2 px-4 py-2.5 border-b border-zinc-800 overflow-x-auto">
+      <div class="shrink-0 flex items-center gap-2 px-4 py-2.5 border-b border-zinc-800 overflow-x-auto md:hidden">
         <For each={strangs()}>
           {(s, i) => (
             <button
@@ -171,8 +171,46 @@ export function CookMock() {
         </For>
       </div>
 
-      {/* ── Active strang card — full height, no scroll ─────────────────── */}
-      <main class="flex-1 flex flex-col px-4 py-4 min-h-0">
+      {/* ── Two-column layout on desktop, single column on mobile ──────── */}
+      <div class="flex-1 flex overflow-hidden md:grid md:grid-cols-[1fr_320px] min-h-0">
+
+        {/* ── Left column: chips (desktop) + strang card ─────────────── */}
+        <div class="flex-1 flex flex-col overflow-hidden min-h-0">
+
+          {/* Chip row — desktop only (mobile version is above) */}
+          <div class="hidden md:flex shrink-0 items-center gap-2 px-4 py-2.5 border-b border-zinc-800 overflow-x-auto">
+            <For each={strangs()}>
+              {(s, i) => (
+                <button
+                  onClick={() => setActiveIdx(i())}
+                  class={`shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 border text-xs transition-colors ${
+                    i() === activeIdx()
+                      ? 'border-zinc-300 bg-zinc-800 text-zinc-100'
+                      : s.expired
+                        ? 'border-orange-500 bg-zinc-900 text-orange-400'
+                        : s.timer?.urgent
+                          ? 'border-red-700 bg-zinc-900 text-red-400'
+                          : s.timer
+                            ? 'border-zinc-600 bg-zinc-900 text-zinc-300'
+                            : 'border-zinc-700 bg-zinc-900 text-zinc-500'
+                  }`}
+                >
+                  <span class="font-medium">{s.name}</span>
+                  <Show when={s.expired}>
+                    <span>🔔</span>
+                  </Show>
+                  <Show when={!s.expired && s.timer}>
+                    <span class={`font-mono font-semibold ${s.timer?.urgent ? 'text-red-400' : 'text-zinc-300'}`}>
+                      {s.timer?.display}
+                    </span>
+                  </Show>
+                </button>
+              )}
+            </For>
+          </div>
+
+          {/* ── Active strang card ─────────────────────────────────────── */}
+          <main class="flex-1 flex flex-col px-4 py-4 min-h-0">
         <div
           class={`flex-1 flex flex-col rounded-2xl border bg-zinc-900 p-5 transition-colors ${
             active().expired ? 'border-orange-500' : 'border-zinc-700'
@@ -268,55 +306,104 @@ export function CookMock() {
         </div>
       </main>
 
-      {/* ── Toast (expired demo) ───────────────────────────────────────── */}
-      <Show when={demo() === 'expired'}>
-        <div class="shrink-0 px-4 pb-1">
-          <div class="bg-zinc-800 border border-zinc-700 rounded-full px-4 py-2 text-xs text-zinc-100 text-center">
-            🔔 Timer abgelaufen: Lasagne
-          </div>
-        </div>
-      </Show>
-
-      {/* ── Voice bar (fixed bottom) ───────────────────────────────────── */}
-      <div class="shrink-0 border-t border-zinc-800 bg-zinc-950 px-4 py-3">
-        {/* Transcript strip */}
-        <div class="mb-3 min-h-[36px] flex items-center px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl">
-          <Show
-            when={listening()}
-            fallback={<p class="text-xs italic text-zinc-600">Sprechen, um mit dem Agenten zu interagieren …</p>}
-          >
-            <p class="text-xs italic text-zinc-400">„ok ich hab die lasagne in den ofen getan"</p>
+          {/* ── Toast (expired demo) — left column ─────────────────────── */}
+          <Show when={demo() === 'expired'}>
+            <div class="shrink-0 px-4 pb-1">
+              <div class="bg-zinc-800 border border-zinc-700 rounded-full px-4 py-2 text-xs text-zinc-100 text-center">
+                🔔 Timer abgelaufen: Lasagne
+              </div>
+            </div>
           </Show>
-        </div>
 
-        {/* Mic toggle row */}
-        <div class="flex items-center gap-3">
-          <div class="relative shrink-0">
-            <Show when={listening()}>
-              <div class="absolute inset-0 rounded-full animate-ping bg-zinc-400 opacity-20" />
-            </Show>
-            <button
-              class={`relative w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all ${
-                listening()
-                  ? 'bg-zinc-100 text-zinc-900 ring-2 ring-zinc-300'
-                  : 'bg-zinc-800 border border-zinc-600 text-zinc-300 hover:bg-zinc-700'
-              }`}
-              onClick={() => setDemo(listening() ? 'normal' : 'listening')}
-              aria-label="Mikrofon umschalten"
-            >
-              🎤
-            </button>
+          {/* ── Voice bar — mobile only ─────────────────────────────────── */}
+          <div class="md:hidden shrink-0 border-t border-zinc-800 bg-zinc-950 px-4 py-3">
+            {/* Transcript strip */}
+            <div class="mb-3 min-h-[36px] flex items-center px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl">
+              <Show
+                when={listening()}
+                fallback={<p class="text-xs italic text-zinc-600">Sprechen, um mit dem Agenten zu interagieren …</p>}
+              >
+                <p class="text-xs italic text-zinc-400">„ok ich hab die lasagne in den ofen getan"</p>
+              </Show>
+            </div>
+
+            {/* Mic toggle row */}
+            <div class="flex items-center gap-3">
+              <div class="relative shrink-0">
+                <Show when={listening()}>
+                  <div class="absolute inset-0 rounded-full animate-ping bg-zinc-400 opacity-20" />
+                </Show>
+                <button
+                  class={`relative w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all ${
+                    listening()
+                      ? 'bg-zinc-100 text-zinc-900 ring-2 ring-zinc-300'
+                      : 'bg-zinc-800 border border-zinc-600 text-zinc-300 hover:bg-zinc-700'
+                  }`}
+                  onClick={() => setDemo(listening() ? 'normal' : 'listening')}
+                  aria-label="Mikrofon umschalten"
+                >
+                  🎤
+                </button>
+              </div>
+              <div class="flex flex-col">
+                <span class="text-sm text-zinc-300">
+                  {listening() ? 'Höre zu …' : 'Mikrofon einschalten'}
+                </span>
+                <span class="text-xs text-zinc-600">
+                  {listening() ? 'Tippen zum Beenden' : 'Tippen zum Starten'}
+                </span>
+              </div>
+            </div>
           </div>
-          <div class="flex flex-col">
-            <span class="text-sm text-zinc-300">
-              {listening() ? 'Höre zu …' : 'Mikrofon einschalten'}
-            </span>
-            <span class="text-xs text-zinc-600">
-              {listening() ? 'Tippen zum Beenden' : 'Tippen zum Starten'}
-            </span>
+
+        </div>{/* end left column */}
+
+        {/* ── Right panel — desktop only ─────────────────────────────────── */}
+        <div class="hidden md:flex flex-col bg-zinc-900 border-l border-zinc-800 overflow-hidden">
+          {/* Header */}
+          <div class="shrink-0 px-4 py-3 border-b border-zinc-800">
+            <span class="text-sm font-semibold text-zinc-300">Gespräch</span>
           </div>
-        </div>
-      </div>
+
+          {/* Transcript history */}
+          <div class="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
+            <div class="text-xs text-zinc-500 text-right">ok ich hab die lasagne in den ofen getan</div>
+            <div class="text-xs text-zinc-400">Agent: Timer auf 45 Minuten gestellt.</div>
+            <div class="text-xs text-zinc-500 text-right">wieviel wasser für den reis</div>
+            <div class="text-xs text-zinc-400">Agent: 400 ml Wasser für 300 g Basmatireis.</div>
+            <div class="text-xs text-zinc-500 text-right">ok danke</div>
+          </div>
+
+          {/* Mic toggle */}
+          <div class="shrink-0 border-t border-zinc-800 px-4 py-4 flex items-center gap-3">
+            <div class="relative shrink-0">
+              <Show when={listening()}>
+                <div class="absolute inset-0 rounded-full animate-ping bg-zinc-400 opacity-20" />
+              </Show>
+              <button
+                class={`relative w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all ${
+                  listening()
+                    ? 'bg-zinc-100 text-zinc-900 ring-2 ring-zinc-300'
+                    : 'bg-zinc-800 border border-zinc-600 text-zinc-300 hover:bg-zinc-700'
+                }`}
+                onClick={() => setDemo(listening() ? 'normal' : 'listening')}
+                aria-label="Mikrofon umschalten"
+              >
+                🎤
+              </button>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-sm text-zinc-300">
+                {listening() ? 'Höre zu …' : 'Mikrofon einschalten'}
+              </span>
+              <span class="text-xs text-zinc-600">
+                {listening() ? 'Tippen zum Beenden' : 'Tippen zum Starten'}
+              </span>
+            </div>
+          </div>
+        </div>{/* end right panel */}
+
+      </div>{/* end two-column grid */}
 
       {/* ── Zutaten Modal ─────────────────────────────────────────────── */}
       <Show when={zutatenOpen()}>
@@ -368,3 +455,4 @@ export function CookMock() {
     </div>
   )
 }
+
