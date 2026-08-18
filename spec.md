@@ -40,13 +40,20 @@ MURKS soll das parallele Kochen unterstützen: mehrere Gerichte/Komponenten lauf
 
 **Chat-Position / Voice-Interface?**
 → Kein eigener Chat-View während des Kochens. Nur eine persistente **Voice-Leiste** unten:
-- Großer Mikrofon-Button (mind. 56×56px für Touch/mit nassen Händen)
+- **Mic-Toggle** (kein Push-to-Talk, kein Dauersenden): einmal tippen = ein, nochmal = aus. Funktioniert mit Ellbogen/Knöchel. Langfristig: Web Speech API `continuous: true` in PWA — kein Button nötig.
 - Transkript-Streifen: zeigt zuletzt Erkanntes ("ok ich hab die lasagne in den ofen getan") — wichtig, da Spracherkennung fehleranfällig ist
 - Agent-Aktionen erscheinen als kurze **Toast-Meldungen** über der Leiste ("✓ Timer gestellt: 45 min"), kein Fließtext-Chat
-- Listening-State: Text wechselt zu "Höre zu...", Puls-Animation am Mic-Button
+- Listening-State: Text wechselt zu "Höre zu …", Puls-Animation am Mic-Button
 
-**Timer-Anzeige?**
-→ Embedded in Strang-Karten, kein eigener Timer-View. Timer-Pill in der Karte zeigt verbleibende Zeit (Monospace, groß genug lesbar auf einen Blick). Kein separates Timer-Overlay — würde den Kochkontext ausblenden.
+**Navigation während des Kochens?**
+→ **Kein Scrollen** — zu fehleranfällig mit nassen/vollen Händen. Stattdessen:
+- **Eine Strang-Karte gleichzeitig** nimmt die gesamte Hauptfläche ein
+- **Chip-Leiste** oben zeigt alle Strangs + deren laufende Timer auf einen Blick. Chip antippen = direkter Sprung zu dem Strang (einzige manuelle Navigation ohne AI nötig)
+- **‹ / › Buttons** (unten links) als Fallback für manuelle Navigation zwischen Strangs
+- Die **AI navigiert primär** per Tool (`focus_strang(id)`) — z.B. "Geh zur Lasagne" oder automatisch wenn Timer abläuft
+
+**Timer-Anzeige in Chips?**
+→ **In der aktiven Karten-Ansicht** prominent als Pill (`⏱ 12:34 verbleib.`). **In der Chip-Leiste** immer sichtbar für alle Strangs, auch wenn die Karte nicht aktiv ist. Chip-Farben signalisieren Dringlichkeit: normal → grau, unter 2 Min → rot, abgelaufen → orange/Bell. Kein separater Timer-View nötig.
 
 **Was passiert wenn Timer abläuft?**
 → Die Karte wechselt in einen **Alert-State** (orange Border, Bell-Icon, "Timer abgelaufen!") und zeigt sofort die nächste Instruktion ("Jetzt: Lasagne aus dem Ofen nehmen, 10 Min ruhen lassen"). Kein extra Modal nötig — der Nutzer sieht es direkt im Kontext. Zusätzlich: Toast-Notification über der Voice-Leiste.
