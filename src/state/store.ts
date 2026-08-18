@@ -22,10 +22,13 @@ export interface Config {
 
 export type SttMode = 'wasm' | 'server' | 'webspeech'
 
+export type SttModelSize = 'tiny' | 'base' | 'small'
+
 export interface SttConfig {
   mode: SttMode
   endpoint: string
   key: string
+  model: SttModelSize
 }
 
 export interface AgentMessage {
@@ -54,6 +57,7 @@ const defaults: AppState = {
     mode: 'wasm',
     endpoint: '',
     key: '',
+    model: 'base',
   },
   agents: [],
   defaultAgentId: null,
@@ -80,6 +84,8 @@ function load(): AppState {
         mode: data.stt?.mode === 'server' || data.stt?.mode === 'webspeech' ? data.stt.mode : 'wasm',
         endpoint: data.stt?.endpoint ?? '',
         key: data.stt?.key ?? '',
+        model:
+          data.stt?.model === 'tiny' || data.stt?.model === 'small' ? data.stt.model : 'base',
       },
       agents,
       defaultAgentId,

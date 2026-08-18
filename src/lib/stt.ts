@@ -1,7 +1,10 @@
 import { state } from '../state/store'
 
-const WASM_MODEL = 'Xenova/whisper-small'
 const ORT_WASM_PATH = `${import.meta.env.BASE_URL}ort/`
+
+function modelId(): string {
+  return `Xenova/whisper-${state.stt.model}`
+}
 
 interface AsrPipeline {
   (audio: Float32Array, options: Record<string, unknown>): Promise<{ text: string }>
@@ -10,21 +13,29 @@ interface AsrPipeline {
 type TransformersModule = typeof import('@huggingface/transformers')
 
 let pipelinePromise: Promise<AsrPipeline> | null = null
+let pipelineModel: string | null = null
 
 async function createPipeline(
   mod: TransformersModule,
+  model: string,
   device: 'webgpu' | 'wasm',
 ): Promise<AsrPipeline> {
   const onnxBackend = mod.env.backends?.onnx
   if (onnxBackend?.wasm) onnxBackend.wasm.wasmPaths = ORT_WASM_PATH
-  return (await mod.pipeline('automatic-speech-recognition', WASM_MODEL, {
+  return (await mod.pipeline('automatic-speech-recognition', model, {
     device,
     dtype: 'q8',
   })) as unknown as AsrPipeline
 }
 
 function getPipeline(): Promise<AsrPipeline> {
+  const model = modelId()
+  if (pipelinePromise && pipelineModel !== model) {
+    pipelinePromise = null
+    pipelineModel = null
+  }
   if (!pipelinePromise) {
+    pipelineModel = model
     pipelinePromise = (async () => {
       let mod: TransformersModule
       try {
@@ -39,12 +50,12 @@ function getPipeline(): Promise<AsrPipeline> {
       }
       const device = 'gpu' in navigator ? 'webgpu' : 'wasm'
       try {
-        const pipe = await createPipeline(mod, device)
+        const pipe = await createPipeline(mod, model, device)
         sessionStorage.removeItem('murks:stt-reload')
         return pipe
       } catch (e) {
         if (device === 'webgpu') {
-          const pipe = await createPipeline(mod, 'wasm')
+          const pipe = await createPipeline(mod, model, 'wasm')
           sessionStorage.removeItem('murks:stt-reload')
           return pipe
         }
@@ -124,7 +135,8 @@ export async function isSttModelCached(): Promise<boolean> {
   try {
     const cache = await caches.open(MODEL_CACHE_KEY)
     const keys = await cache.keys()
-    return keys.some((r) => r.url.includes('whisper-small'))
+    const needle = `whisper-${state.stt.model}`
+    return keys.some((r) => r.url.includes(needle))
   } catch {
     return false
   }

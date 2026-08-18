@@ -361,8 +361,8 @@ export function ConfigModal(props: ConfigModalProps) {
             <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Speicher</h2>
             <div class="flex items-center gap-3">
               <p class="min-w-0 flex-1 text-sm text-zinc-400">
-                STT-Modell (Whisper small, ~250 MB)
-                <span class="block text-xs text-zinc-500">
+                STT-Modell (Whisper {state.stt.model})
+                <span class="block text-xs text-zinc-600">
                   {sttBusy()
                     ? 'Bitte warten …'
                     : sttCached() === null
@@ -441,9 +441,23 @@ export function ConfigModal(props: ConfigModalProps) {
                     </label>
                   </Show>
                 <Show when={state.stt.mode === 'wasm'}>
-                  <p class="text-xs text-zinc-500">
-                    Whisper small läuft direkt im Browser (WebGPU, sonst WASM). Modell wird beim
-                    ersten Start geladen und gecacht.
+                  <label class="block space-y-1.5">
+                    <span class="text-sm text-zinc-400">STT-Modell</span>
+                    <select
+                      class={selectCls}
+                      value={state.stt.model}
+                      onChange={(e) =>
+                        setStt({ model: e.currentTarget.value as 'tiny' | 'base' | 'small' })
+                      }
+                    >
+                      <option value="tiny">tiny — ~41 MB, schnellste, schwache Erkennung</option>
+                      <option value="base">base — ~145 MB, guter Kompromiss</option>
+                      <option value="small">small — ~250 MB, beste Qualität, am langsamsten</option>
+                    </select>
+                  </label>
+                  <p class="text-xs text-zinc-600">
+                    Whisper läuft direkt im Browser (WebGPU, sonst WASM). Modell wird beim ersten
+                    Start geladen und gecacht. Ohne WebGPU: tiny/base wählen.
                   </p>
                 </Show>
               </div>
