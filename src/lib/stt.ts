@@ -1,17 +1,29 @@
 import { state } from '../state/store'
 
-const WASM_MODEL = 'onnx-community/whisper-small'
+const WASM_MODEL = 'Xenova/whisper-small'
 
 interface AsrPipeline {
   (audio: Float32Array, options: Record<string, unknown>): Promise<{ text: string }>
 }
 
+type TransformersModule = typeof import('@huggingface/transformers')
+
 let pipelinePromise: Promise<AsrPipeline> | null = null
+
+async function createPipeline(
+  mod: TransformersModule,
+  device: 'webgpu' | 'wasm',
+): Promise<AsrPipeline> {
+  return (await mod.pipeline('automatic-speech-recognition', WASM_MODEL, {
+    device,
+    dtype: 'q8',
+  })) as unknown as AsrPipeline
+}
 
 function getPipeline(): Promise<AsrPipeline> {
   if (!pipelinePromise) {
     pipelinePromise = (async () => {
-      let mod: typeof import('@huggingface/transformers')
+      let mod: TransformersModule
       try {
         mod = await import('@huggingface/transformers')
       } catch (e) {
@@ -23,12 +35,18 @@ function getPipeline(): Promise<AsrPipeline> {
         throw e
       }
       const device = 'gpu' in navigator ? 'webgpu' : 'wasm'
-      const pipe = (await mod.pipeline('automatic-speech-recognition', WASM_MODEL, {
-        device,
-        dtype: 'q8',
-      })) as unknown as AsrPipeline
-      sessionStorage.removeItem('murks:stt-reload')
-      return pipe
+      try {
+        const pipe = await createPipeline(mod, device)
+        sessionStorage.removeItem('murks:stt-reload')
+        return pipe
+      } catch (e) {
+        if (device === 'webgpu') {
+          const pipe = await createPipeline(mod, 'wasm')
+          sessionStorage.removeItem('murks:stt-reload')
+          return pipe
+        }
+        throw e
+      }
     })()
   }
   return pipelinePromise
