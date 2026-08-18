@@ -10,13 +10,26 @@ let pipelinePromise: Promise<AsrPipeline> | null = null
 
 function getPipeline(): Promise<AsrPipeline> {
   if (!pipelinePromise) {
-    pipelinePromise = import('@huggingface/transformers').then(async ({ pipeline }) => {
+    pipelinePromise = (async () => {
+      let mod: typeof import('@huggingface/transformers')
+      try {
+        mod = await import('@huggingface/transformers')
+      } catch (e) {
+        if (!sessionStorage.getItem('murks:stt-reload')) {
+          sessionStorage.setItem('murks:stt-reload', '1')
+          location.reload()
+          await new Promise<AsrPipeline>(() => {})
+        }
+        throw e
+      }
       const device = 'gpu' in navigator ? 'webgpu' : 'wasm'
-      return (await pipeline('automatic-speech-recognition', WASM_MODEL, {
+      const pipe = (await mod.pipeline('automatic-speech-recognition', WASM_MODEL, {
         device,
         dtype: 'q8',
       })) as unknown as AsrPipeline
-    })
+      sessionStorage.removeItem('murks:stt-reload')
+      return pipe
+    })()
   }
   return pipelinePromise
 }
