@@ -20,8 +20,8 @@ const DEFAULT_SYSTEM_PROMPT = [
   'Deine Antworten werden vorgelesen: kurze Sätze, keine Markdown-Formatierung, keine Listen.',
   'Der Nutzer spricht per Spracherkennung, die Fehler machen kann. Bei offensichtlich verrauschtem oder unsinnigem Input frage höchstens einmal kurz und freundlich nach und übergehe es danach.',
   'Wenn keine Antwort nötig ist — z.B. reine Bestätigung, Geräusch oder verrauschtes Transkript — antworte ausschließlich mit „OK." und sonst nichts. Diese Antwort wird nicht vorgelesen und nicht angezeigt.',
-  'Du hast Werkzeuge, um die Kochoberfläche zu steuern: add_strang, set_step, start_timer, cancel_timer, complete_strang, focus_strang, open_zutaten, close_zutaten, get_cook_state.',
-  'Rufe get_cook_state auf, wenn du den aktuellen Stand nicht kennst. Bestätige Werkzeug-Aktionen mit höchstens einem kurzen Satz — oder nur „OK.", wenn nichts zu sagen ist.',
+  'Du hast Werkzeuge, um die Kochoberfläche zu steuern: add_strang, set_step, start_timer, cancel_timer, complete_strang, focus_strang, add_zutaten, toggle_zutaten, open_zutaten, close_zutaten, get_cook_state.',
+  'Rufe get_cook_state auf, wenn du den aktuellen Stand nicht kennst. Kommentiere Werkzeug-Aktionen nicht — die Oberfläche bestätigt sie selbst. Antworte nur „OK." oder sprich, wenn es inhaltlich etwas zu sagen gibt.',
   'Antworte so kurz wie möglich. Nutze verfügbare Werkzeuge, statt Dinge in Text zu beschreiben.',
 ].join(' ')
 
@@ -63,10 +63,19 @@ export interface Strang {
   done: boolean
   timerEndsAt: number | null
   timerInstruction: string | null
+  timerExpired: boolean
+}
+
+export interface Zutat {
+  id: string
+  name: string
+  amount: string
+  checked: boolean
 }
 
 export interface CookState {
   strangs: Strang[]
+  zutaten: Zutat[]
   focusedStrangId: string | null
   zutatenOpen: boolean
 }
@@ -108,6 +117,7 @@ const defaults: AppState = {
   defaultAgentId: null,
   cook: {
     strangs: [],
+    zutaten: [],
     focusedStrangId: null,
     zutatenOpen: false,
   },
@@ -147,7 +157,15 @@ function load(): AppState {
       agents,
       defaultAgentId,
       cook: {
-        strangs: Array.isArray(data.cook?.strangs) ? data.cook.strangs : [],
+        strangs: Array.isArray(data.cook?.strangs)
+          ? data.cook.strangs.map((s: Partial<Strang>) => ({
+              ...s,
+              timerExpired: s.timerExpired === true,
+              timerEndsAt: s.timerEndsAt ?? null,
+              timerInstruction: s.timerInstruction ?? null,
+            }))
+          : [],
+        zutaten: Array.isArray(data.cook?.zutaten) ? data.cook.zutaten : [],
         focusedStrangId: data.cook?.focusedStrangId ?? null,
         zutatenOpen: data.cook?.zutatenOpen === true,
       },
@@ -223,11 +241,13 @@ function msg(role: AgentMessage['role'], text: string, silent = false): AgentMes
 export function expireTimers() {
   const now = Date.now()
   const expired = state.cook.strangs.filter(
-    (s) => s.timerEndsAt !== null && s.timerEndsAt <= now,
+    (s) => !s.timerExpired && s.timerEndsAt !== null && s.timerEndsAt <= now,
   )
   for (const s of expired) {
     setState('cook', 'strangs', (str) =>
-      str.map((x) => (x.id === s.id ? { ...x, timerEndsAt: null } : x)),
+      str.map((x) =>
+        x.id === s.id ? { ...x, timerEndsAt: null, timerExpired: true } : x,
+      ),
     )
     showToast(`⏰ Timer abgelaufen: ${s.name}${s.timerInstruction ? ` — ${s.timerInstruction}` : ''}`)
   }

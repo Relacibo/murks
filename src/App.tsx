@@ -4,6 +4,7 @@ import { Router, Route } from '@solidjs/router'
 import { Agent } from './pages/Agent'
 import { ConfigModal } from './pages/Config'
 import { CookMock } from './pages/CookMock'
+import { Cook } from './pages/Cook'
 import { Setup } from './pages/Setup'
 import { Toasts } from './components/Toasts'
 import { state } from './state/store'
@@ -35,6 +36,14 @@ function AgentPage() {
   return <Agent configOpen={ctx.configOpen} setConfigOpen={ctx.setConfigOpen} />
 }
 
+function CookingRoute() {
+  return (
+    <Show when={state.cook.strangs.length > 0} fallback={<AgentPage />}>
+      <Cook />
+    </Show>
+  )
+}
+
 export default function App() {
   const [configOpen, setConfigOpen] = createSignal(false)
   const isMock = window.location.pathname.endsWith('/mock')
@@ -54,7 +63,7 @@ export default function App() {
         <Show when={!showSetup()} fallback={<Setup />}>
           <Router base={base}>
             <Route path="/mock" component={CookMock} />
-            <Route path="*" component={AgentPage} />
+            <Route path="*" component={CookingRoute} />
           </Router>
         </Show>
         <ConfigModal

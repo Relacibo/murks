@@ -111,6 +111,33 @@ export const TOOLS: ToolDef[] = [
   {
     type: 'function',
     function: {
+      name: 'add_zutaten',
+      description: 'Zutat zur Zutatenliste hinzufügen (Name, optional Menge).',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Zutat, z.B. "Basmatireis"' },
+          amount: { type: 'string', description: 'Menge, z.B. "300 g" oder "2 Stück"' },
+        },
+        required: ['name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'toggle_zutaten',
+      description: 'Zutat in der Liste abhaken oder wieder freischalten.',
+      parameters: {
+        type: 'object',
+        properties: { id: { type: 'string' } },
+        required: ['id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'open_zutaten',
       description: 'Zutaten-Modal öffnen.',
       parameters: { type: 'object', properties: {} },
@@ -141,6 +168,8 @@ function fmtRemaining(endsAt: number): string {
   return `${mm}:${ss}`
 }
 
+export { fmtRemaining }
+
 export function executeTool(name: string, args: Record<string, unknown>): string {
   try {
     switch (name) {
@@ -153,7 +182,7 @@ export function executeTool(name: string, args: Record<string, unknown>): string
         const id = crypto.randomUUID()
         setState('cook', 'strangs', (s) => [
           ...s,
-          { id, name: strangName, steps, stepIndex: 0, done: false, timerEndsAt: null, timerInstruction: null },
+          { id, name: strangName, steps, stepIndex: 0, done: false, timerEndsAt: null, timerInstruction: null, timerExpired: false },
         ])
         setState('cook', 'focusedStrangId', id)
         showToast(`Strang: ${strangName}`)
@@ -167,7 +196,7 @@ export function executeTool(name: string, args: Record<string, unknown>): string
         if (!Number.isInteger(idx) || idx < 0 || idx >= strang.steps.length) {
           return JSON.stringify({ error: `step_index muss 0..${strang.steps.length - 1} sein` })
         }
-        patchStrang(id, { stepIndex: idx })
+        patchStrang(id, { stepIndex: idx, timerExpired: false })
         showToast(`${strang.name}: Schritt ${idx + 1}/${strang.steps.length}`)
         return JSON.stringify({ ok: true })
       }
@@ -182,6 +211,7 @@ export function executeTool(name: string, args: Record<string, unknown>): string
         const endsAt = Date.now() + seconds * 1000
         patchStrang(id, {
           timerEndsAt: endsAt,
+          timerExpired: false,
           timerInstruction: args.on_expire_instruction ? String(args.on_expire_instruction) : null,
         })
         showToast(`⏱ Timer: ${fmtRemaining(endsAt)} (${strang.name})`)
@@ -190,7 +220,7 @@ export function executeTool(name: string, args: Record<string, unknown>): string
       case 'cancel_timer': {
         const id = String(args.strang_id ?? '')
         if (!findStrang(id)) return JSON.stringify({ error: 'Unbekannter Strang' })
-        patchStrang(id, { timerEndsAt: null, timerInstruction: null })
+        patchStrang(id, { timerEndsAt: null, timerInstruction: null, timerExpired: false })
         showToast('⏱ Timer abgebrochen')
         return JSON.stringify({ ok: true })
       }
@@ -198,7 +228,7 @@ export function executeTool(name: string, args: Record<string, unknown>): string
         const id = String(args.strang_id ?? '')
         const strang = findStrang(id)
         if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
-        patchStrang(id, { done: true, timerEndsAt: null, timerInstruction: null })
+        patchStrang(id, { done: true, timerEndsAt: null, timerInstruction: null, timerExpired: false })
         showToast(`Fertig: ${strang.name}`)
         return JSON.stringify({ ok: true })
       }
@@ -206,6 +236,30 @@ export function executeTool(name: string, args: Record<string, unknown>): string
         const id = String(args.strang_id ?? '')
         if (!findStrang(id)) return JSON.stringify({ error: 'Unbekannter Strang' })
         setState('cook', 'focusedStrangId', id)
+        return JSON.stringify({ ok: true })
+      }
+      case 'add_zutaten': {
+        const zName = String(args.name ?? '').trim()
+        if (!zName) return JSON.stringify({ error: 'name fehlt' })
+        const id = crypto.randomUUID()
+        setState('cook', 'zutaten', (z) => [
+          ...z,
+          { id, name: zName, amount: args.amount ? String(args.amount) : '', checked: false },
+        ])
+        showToast(`Zutat: ${zName}`)
+        return JSON.stringify({ id, name: zName })
+      }
+      case 'toggle_zutaten': {
+        const id = String(args.id ?? '')
+        let found = false
+        setState('cook', 'zutaten', (z) =>
+          z.map((x) => {
+            if (x.id !== id) return x
+            found = true
+            return { ...x, checked: !x.checked }
+          }),
+        )
+        if (!found) return JSON.stringify({ error: 'Unbekannte Zutat' })
         return JSON.stringify({ ok: true })
       }
       case 'open_zutaten':

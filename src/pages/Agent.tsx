@@ -1,15 +1,7 @@
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, type Accessor, type Setter } from 'solid-js'
-import type { MicVAD } from '@ricky0123/vad-web'
-import { state, sendMessage, clearMessages, expireTimers } from '../state/store'
-import { transcribeAudio, createWebSpeechRecognition, isSttModelCached } from '../lib/stt'
-import { createVoice } from '../lib/voice'
-import { speak, stopSpeaking } from '../lib/tts'
-import { showToast } from '../lib/toast'
-
-function fmtRemaining(endsAt: number): string {
-  const s = Math.max(0, Math.round((endsAt - Date.now()) / 1000))
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
-}
+import { For, Show, createEffect, createMemo, createSignal, type Accessor, type Setter } from 'solid-js'
+import { state, sendMessage, clearMessages } from '../state/store'
+import { createAgentVoice } from '../lib/agentVoice'
+import { stopSpeaking } from '../lib/tts'
 
 interface AgentProps {
   configOpen: Accessor<boolean>
@@ -18,40 +10,19 @@ interface AgentProps {
 
 export function Agent(props: AgentProps) {
   const [input, setInput] = createSignal('')
-  const [listening, setListening] = createSignal(false)
-  const [speaking, setSpeaking] = createSignal(false)
-  const [transcribing, setTranscribing] = createSignal(false)
-  const [sttReady, setSttReady] = createSignal(false)
-  const [tick, setTick] = createSignal(Date.now())
-
-  const timerInterval = setInterval(() => {
-    setTick(Date.now())
-    expireTimers()
-  }, 1000)
-
-  onCleanup(() => clearInterval(timerInterval))
 
   const agent = createMemo(() => state.agents.find((a) => a.id === state.defaultAgentId))
   const ready = createMemo(() => Boolean(agent()?.endpoint && agent()?.model))
 
-  let vad: MicVAD | null = null
-  let recognition: ReturnType<typeof createWebSpeechRecognition> = null
-  let feedRef: HTMLDivElement | undefined
-  let lastSpoken: { text: string } | undefined = state.agent.messages[state.agent.messages.length - 1]
-  let sttCheckToken = 0
-
-  createEffect(() => {
-    const mode = state.stt.mode
-    state.stt.model
-    props.configOpen()
-    const token = ++sttCheckToken
-    void (async () => {
-      let ready = true
-      if (mode === 'server') ready = Boolean(state.stt.endpoint)
-      else if (mode === 'wasm') ready = await isSttModelCached()
-      if (token === sttCheckToken) setSttReady(ready)
-    })()
+  const voice = createAgentVoice({
+    configOpen: props.configOpen,
+    onUtterance: (text) => {
+      if (ready()) sendMessage(text)
+      else setInput(text)
+    },
   })
+
+  let feedRef: HTMLDivElement | undefined
 
   createEffect(() => {
     state.agent.messages.length
@@ -59,119 +30,6 @@ export function Agent(props: AgentProps) {
       if (feedRef) feedRef.scrollTop = feedRef.scrollHeight
     })
   })
-
-  createEffect(() => {
-    const messages = state.agent.messages
-    const last = messages[messages.length - 1]
-    if (last && last.role === 'agent' && !last.silent && last !== lastSpoken) {
-      lastSpoken = last
-      speak(last.text)
-    }
-  })
-
-  onCleanup(() => {
-    recognition?.stop()
-    vad?.destroy()
-    stopSpeaking()
-    document.removeEventListener('visibilitychange', onVisibilityChange)
-  })
-
-  function onVisibilityChange() {
-    if (document.hidden) {
-      stopVoice()
-      stopSpeaking()
-    }
-  }
-  document.addEventListener('visibilitychange', onVisibilityChange)
-
-  function pushError(message: string) {
-    showToast(`STT: ${message}`)
-  }
-
-  function isNoiseTranscript(text: string): boolean {
-    const t = text.trim().toLowerCase()
-    if (!t) return true
-    if (/^\*[^*]+\*$/.test(t) || /^\([^)]+\)$/.test(t)) return true
-    const noise = ['lacht', 'lachen', 'gelächter', 'klingeln', 'musik', 'applaus', 'geräusch', 'summen']
-    return noise.includes(t)
-  }
-
-  function finishUtterance(text: string) {
-    if (!text || isNoiseTranscript(text)) return
-    if (ready()) sendMessage(text)
-    else setInput(text)
-  }
-
-  function toggleMic() {
-    if (listening()) {
-      stopVoice()
-      return
-    }
-    startVoice()
-  }
-
-  async function startVoice() {
-    if (state.stt.mode === 'webspeech') {
-      recognition = createWebSpeechRecognition(
-        (transcript, isFinal) => {
-          if (isFinal) finishUtterance(transcript)
-        },
-        pushError,
-        () => {
-          recognition = null
-          setListening(false)
-        },
-      )
-      if (recognition) {
-        recognition.start()
-        setListening(true)
-      }
-      return
-    }
-
-    if (!vad) {
-      try {
-        vad = await createVoice({
-          onSpeechStart: () => {
-            stopSpeaking()
-            setSpeaking(true)
-          },
-          onMisfire: () => setSpeaking(false),
-          onSpeechEnd: async (audio) => {
-            setSpeaking(false)
-            setTranscribing(true)
-            try {
-              const text = await transcribeAudio(audio)
-              finishUtterance(text)
-            } catch (e) {
-              pushError(e instanceof Error ? e.message : String(e))
-            } finally {
-              setTranscribing(false)
-              if (listening()) await vad?.start()
-            }
-          },
-          onError: pushError,
-        })
-      } catch (e) {
-        pushError(e instanceof Error ? e.message : String(e))
-        return
-      }
-    }
-    try {
-      await vad.start()
-      setListening(true)
-    } catch (e) {
-      pushError(e instanceof Error ? e.message : String(e))
-    }
-  }
-
-  async function stopVoice() {
-    setListening(false)
-    setSpeaking(false)
-    recognition?.stop()
-    recognition = null
-    await vad?.pause()
-  }
 
   let touchStartY = 0
   function onTouchStart(e: TouchEvent) {
@@ -188,21 +46,6 @@ export function Agent(props: AgentProps) {
     stopSpeaking()
     sendMessage(text)
     setInput('')
-  }
-
-  function sttHint() {
-    if (state.stt.mode === 'server') return 'Kein STT-Endpoint konfiguriert'
-    if (state.stt.mode === 'wasm') return 'STT-Modell nicht geladen'
-    return null
-  }
-
-  function micTitle() {
-    if (transcribing()) return 'Transkribiere …'
-    if (speaking()) return 'Sprache erkannt'
-    if (listening()) return 'Höre zu — tippen zum Stoppen'
-    const hint = sttHint()
-    if (hint) return `${hint} — in der Konfiguration`
-    return `Hören starten (${state.stt.mode === 'wasm' ? 'lokal' : state.stt.mode})`
   }
 
   return (
@@ -250,29 +93,6 @@ export function Agent(props: AgentProps) {
         </button>
       </div>
 
-      <Show when={state.cook.strangs.length > 0}>
-        <div class="flex flex-wrap gap-1.5 border-b border-zinc-800 pb-2">
-          <For each={state.cook.strangs}>
-            {(s) => {
-              tick()
-              return (
-                <span
-                  class={`rounded-full border px-2.5 py-1 text-xs ${
-                    s.id === state.cook.focusedStrangId
-                      ? 'border-zinc-400 bg-zinc-800 text-zinc-200'
-                      : 'border-zinc-700 text-zinc-400'
-                  } ${s.done ? 'line-through opacity-60' : ''}`}
-                >
-                  {s.name}
-                  {s.done ? ' ✓' : ` ${s.stepIndex + 1}/${s.steps.length}`}
-                  {s.timerEndsAt !== null ? ` ⏱ ${fmtRemaining(s.timerEndsAt)}` : ''}
-                </span>
-              )
-            }}
-          </For>
-        </div>
-      </Show>
-
       <div ref={feedRef} class="flex-1 space-y-3 overflow-y-auto py-4">
         <Show when={!ready()}>
           <p class="rounded-lg border border-amber-800 bg-amber-950/40 p-3 text-sm text-amber-400">
@@ -283,7 +103,7 @@ export function Agent(props: AgentProps) {
         <Show when={state.agent.messages.length === 0 && ready()}>
           <p class="text-sm text-zinc-500">Noch keine Nachrichten.</p>
         </Show>
-        <Show when={transcribing()}>
+        <Show when={voice.transcribing()}>
           <p class="text-sm text-zinc-500 animate-pulse">Transkribiere …</p>
         </Show>
         <For each={state.agent.messages}>
@@ -304,18 +124,18 @@ export function Agent(props: AgentProps) {
       <form onSubmit={submit} class="flex items-center gap-2 border-t border-zinc-600 pt-3">
         <button
           type="button"
-          onClick={toggleMic}
-          disabled={state.agent.busy || (!sttReady() && !listening())}
-          title={micTitle()}
+          onClick={() => voice.toggleMic()}
+          disabled={state.agent.busy || (!voice.sttReady() && !voice.listening())}
+          title={voice.micTitle()}
           class={`h-11 w-11 shrink-0 rounded-full border text-base transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-            speaking()
+            voice.speaking()
               ? 'border-red-500 bg-red-500/20 text-red-400 animate-pulse ring-2 ring-red-500/40'
-              : listening()
+              : voice.listening()
                 ? 'border-zinc-300 text-zinc-100 bg-zinc-600'
                 : 'border-zinc-600 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 hover:bg-zinc-600 active:scale-95'
           }`}
         >
-          {transcribing() ? '…' : listening() ? '■' : '🎤'}
+          {voice.transcribing() ? '…' : voice.listening() ? '■' : '🎤'}
         </button>
         <input
           class="flex-1 bg-zinc-700 border border-zinc-600 rounded-lg px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-zinc-500 placeholder:text-zinc-500 w-full"
