@@ -81,54 +81,40 @@ function playBuffer(audio: Float32Array, rate: number, myToken: number): Promise
   })
 }
 
-function splitSentences(text: string): string[] {
-  return text
-    .split(/(?<=[.!?…])\s+/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-}
-
-async function speakWasm(sentences: string[], myToken: number) {
+async function speakWasm(text: string, myToken: number) {
   const pipe = await getPipeline()
-  for (const sentence of sentences) {
-    if (token !== myToken) return
-    const { audio, sampling_rate } = await pipe(sentence)
-    if (token !== myToken) return
-    await playBuffer(audio, sampling_rate, myToken)
-  }
+  const { audio, sampling_rate } = await pipe(text)
+  if (token !== myToken) return
+  await playBuffer(audio, sampling_rate, myToken)
 }
 
-async function speakServer(sentences: string[], myToken: number) {
+async function speakServer(text: string, myToken: number) {
   const endpoint = state.tts.endpoint
   if (!endpoint) throw new Error('Kein TTS-Endpoint konfiguriert')
   const base = endpoint.replace(/\/+$/, '')
-  for (const sentence of sentences) {
-    if (token !== myToken) return
-    const res = await fetch(`${base}/audio/speech`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(state.tts.key ? { Authorization: `Bearer ${state.tts.key}` } : {}),
-      },
-      body: JSON.stringify({
-        model: 'tts-1',
-        input: sentence,
-        voice: state.tts.voice || 'alloy',
-        response_format: 'wav',
-      }),
-    })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const blob = await res.blob()
-    const arrayBuffer = await blob.arrayBuffer()
-    const ctx = getAudioCtx()
-    const buffer = await ctx.decodeAudioData(arrayBuffer)
-    if (token !== myToken) return
-    await playBuffer(buffer.getChannelData(0), buffer.sampleRate, myToken)
-  }
+  const res = await fetch(`${base}/audio/speech`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(state.tts.key ? { Authorization: `Bearer ${state.tts.key}` } : {}),
+    },
+    body: JSON.stringify({
+      model: 'tts-1',
+      input: text,
+      voice: state.tts.voice || 'alloy',
+      response_format: 'wav',
+    }),
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const blob = await res.blob()
+  const arrayBuffer = await blob.arrayBuffer()
+  const ctx = getAudioCtx()
+  const buffer = await ctx.decodeAudioData(arrayBuffer)
+  if (token !== myToken) return
+  await playBuffer(buffer.getChannelData(0), buffer.sampleRate, myToken)
 }
 
-function speakWebSpeech(sentences: string[]) {
-  const text = sentences.join(' ')
+function speakWebSpeech(text: string) {
   const utterance = new SpeechSynthesisUtterance(text)
   utterance.lang = 'de-DE'
   const voices = speechSynthesis.getVoices()
@@ -140,19 +126,19 @@ function speakWebSpeech(sentences: string[]) {
 export async function speak(text: string) {
   stopSpeaking()
   const myToken = ++token
-  const sentences = splitSentences(text)
-  if (sentences.length === 0) return
+  const clean = text.trim()
+  if (!clean) return
   try {
     switch (state.tts.mode) {
       case 'server':
-        await speakServer(sentences, myToken)
+        await speakServer(clean, myToken)
         break
       case 'webspeech':
-        speakWebSpeech(sentences)
+        speakWebSpeech(clean)
         break
       case 'wasm':
       default:
-        await speakWasm(sentences, myToken)
+        await speakWasm(clean, myToken)
     }
   } catch (e) {
     console.error('TTS-Fehler:', e)
