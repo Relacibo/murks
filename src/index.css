@@ -8,15 +8,8 @@
 }
 
 @layer components {
-  /* ── Strang-Farben (CSS-Variablen pro data-color) ─────────────── */
-  .step-chip {
-    background-color: var(--strang-bg);
-    border-color: var(--strang-border);
-    color: var(--strang-text);
-  }
-
-  .chip[data-color='cyan'],
-  .card[data-color='cyan'] {
+  /* ── Strang-Farben (CSS-Variablen per data-color) ─────────────── */
+  [data-color='cyan'] {
     --strang-bg: #083344;
     --strang-border: #155e75;
     --strang-text: #67e8f9;
@@ -24,8 +17,7 @@
     --strang-border-active: #06b6d4;
     --strang-text-active: #cffafe;
   }
-  .chip[data-color='violet'],
-  .card[data-color='violet'] {
+  [data-color='violet'] {
     --strang-bg: #2e1065;
     --strang-border: #5b21b6;
     --strang-text: #c4b5fd;
@@ -33,8 +25,7 @@
     --strang-border-active: #8b5cf6;
     --strang-text-active: #ede9fe;
   }
-  .chip[data-color='amber'],
-  .card[data-color='amber'] {
+  [data-color='amber'] {
     --strang-bg: #451a03;
     --strang-border: #92400e;
     --strang-text: #fcd34d;
@@ -42,8 +33,7 @@
     --strang-border-active: #f59e0b;
     --strang-text-active: #fef3c7;
   }
-  .chip[data-color='emerald'],
-  .card[data-color='emerald'] {
+  [data-color='emerald'] {
     --strang-bg: #022c22;
     --strang-border: #065f46;
     --strang-text: #6ee7b7;
@@ -51,8 +41,7 @@
     --strang-border-active: #10b981;
     --strang-text-active: #d1fae5;
   }
-  .chip[data-color='rose'],
-  .card[data-color='rose'] {
+  [data-color='rose'] {
     --strang-bg: #4c0519;
     --strang-border: #9f1239;
     --strang-text: #fda4af;
@@ -60,8 +49,7 @@
     --strang-border-active: #f43f5e;
     --strang-text-active: #ffe4e6;
   }
-  .chip[data-color='sky'],
-  .card[data-color='sky'] {
+  [data-color='sky'] {
     --strang-bg: #082f49;
     --strang-border: #075985;
     --strang-text: #7dd3fc;
@@ -96,11 +84,32 @@
     opacity: 0.6;
   }
 
-  .step-chip {
-    @apply text-xs px-2 py-0.5 rounded-full border shrink-0;
+  /* ── Strip (Mobile: kompakter Strang oben) ─────────────────────── */
+  .strip {
+    @apply shrink-0 flex items-center gap-2 min-h-[44px] pl-2 pr-3 rounded-xl border transition-colors;
+    background-color: var(--strang-bg);
+    border-color: var(--strang-border);
+  }
+  .strip:hover {
+    background-color: var(--strang-bg-active);
+  }
+  .strip.is-active {
+    background-color: var(--strang-bg-active);
+    border-color: var(--strang-border-active);
+  }
+  .strip.is-urgent {
+    --pulse-color: 245 158 11;
+    animation: pulse-border 1.2s ease-in-out infinite;
+  }
+  .strip.is-expired {
+    border-color: #ef4444;
+  }
+  .strip-bar {
+    @apply w-1.5 self-stretch rounded-full shrink-0 my-2;
+    background-color: var(--strang-border-active);
   }
 
-  /* ── Strang-Karte ───────────────────────────────────────────────── */
+  /* ── Strang-Karte (Mobile) ─────────────────────────────────────── */
   .card {
     @apply rounded-2xl border border-zinc-700 overflow-hidden;
   }
@@ -115,37 +124,69 @@
     background-color: var(--strang-bg);
     border-bottom: 1px solid var(--strang-border);
   }
-  .card-decorator:hover {
-    background-color: var(--strang-bg-active);
+
+  /* ── Strang-Spalte (Desktop) ───────────────────────────────────── */
+  .column {
+    @apply w-[320px] shrink-0 flex flex-col rounded-2xl border border-zinc-700 overflow-hidden;
   }
-  .card.is-focused .card-decorator {
+  .column.is-focused {
+    border-color: var(--strang-border-active);
+  }
+  .column.is-expired {
+    border-color: #ef4444;
+  }
+  .column-header {
+    @apply flex items-center gap-2 w-full text-left px-4 py-3 transition-colors hover:brightness-125;
+    background-color: var(--strang-bg);
+    border-bottom: 1px solid var(--strang-border);
+  }
+  .column-body {
+    @apply flex flex-col gap-2 p-3 bg-zinc-900/40 flex-1 min-h-0 overflow-y-auto;
+  }
+  .step-card {
+    @apply w-full text-left rounded-xl border px-3 py-2.5 transition-colors hover:brightness-125;
+    background-color: var(--strang-bg);
+    border-color: var(--strang-border);
+    color: var(--strang-text);
+  }
+  .step-card.is-active {
     background-color: var(--strang-bg-active);
-    border-bottom-color: var(--strang-border-active);
+    border-color: var(--strang-border-active);
+    color: var(--strang-text-active);
+  }
+  .step-card.is-past {
+    @apply opacity-55;
+  }
+  .step-card.is-past .step-card-title {
+    @apply line-through;
   }
 
-  /* ── Steps list ─────────────────────────────────────────────────── */
-  .steps-list {
-    @apply flex flex-col overflow-y-auto max-h-[55vh] bg-zinc-900;
+  /* ── Markdown (Step-Description) ───────────────────────────────── */
+  .step-description {
+    @apply text-sm leading-relaxed;
+    color: var(--strang-text, theme('colors.zinc.200'));
   }
-  .step-row {
-    @apply flex items-baseline gap-3 px-4 py-2.5 w-full text-left text-sm border-b border-zinc-800 last:border-0 transition-colors hover:bg-zinc-800;
-    color: theme('colors.zinc.500');
+  .step-description p {
+    @apply mb-2 last:mb-0;
   }
-  .step-row.is-active {
-    @apply bg-zinc-800/60;
-    color: theme('colors.zinc.100');
+  .step-description ul {
+    @apply list-disc pl-5 mb-2 space-y-1;
   }
-  .step-row.is-done {
-    @apply line-through;
-    color: theme('colors.zinc.600');
+  .step-description ol {
+    @apply list-decimal pl-5 mb-2 space-y-1;
   }
-  .step-row.is-preview {
-    @apply bg-zinc-800;
-    color: theme('colors.zinc.300');
+  .step-description strong {
+    @apply font-semibold;
+    color: var(--strang-text-active, theme('colors.zinc.100'));
   }
-  .step-row-num {
-    @apply text-xs w-4 shrink-0 text-right;
-    color: theme('colors.zinc.600');
+  .step-description h1,
+  .step-description h2,
+  .step-description h3 {
+    @apply font-semibold mb-1 mt-3 first:mt-0;
+    color: var(--strang-text-active, theme('colors.zinc.100'));
+  }
+  .step-description code {
+    @apply text-xs bg-zinc-800 px-1 py-0.5 rounded;
   }
 
   /* ── Timer-Pill ─────────────────────────────────────────────────── */
@@ -161,20 +202,15 @@
     @apply w-9 h-9 flex items-center justify-center rounded-full border border-zinc-600 bg-zinc-700 text-zinc-400 hover:bg-zinc-600 hover:text-zinc-100 transition-colors;
   }
   .nav-btn {
-    @apply w-10 h-10 flex items-center justify-center rounded-full border border-zinc-600 text-zinc-400 hover:bg-zinc-700 hover:border-zinc-500 hover:text-zinc-200 transition-colors;
-  }
-  .done-btn-round {
-    @apply w-12 h-12 rounded-full bg-emerald-700 border border-emerald-600 text-white text-xl flex items-center justify-center transition-colors hover:bg-emerald-600 active:scale-95;
+    @apply w-10 h-10 flex items-center justify-center rounded-full border border-zinc-600 text-zinc-400 hover:bg-zinc-700 hover:border-zinc-500 hover:text-zinc-200 transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-zinc-400;
   }
   .jump-btn {
-    @apply px-4 py-2.5 rounded-xl border border-zinc-300 text-sm text-zinc-100 transition-colors min-h-[44px] hover:bg-zinc-700;
-  }
-  .activate-step-btn {
-    @apply self-start text-xs px-3 py-1.5 rounded-full border border-zinc-500 text-zinc-300 hover:border-zinc-300 hover:text-zinc-100 transition-colors;
+    @apply px-4 py-2.5 rounded-xl border border-zinc-300 text-sm text-zinc-100 transition-colors min-h-[44px] hover:bg-zinc-700 shrink-0;
   }
   .step-dot {
     @apply h-2.5 flex-1 rounded-full transition-colors bg-zinc-700;
-  }  .step-dot.is-done {
+  }
+  .step-dot.is-done {
     @apply bg-zinc-400;
   }
   .step-dot.is-active {

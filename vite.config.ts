@@ -19,6 +19,9 @@ function fixPiperWorkerPaths(): Plugin {
 
 export default defineConfig({
   base: process.env.BASE_URL ?? '/',
+  optimizeDeps: {
+    include: ['solid-markdown', 'debug', 'extend'],
+  },
   plugins: [
     fixPiperWorkerPaths(),
     solid(),
