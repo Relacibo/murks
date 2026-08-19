@@ -87,184 +87,129 @@ export function Cook() {
 
   function StrangCard(props: { s: Strang; isFocused: boolean; onFocus: () => void }) {
     const s = () => props.s
-    const urgent = () => {
-      tick()
-      const r = remaining(s())
-      return r !== null && r < 120_000
-    }
+    const [expanded, setExpanded] = createSignal(props.isFocused)
+
+    createEffect(() => {
+      if (props.isFocused) setExpanded(true)
+    })
+
+    const urgent = () => { tick(); const r = remaining(s()); return r !== null && r < 120_000 }
     const previewStep = () => getPreview(s().id)
-    const shownIdx = () => (previewStep() !== null ? previewStep()! : s().stepIndex)
-    const text = () => {
-      const i = shownIdx()
-      if (i === s().stepIndex && s().timerExpired && s().timerInstruction) {
-        return s().timerInstruction
-      }
-      return s().steps[i] ?? ''
-    }
-    function stepPrev() {
-      const cur = previewStep() ?? s().stepIndex
-      if (cur > 0) setPreview(s().id, cur - 1)
-    }
-    function stepNext() {
-      const cur = previewStep() ?? s().stepIndex
-      if (cur < s().steps.length - 1) setPreview(s().id, cur + 1)
+
+    function toggleExpand(e: MouseEvent) {
+      e.stopPropagation()
+      if (!props.isFocused) props.onFocus()
+      setExpanded((v) => !v)
     }
 
     return (
-      <div
-        class="card"
-        data-color={s().color}
-        classList={{
-          'is-expired': s().timerExpired,
-          'is-focused': props.isFocused,
-        }}
-        onClick={props.onFocus}
-      >
-        <div class="flex items-center gap-2 mb-3">
-          <span class="text-xs text-zinc-400 truncate flex-1 min-w-0">{s().name}</span>
+      <div class="card" data-color={s().color} classList={{ 'is-expired': s().timerExpired, 'is-focused': props.isFocused }}>
+        {/* ── Decorator ───────────────────────────────────────────── */}
+        <button class="card-decorator" onClick={toggleExpand}>
+          <span class="text-sm font-semibold truncate flex-1 min-w-0" style={{ color: 'var(--strang-text-active)' }}>
+            {s().name}
+          </span>
           <div class="flex items-center gap-2 shrink-0">
-            <span class="step-chip">
-              Schritt {(previewStep() ?? s().stepIndex) + 1} / {s().steps.length}
-            </span>
             <Show when={s().timerExpired}>
-              <FiBell size={14} class="text-orange-400" />
+              <FiBell size={13} class="text-orange-400" />
             </Show>
+            <Show when={!s().done && !s().timerExpired && s().timerEndsAt !== null}>
+              <span class="font-mono text-xs font-semibold" style={{ color: 'var(--strang-text-active)' }}>
+                {tick() && fmtRemaining(s().timerEndsAt!)}
+              </span>
+            </Show>
+            <Show when={s().done}>
+              <FiCheck size={13} class="text-emerald-400" />
+            </Show>
+            <span class="text-xs text-zinc-400 opacity-60 tabular-nums">
+              {s().stepIndex + 1}/{s().steps.length}
+            </span>
           </div>
-        </div>
+        </button>
 
-        <div class="flex gap-1.5 mb-4">
-          <For each={Array.from({ length: s().steps.length })}>
-            {(_, i) => (
-              <button
-                class="step-dot"
-                classList={{
-                  'is-done': i() < s().stepIndex,
-                  'is-active': i() === s().stepIndex,
-                  'is-preview': previewStep() === i(),
-                }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setPreview(s().id, previewStep() === i() ? null : i())
-                }}
-                aria-label={`Schritt ${i() + 1} ansehen`}
-              />
-            )}
-          </For>
-        </div>
+        {/* ── Body (collapsible) ──────────────────────────────────── */}
+        <Show when={expanded()}>
+          <Show when={s().timerExpired}>
+            <div class="px-4 pt-2 text-xs font-semibold text-orange-400">Timer abgelaufen!</div>
+          </Show>
 
-        <Show when={s().timerExpired && previewStep() === null}>
-          <div class="text-sm font-semibold text-red-400 mb-1">Timer abgelaufen!</div>
-          <div class="text-xs text-zinc-400 mb-2">Jetzt:</div>
-        </Show>
+          {/* Steps list */}
+          <div class="steps-list">
+            <For each={s().steps}>
+              {(step, i) => {
+                const isActive = () => i() === s().stepIndex
+                const isDone = () => i() < s().stepIndex
+                const isPreview = () => previewStep() === i()
+                const text = () =>
+                  isActive() && s().timerExpired && s().timerInstruction
+                    ? s().timerInstruction!
+                    : step
+                return (
+                  <button
+                    class="step-row"
+                    classList={{ 'is-done': isDone(), 'is-active': isActive() && previewStep() === null, 'is-preview': isPreview() }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setPreview(s().id, isPreview() ? null : i())
+                    }}
+                  >
+                    <span class="step-row-num">{i() + 1}</span>
+                    <span class="flex-1 text-left">{text()}</span>
+                    <Show when={isDone()}>
+                      <FiCheck size={12} class="shrink-0 text-zinc-600 mt-0.5" />
+                    </Show>
+                  </button>
+                )
+              }}
+            </For>
+          </div>
 
-        <div class="flex-1 flex flex-col justify-center gap-5">
-          <p
-            class="text-base leading-relaxed transition-opacity"
-            classList={{
-              'text-zinc-200': previewStep() === null && !s().done,
-              'text-zinc-400 opacity-60': previewStep() !== null || s().done,
-            }}
-          >
-            {text()}
-          </p>
-
-          <Show when={!s().done && !s().timerExpired && s().timerEndsAt !== null && previewStep() === null}>
-            <div class="flex items-center">
+          {/* Timer pill */}
+          <Show when={!s().done && !s().timerExpired && s().timerEndsAt !== null}>
+            <div class="px-4 py-3">
               <div class="pill" classList={{ 'is-urgent': urgent() }}>
-                <span class="text-base leading-none">⏱</span>
-                <span class="font-mono text-2xl font-bold tabular-nums text-zinc-100">
+                <span class="text-sm leading-none text-zinc-400">⏱</span>
+                <span class="font-mono text-xl font-bold tabular-nums text-zinc-100">
                   {tick() && fmtRemaining(s().timerEndsAt!)}
                 </span>
                 <span class="text-xs text-zinc-400">verbleib.</span>
               </div>
             </div>
           </Show>
-        </div>
 
-        {/* ── In-card footer: step nav + done/revert ──────────────── */}
-        <div class="flex items-center justify-between mt-5 pt-4 border-t border-zinc-600">
-          <div class="flex items-center gap-2">
-            <button
-              onClick={(e) => { e.stopPropagation(); stepPrev() }}
-              class="nav-btn"
-              aria-label="Vorheriger Schritt"
-              disabled={shownIdx() === 0}
-            >
-              <FiArrowUp />
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); stepNext() }}
-              class="nav-btn"
-              aria-label="Nächster Schritt"
-              disabled={shownIdx() >= s().steps.length - 1}
-            >
-              <FiArrowDown />
-            </button>
-          </div>
-
-          <Show when={!s().done}>
-            <Show
-              when={previewStep() === null}
-              fallback={
-                <button
-                  class="icon-btn"
-                  title={`Schritt ${previewStep()! + 1} aktiv setzen`}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    executeTool('set_step', { strang_id: s().id, step_index: previewStep()! })
-                    setPreview(s().id, null)
-                  }}
+          {/* Footer */}
+          <Show when={!s().done || previewStep() !== null}>
+            <div class="flex items-center justify-end px-4 py-3 border-t border-zinc-700/60">
+              <Show when={!s().done}>
+                <Show
+                  when={previewStep() === null}
+                  fallback={
+                    <button
+                      class="icon-btn"
+                      title={`Schritt ${previewStep()! + 1} aktiv setzen`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        executeTool('set_step', { strang_id: s().id, step_index: previewStep()! })
+                        setPreview(s().id, null)
+                      }}
+                    >
+                      <FiRotateCcw />
+                    </button>
+                  }
                 >
-                  <FiRotateCcw />
-                </button>
-              }
-            >
-              <button
-                class="icon-btn text-emerald-400 border-emerald-700 hover:border-emerald-500 hover:text-emerald-300"
-                onClick={(e) => { e.stopPropagation(); executeTool('complete_strang', { strang_id: s().id }) }}
-                title="Strang fertig"
-                aria-label="Strang fertig"
-              >
-                <FiCheckCircle />
-              </button>
-            </Show>
+                  <button
+                    class="icon-btn text-emerald-400 border-emerald-700 hover:border-emerald-500 hover:text-emerald-300"
+                    onClick={(e) => { e.stopPropagation(); executeTool('complete_strang', { strang_id: s().id }) }}
+                    title="Strang fertig"
+                  >
+                    <FiCheckCircle />
+                  </button>
+                </Show>
+              </Show>
+            </div>
           </Show>
-        </div>
+        </Show>
       </div>
-    )
-  }
-
-  function CompactStrang(props: { s: Strang }) {
-    const s = () => props.s
-    return (
-      <button
-        class="compact-card"
-        data-color={s().color}
-        classList={{
-          'is-urgent': !s().timerExpired && isUrgent(s()),
-          'is-expired': s().timerExpired,
-          'is-done': s().done,
-        }}
-        onClick={() => focusStrang(s().id)}
-      >
-        <span class={`flex-1 min-w-0 truncate text-sm font-medium text-zinc-100 ${s().done ? 'line-through' : ''}`}>
-          {s().name}
-        </span>
-        <span class="text-xs text-zinc-500 shrink-0">
-          Schritt {s().stepIndex + 1}/{s().steps.length}
-        </span>
-        <Show when={s().done}>
-          <FiCheck size={14} class="text-emerald-400 shrink-0" />
-        </Show>
-        <Show when={!s().done && s().timerExpired}>
-          <FiBell size={14} class="shrink-0 text-orange-400" />
-        </Show>
-        <Show when={!s().done && !s().timerExpired && s().timerEndsAt !== null}>
-          <span class="font-mono text-xs font-semibold text-zinc-300 shrink-0">
-            {tick() && fmtRemaining(s().timerEndsAt!)}
-          </span>
-        </Show>
-      </button>
     )
   }
 
@@ -272,16 +217,7 @@ export function Cook() {
     <div class="h-screen bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
       {/* ── Top bar ────────────────────────────────────────────────────── */}
       <header class="shrink-0 flex items-center justify-between px-4 py-3 border-b border-zinc-600">
-        <div class="flex items-center gap-3">
-          {/* Globale Strang-Navigation */}
-          <Show when={strangs().length > 1}>
-            <div class="flex items-center gap-1">
-              <button onClick={prev} class="nav-btn" aria-label="Vorheriger Strang"><FiChevronLeft /></button>
-              <span class="text-xs text-zinc-500">{activeIdx() + 1}/{strangs().length}</span>
-              <button onClick={next} class="nav-btn" aria-label="Nächster Strang"><FiChevronRight /></button>
-            </div>
-          </Show>
-        </div>
+        <span class="text-sm font-bold tracking-widest uppercase text-zinc-300">MURKS</span>
         <div class="flex items-center gap-2">
           <button
             class="mic-btn"
@@ -343,36 +279,23 @@ export function Cook() {
             </div>
           }
         >
-          {/* Desktop: Karten nebeneinander, max-Breite pro Karte */}
-          <div class="hidden sm:flex gap-4 p-4 h-full overflow-x-auto justify-start items-stretch">
+          {/* Mobile: vertikal gestapelt, scrollbar */}
+          <div class="sm:hidden h-full overflow-y-auto flex flex-col gap-2 p-3">
             <For each={strangs()}>
               {(s) => (
-                <div class="w-[340px] shrink-0 flex flex-col">
-                  <StrangCard
-                    s={s}
-                    isFocused={s.id === active()?.id}
-                    onFocus={() => focusStrang(s.id)}
-                  />
-                </div>
+                <StrangCard s={s} isFocused={s.id === active()?.id} onFocus={() => focusStrang(s.id)} />
               )}
             </For>
           </div>
-          {/* Mobile: expandierte Karte oben, kompakte Strang-Liste darunter */}
-          <div class="sm:hidden h-full flex flex-col px-4 py-3 gap-2 overflow-hidden">
-            <Show when={active()}>
+          {/* Desktop: horizontal nebeneinander, scrollbar */}
+          <div class="hidden sm:flex h-full overflow-x-auto gap-3 p-4 items-start">
+            <For each={strangs()}>
               {(s) => (
-                <div class="flex-1 min-h-[280px] flex flex-col min-h-0">
-                  <StrangCard s={s()} isFocused={true} onFocus={() => {}} />
+                <div class="w-[320px] shrink-0">
+                  <StrangCard s={s} isFocused={s.id === active()?.id} onFocus={() => focusStrang(s.id)} />
                 </div>
               )}
-            </Show>
-            <Show when={strangs().length > 1}>
-              <div class="shrink-0 max-h-[45%] overflow-y-auto flex flex-col gap-2 pb-1">
-                <For each={strangs().filter((s) => s.id !== active()?.id)}>
-                  {(s) => <CompactStrang s={s} />}
-                </For>
-              </div>
-            </Show>
+            </For>
           </div>
         </Show>
       </main>
