@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal, onCleanup } from 'solid-js'
+import { For, Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js'
 import { useConfig } from '../App'
 import { state, expireTimers, type Strang } from '../state/store'
 import { executeTool, fmtRemaining } from '../lib/tools'
@@ -9,6 +9,7 @@ export function Cook() {
   const voice = createAgentVoice({ configOpen })
 
   const [tick, setTick] = createSignal(Date.now())
+  const [previewStep, setPreview] = createSignal<number | null>(null)
   const interval = setInterval(() => {
     setTick(Date.now())
     expireTimers()
@@ -26,6 +27,11 @@ export function Cook() {
   const activeIdx = createMemo(() => {
     const a = active()
     return a ? strangs().findIndex((s) => s.id === a.id) : 0
+  })
+
+  createEffect(() => {
+    active()
+    setPreview(null)
   })
 
   function focusStrang(id: string) {
@@ -54,11 +60,6 @@ export function Cook() {
     tick()
     const r = remaining(s)
     return r !== null && r < 120_000
-  }
-
-  function instruction(s: Strang): string {
-    if (s.timerExpired && s.timerInstruction) return s.timerInstruction
-    return s.steps[s.stepIndex] ?? ''
   }
 
   return (
@@ -125,16 +126,24 @@ export function Cook() {
               const r = remaining(s())
               return r !== null && r < 120_000
             }
+            const shownIdx = () => (previewStep() !== null ? previewStep()! : s().stepIndex)
+            const text = () => {
+              const i = shownIdx()
+              if (i === s().stepIndex && s().timerExpired && s().timerInstruction) {
+                return s().timerInstruction
+              }
+              return s().steps[i] ?? ''
+            }
             return (
               <div class="card" data-color={s().color} classList={{ 'is-expired': s().timerExpired }}>
                 <div class="flex items-start justify-between gap-2 mb-1">
-                  <div class="flex items-center gap-2 min-w-0">
-                    <span class="strang-dot mt-1.5" />
-                    <span class="font-semibold text-lg leading-tight text-zinc-100 truncate">{s().name}</span>
-                  </div>
+                  <span class="font-semibold text-lg leading-tight text-zinc-100 truncate">{s().name}</span>
                   <div class="flex items-center gap-2 shrink-0 mt-0.5">
+                    <Show when={previewStep() !== null}>
+                      <span class="text-xs text-zinc-400">Vorschau</span>
+                    </Show>
                     <span class="step-chip">
-                      Schritt {s().stepIndex + 1} / {s().steps.length}
+                      Schritt {(previewStep() ?? s().stepIndex) + 1} / {s().steps.length}
                     </span>
                     <Show when={s().timerExpired}>
                       <span class="text-lg leading-none">🔔</span>
@@ -142,19 +151,24 @@ export function Cook() {
                   </div>
                 </div>
 
-                <div class="flex gap-1 mb-4">
+                <div class="flex gap-1.5 mb-4">
                   <For each={Array.from({ length: s().steps.length })}>
                     {(_, i) => (
-                      <div
-                        class={`h-1 flex-1 rounded-full transition-colors ${
-                          i() < s().stepIndex + 1 ? 'bg-zinc-400' : 'bg-zinc-700'
-                        }`}
+                      <button
+                        class="step-dot"
+                        classList={{
+                          'is-done': i() < s().stepIndex,
+                          'is-active': i() === s().stepIndex,
+                          'is-preview': previewStep() === i(),
+                        }}
+                        onClick={() => setPreview(previewStep() === i() ? null : i())}
+                        aria-label={`Schritt ${i() + 1} ansehen`}
                       />
                     )}
                   </For>
                 </div>
 
-                <Show when={s().timerExpired}>
+                <Show when={s().timerExpired && previewStep() === null}>
                   <div class="text-sm font-semibold text-orange-400 mb-1">Timer abgelaufen!</div>
                   <div class="text-xs text-zinc-400 mb-2">Jetzt:</div>
                 </Show>
@@ -166,7 +180,19 @@ export function Cook() {
                       <p class="text-base text-zinc-400 leading-relaxed">✓ Fertig.</p>
                     }
                   >
-                    <p class="text-base text-zinc-200 leading-relaxed">{instruction(s())}</p>
+                    <p class="text-base text-zinc-200 leading-relaxed">{text()}</p>
+                  </Show>
+
+                  <Show when={previewStep() !== null}>
+                    <button
+                      class="activate-step-btn"
+                      onClick={() => {
+                        executeTool('set_step', { strang_id: s().id, step_index: previewStep()! })
+                        setPreview(null)
+                      }}
+                    >
+                      Schritt {previewStep()! + 1} aktiv setzen
+                    </button>
                   </Show>
 
                   <Show when={!s().done && !s().timerExpired && s().timerEndsAt !== null}>
@@ -201,12 +227,22 @@ export function Cook() {
                   </div>
 
                   <Show when={!s().done}>
-                    <button
-                      onClick={() => executeTool('complete_strang', { strang_id: s().id })}
-                      class="done-btn"
+                    <Show
+                      when={previewStep() === null}
+                      fallback={
+                        <button class="jump-btn" onClick={() => setPreview(null)}>
+                          Zum aktiven Schritt
+                        </button>
+                      }
                     >
-                      ✓ Fertig
-                    </button>
+                      <button
+                        class="done-btn-round"
+                        onClick={() => executeTool('complete_strang', { strang_id: s().id })}
+                        title="Strang fertig"
+                      >
+                        ✓
+                      </button>
+                    </Show>
                   </Show>
                 </div>
               </div>

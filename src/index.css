@@ -14,9 +14,6 @@
     border-color: var(--strang-border);
     color: var(--strang-text);
   }
-  .strang-dot {
-    background-color: var(--strang-text);
-  }
 
   .chip[data-color='cyan'],
   .card[data-color='cyan'] {
@@ -97,9 +94,6 @@
   .step-chip {
     @apply text-xs px-2 py-0.5 rounded-full border shrink-0;
   }
-  .strang-dot {
-    @apply w-2.5 h-2.5 rounded-full shrink-0;
-  }
 
   /* ── Strang-Karte ───────────────────────────────────────────────── */
   .card {
@@ -124,8 +118,26 @@
   .nav-btn {
     @apply w-10 h-10 flex items-center justify-center rounded-full border border-zinc-600 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 transition-colors text-lg;
   }
-  .done-btn {
-    @apply flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-zinc-600 text-sm text-zinc-300 hover:border-zinc-300 hover:text-zinc-100 transition-colors min-h-[44px];
+  .done-btn-round {
+    @apply w-12 h-12 rounded-full bg-emerald-700 border border-emerald-600 text-white text-xl flex items-center justify-center transition-colors hover:bg-emerald-600 active:scale-95;
+  }
+  .jump-btn {
+    @apply px-4 py-2.5 rounded-xl border border-zinc-300 text-sm text-zinc-100 transition-colors min-h-[44px] hover:bg-zinc-700;
+  }
+  .activate-step-btn {
+    @apply self-start text-xs px-3 py-1.5 rounded-full border border-zinc-500 text-zinc-300 hover:border-zinc-300 hover:text-zinc-100 transition-colors;
+  }
+  .step-dot {
+    @apply h-2.5 flex-1 rounded-full transition-colors bg-zinc-700;
+  }
+  .step-dot.is-done {
+    @apply bg-zinc-400;
+  }
+  .step-dot.is-active {
+    background-color: var(--strang-text);
+  }
+  .step-dot.is-preview {
+    box-shadow: 0 0 0 2px rgb(244 244 245 / 0.45);
   }
   .mic-btn {
     @apply relative w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all disabled:opacity-40;
