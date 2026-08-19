@@ -1,9 +1,19 @@
 # MURKS
 
-**M**inimal **u**nterwürfige **R**ezept- **u**nd **K**üchen-**S**oftware
+**M**inimal **u**nterwürfige **R**ezept**k**och**s**oftware
 
-PWA auf Basis von Vite + SolidJS + Tailwind. Trocken, minimalistisch, direkt.
-Keine Höflichkeitsfloskeln.
+PWA auf Basis von Vite + SolidJS + Tailwind. Trocken, minimalistisch, direkt —
+mit einer Prise Unterwürfigkeit. Keine Höflichkeitsfloskeln.
+
+<!-- Alternative, rekursiv elegant: **M**inimal **u**nterwürfig, **r**echt **k**östlich, **s**elten Murks -->
+
+## Features
+
+- **Voice-First**: Spracherkennung (Whisper lokal via WASM oder Server-Whisper,
+  Silero VAD) und Sprachausgabe (Piper/Thorsten via Worker oder Web Speech)
+- **Agent**: OpenAI-kompatibles Chat-Endpoint, Werkzeuge für die Kochoberfläche
+  (Stränge, Schritte, Timer, Zutaten)
+- **Kochstränge**: parallele Zubereitungen mit Schritten, Fokus und Timern
 
 ## Agent
 
