@@ -1,21 +1,12 @@
 # TODO: Timer-Verhalten in der Cook View
 
-## Offene Fragen / zu klären
+## Gelöst
 
-- **Mehrere Timer gleichzeitig**: Was passiert, wenn mehrere Timer zur selben Zeit auslösen? Reihenfolge? Priorisierung? Optik (Karten-Stapel? Chip-Alert)?
+- **Mehrere Timer gleichzeitig**: Alle laufenden Timer sind parallel in der Topbar-Leiste sichtbar (Countdown in Strangfarbe, gelb <2min, rot + 🔔 abgelaufen); Auslösung betrifft nur den jeweiligen Strang
+- **Ein Timer löst aus, man ist woanders**: Kein automatischer Kartenwechsel — der Strang wird visuell deutlich (rote Karten-Border + „Timer abgelaufen! Jetzt: …", roter Chip), die Topbar-Leiste zeigt 🔔; ein Tipp springt hin
+- **Agent kennt den Karten-Zustand**: `get_cook_state` liefert Stränge, Schritte, Timer, Zutaten — der Agent weiß immer, was offen/fertig ist
+- **Fehler-Rücksprung**: Schritt-Punkte als Vorschau + „Schritt X aktiv setzen" (set_step), auch rückwärts
 
-- **Ein Timer löst aus, man ist in einem anderen Schritt**: Was passiert?
-  - Denkbar: **kein automatischer Kartenwechsel** — die auslösende Karte wird visuell deutlich (orange Alert-State im Chip + Karte), und der **Agent fragt**, ob man auf die offene Timer-Karte wechseln will.
+## Offen
 
-- **Agent kennt den Karten-Zustand**: Der Agent sollte immer wissen,
-  - welche Karten gerade offen sind (inkl. Timer-Karten),
-  - welche abgeschlossen sind.
-  → Zustand gehört in den Cook-State (nicht nur UI).
-
-- **Fehler-Rücksprung**: Man muss bei einem Fehler (z.B. Schritt übersprungen, falsch abgehakt) zurückspringen können. Wie weit? Pro Strang? Global?
-
-- **Agent darf Karten verändern**: Während des Kochens kann der Agent Karten hinzufügen, löschen und ändern (Schritte, Timer, Reihenfolge) — betrifft auch laufende Timer (abbrechen/ersetzen).
-
-## Status
-
-Offen — Entscheidung im Zuge der Cook-View-Implementierung (Cook-State + Tool-Calls).
+- **Agent darf Karten vollständig verändern**: `set_step`, Timer, `complete_strang`, `focus_strang`, Zutaten existieren — aber `update_strang` (Schritte/Timer/Reihenfolge ändern) und `remove_strang` (löschen) fehlen (siehe todo/cook-ux/todo.md)
