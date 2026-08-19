@@ -1,41 +1,8 @@
 import { For, Show, createMemo, createSignal, onCleanup } from 'solid-js'
 import { useConfig } from '../App'
-import { state, expireTimers, type Strang, type StrangColor } from '../state/store'
+import { state, expireTimers, type Strang } from '../state/store'
 import { executeTool, fmtRemaining } from '../lib/tools'
 import { createAgentVoice } from '../lib/agentVoice'
-
-const COLOR_STYLES: Record<StrangColor, { chip: string; chipActive: string; name: string }> = {
-  cyan: {
-    chip: 'bg-cyan-950/60 border-cyan-800 text-cyan-300',
-    chipActive: 'bg-cyan-900 border-cyan-500 text-cyan-100',
-    name: 'text-cyan-300',
-  },
-  violet: {
-    chip: 'bg-violet-950/60 border-violet-800 text-violet-300',
-    chipActive: 'bg-violet-900 border-violet-500 text-violet-100',
-    name: 'text-violet-300',
-  },
-  amber: {
-    chip: 'bg-amber-950/60 border-amber-800 text-amber-300',
-    chipActive: 'bg-amber-900 border-amber-500 text-amber-100',
-    name: 'text-amber-300',
-  },
-  emerald: {
-    chip: 'bg-emerald-950/60 border-emerald-800 text-emerald-300',
-    chipActive: 'bg-emerald-900 border-emerald-500 text-emerald-100',
-    name: 'text-emerald-300',
-  },
-  rose: {
-    chip: 'bg-rose-950/60 border-rose-800 text-rose-300',
-    chipActive: 'bg-rose-900 border-rose-500 text-rose-100',
-    name: 'text-rose-300',
-  },
-  sky: {
-    chip: 'bg-sky-950/60 border-sky-800 text-sky-300',
-    chipActive: 'bg-sky-900 border-sky-500 text-sky-100',
-    name: 'text-sky-300',
-  },
-}
 
 export function Cook() {
   const { configOpen, setConfigOpen } = useConfig()
@@ -89,14 +56,6 @@ export function Cook() {
     return r !== null && r < 120_000
   }
 
-  function chipClass(s: Strang, i: number): string {
-    const c = COLOR_STYLES[s.color]
-    const base = i === activeIdx() ? c.chipActive : c.chip
-    if (s.timerExpired) return `${base} border-orange-500 text-orange-300`
-    if (isUrgent(s)) return `${base} border-red-600/80`
-    return base
-  }
-
   function instruction(s: Strang): string {
     if (s.timerExpired && s.timerInstruction) return s.timerInstruction
     return s.steps[s.stepIndex] ?? ''
@@ -109,14 +68,14 @@ export function Cook() {
         <span class="text-sm font-bold tracking-widest uppercase">MURKS</span>
         <div class="flex items-center gap-2">
           <button
-            class="w-9 h-9 flex items-center justify-center rounded-full border border-zinc-600 bg-zinc-700 text-zinc-400 hover:text-zinc-100 transition-colors"
+            class="icon-btn"
             onClick={() => executeTool('open_zutaten', {})}
             title="Zutaten"
           >
             🧾
           </button>
           <button
-            class="w-9 h-9 flex items-center justify-center rounded-full border border-zinc-600 bg-zinc-700 text-zinc-400 hover:text-zinc-100 transition-colors"
+            class="icon-btn"
             onClick={() => setConfigOpen(true)}
             title="Konfiguration"
           >
@@ -131,9 +90,14 @@ export function Cook() {
           {(s, i) => (
             <button
               onClick={() => focusStrang(s.id)}
-              class={`shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 border text-xs transition-colors ${chipClass(s, i())} ${
-                s.done ? 'line-through opacity-60' : ''
-              }`}
+              class="chip"
+              data-color={s.color}
+              classList={{
+                'is-active': i() === activeIdx(),
+                'is-urgent': !s.timerExpired && isUrgent(s),
+                'is-expired': s.timerExpired,
+                'is-done': s.done,
+              }}
             >
               <span class="font-medium">{s.name}</span>
               <Show when={s.done}>
@@ -162,15 +126,14 @@ export function Cook() {
               return r !== null && r < 120_000
             }
             return (
-              <div
-                class={`flex-1 flex flex-col rounded-2xl border bg-zinc-700 p-5 transition-colors ${
-                  s().timerExpired ? 'border-orange-500' : 'border-zinc-600'
-                }`}
-              >
+              <div class="card" data-color={s().color} classList={{ 'is-expired': s().timerExpired }}>
                 <div class="flex items-start justify-between gap-2 mb-1">
-                  <span class={`font-semibold text-lg leading-tight ${COLOR_STYLES[s().color].name}`}>{s().name}</span>
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="strang-dot mt-1.5" />
+                    <span class="font-semibold text-lg leading-tight text-zinc-100 truncate">{s().name}</span>
+                  </div>
                   <div class="flex items-center gap-2 shrink-0 mt-0.5">
-                    <span class="text-xs text-zinc-400">
+                    <span class="step-chip">
                       Schritt {s().stepIndex + 1} / {s().steps.length}
                     </span>
                     <Show when={s().timerExpired}>
@@ -208,11 +171,7 @@ export function Cook() {
 
                   <Show when={!s().done && !s().timerExpired && s().timerEndsAt !== null}>
                     <div class="flex items-center">
-                      <div
-                        class={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 border ${
-                          urgent() ? 'bg-zinc-700 border-red-700' : 'bg-zinc-700 border-zinc-600'
-                        }`}
-                      >
+                      <div class="pill" classList={{ 'is-urgent': urgent() }}>
                         <span class="text-base leading-none">⏱</span>
                         <span class="font-mono text-2xl font-bold tabular-nums text-zinc-100">
                           {tick() && fmtRemaining(s().timerEndsAt!)}
@@ -227,14 +186,14 @@ export function Cook() {
                   <div class="flex items-center gap-2">
                     <button
                       onClick={prev}
-                      class="w-10 h-10 flex items-center justify-center rounded-full border border-zinc-600 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 transition-colors text-lg"
+                      class="nav-btn"
                       aria-label="Vorheriger Strang"
                     >
                       ‹
                     </button>
                     <button
                       onClick={next}
-                      class="w-10 h-10 flex items-center justify-center rounded-full border border-zinc-600 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 transition-colors text-lg"
+                      class="nav-btn"
                       aria-label="Nächster Strang"
                     >
                       ›
@@ -244,7 +203,7 @@ export function Cook() {
                   <Show when={!s().done}>
                     <button
                       onClick={() => executeTool('complete_strang', { strang_id: s().id })}
-                      class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-zinc-600 text-sm text-zinc-300 hover:border-zinc-300 hover:text-zinc-100 transition-colors min-h-[44px]"
+                      class="done-btn"
                     >
                       ✓ Fertig
                     </button>
@@ -258,7 +217,7 @@ export function Cook() {
 
       {/* ── Voice bar ──────────────────────────────────────────────────── */}
       <div class="shrink-0 border-t border-zinc-600 bg-zinc-950 px-4 py-3">
-        <div class="mb-3 min-h-[36px] flex items-center px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-xl">
+        <div class="transcript-strip">
           <Show
             when={voice.transcribing()}
             fallback={
@@ -284,11 +243,8 @@ export function Cook() {
               <div class="absolute inset-0 rounded-full animate-ping bg-zinc-400 opacity-20" />
             </Show>
             <button
-              class={`relative w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all disabled:opacity-40 ${
-                voice.listening()
-                  ? 'bg-zinc-100 text-zinc-900 ring-2 ring-zinc-300'
-                  : 'bg-zinc-700 border border-zinc-600 text-zinc-300 hover:bg-zinc-600'
-              }`}
+              class="mic-btn"
+              classList={{ 'is-on': voice.listening(), 'is-off': !voice.listening() }}
               onClick={() => voice.toggleMic()}
               disabled={state.agent.busy}
               title={voice.micTitle()}
