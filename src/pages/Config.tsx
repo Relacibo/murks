@@ -230,7 +230,6 @@ function AgentRow(props: AgentRowProps) {
 
 export function ConfigModal(props: ConfigModalProps) {
   const [expandedId, setExpandedId] = createSignal<string | null>(null)
-  const [advancedOpen, setAdvancedOpen] = createSignal(false)
   const [sttCached, setSttCached] = createSignal<boolean | null>(null)
   const [sttBusy, setSttBusy] = createSignal(false)
   const [sttCacheError, setSttCacheError] = createSignal<string | null>(null)
@@ -342,6 +341,94 @@ export function ConfigModal(props: ConfigModalProps) {
             </button>
           </section>
 
+          {/* Sprache (STT) — flat, always visible */}
+          <section class="space-y-4">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Sprache</h2>
+            <label class="block space-y-1.5">
+              <span class="text-sm text-zinc-400">Modus</span>
+              <select
+                class={selectCls}
+                value={state.stt.mode}
+                onChange={(e) =>
+                  setStt({ mode: e.currentTarget.value as 'wasm' | 'server' | 'webspeech' })
+                }
+              >
+                <option value="wasm">Lokal (Whisper, offline)</option>
+                <option value="server">Server (OpenAI-kompatibel)</option>
+                <option value="webspeech">Browser-Spracherkennung (online)</option>
+              </select>
+            </label>
+
+            <Show when={state.stt.mode === 'wasm'}>
+              <label class="block space-y-1.5">
+                <span class="text-sm text-zinc-400">Modell</span>
+                <select
+                  class={selectCls}
+                  value={state.stt.model}
+                  onChange={(e) =>
+                    setStt({ model: e.currentTarget.value as 'tiny' | 'base' | 'small' })
+                  }
+                >
+                  <option value="tiny">tiny — ~41 MB, schnell, schwächste Erkennung</option>
+                  <option value="base">base — ~145 MB, guter Kompromiss</option>
+                  <option value="small">small — ~250 MB, beste Qualität</option>
+                </select>
+              </label>
+              <div class="flex items-center gap-3 rounded-xl border border-zinc-600 bg-zinc-800 px-4 py-3">
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm text-zinc-300">
+                    Whisper {state.stt.model}
+                  </p>
+                  <p class="text-xs text-zinc-500 mt-0.5">
+                    {sttBusy()
+                      ? 'Bitte warten …'
+                      : sttCached() === null
+                        ? 'Prüfe Cache …'
+                        : sttCached()
+                          ? 'Im Browser-Cache vorhanden'
+                          : 'Noch nicht heruntergeladen'}
+                  </p>
+                </div>
+                <button
+                  class="shrink-0 h-9 rounded-lg border border-zinc-600 px-3 text-sm text-zinc-300 hover:border-zinc-400 hover:text-zinc-100 transition-colors disabled:opacity-40"
+                  disabled={sttBusy() || sttCached() === null}
+                  onClick={handleSttCache}
+                >
+                  {sttBusy() ? '…' : sttCached() ? 'Löschen' : 'Laden'}
+                </button>
+              </div>
+              <Show when={sttCacheError()}>
+                <p class="text-xs text-red-400">{sttCacheError()}</p>
+              </Show>
+              <p class="text-xs text-zinc-500">
+                Läuft im Browser (WebGPU oder WASM). Ohne WebGPU: tiny oder base wählen.
+              </p>
+            </Show>
+
+            <Show when={state.stt.mode === 'server'}>
+              <label class="block space-y-1.5">
+                <span class="text-sm text-zinc-400">Endpoint (Base-URL)</span>
+                <input
+                  class={inputCls}
+                  type="url"
+                  placeholder="http://localhost:8000/v1"
+                  value={state.stt.endpoint}
+                  onInput={(e) => setStt({ endpoint: e.currentTarget.value })}
+                />
+              </label>
+              <label class="block space-y-1.5">
+                <span class="text-sm text-zinc-400">API-Key (optional)</span>
+                <input
+                  class={inputCls}
+                  type="password"
+                  placeholder="sk-…"
+                  value={state.stt.key}
+                  onInput={(e) => setStt({ key: e.currentTarget.value })}
+                />
+              </label>
+            </Show>
+          </section>
+
           {/* Persönlich */}
           <section class="space-y-4">
             <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Persönlich</h2>
@@ -354,114 +441,6 @@ export function ConfigModal(props: ConfigModalProps) {
                 onInput={(e) => setConfig({ displayName: e.currentTarget.value })}
               />
             </label>
-          </section>
-
-          {/* Speicher */}
-          <section class="space-y-4">
-            <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Speicher</h2>
-            <div class="flex items-center gap-3">
-              <p class="min-w-0 flex-1 text-sm text-zinc-400">
-                STT-Modell (Whisper {state.stt.model})
-                <span class="block text-xs text-zinc-600">
-                  {sttBusy()
-                    ? 'Bitte warten …'
-                    : sttCached() === null
-                      ? 'Prüfe …'
-                      : sttCached()
-                        ? 'Heruntergeladen (Browser-Cache)'
-                        : 'Nicht heruntergeladen'}
-                </span>
-              </p>
-              <button
-                class="h-11 shrink-0 rounded-lg border border-zinc-600 px-4 text-sm text-zinc-300 hover:border-zinc-400 hover:text-zinc-100 hover:bg-zinc-600 transition-colors disabled:opacity-40"
-                disabled={sttBusy() || sttCached() === null}
-                onClick={handleSttCache}
-              >
-                {sttBusy() ? '…' : sttCached() ? 'Löschen' : 'Herunterladen'}
-              </button>
-            </div>
-            <Show when={sttCacheError()}>
-              <p class="text-xs text-red-400">{sttCacheError()}</p>
-            </Show>
-          </section>
-
-          {/* Erweitert */}
-          <section class="space-y-4">
-            <button
-              class="group flex w-full items-center justify-between py-2 transition-colors"
-              onClick={() => setAdvancedOpen((o) => !o)}
-            >
-              <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400 group-hover:text-zinc-300 transition-colors">
-                Erweitert
-              </h2>
-              <span
-                class={`flex h-8 w-8 items-center justify-center text-sm text-zinc-500 group-hover:text-zinc-300 transition-transform duration-200 ${
-                  advancedOpen() ? 'rotate-180' : ''
-                }`}
-              >
-                ▾
-              </span>
-            </button>
-            <Show when={advancedOpen()}>
-              <div class="space-y-4">
-                  <label class="block space-y-1.5">
-                    <span class="text-sm text-zinc-400">STT-Modus</span>
-                    <select
-                      class={selectCls}
-                      value={state.stt.mode}
-                      onChange={(e) =>
-                        setStt({ mode: e.currentTarget.value as 'wasm' | 'server' | 'webspeech' })
-                      }
-                    >
-                      <option value="wasm">Lokal (Whisper, offline)</option>
-                      <option value="server">Server (OpenAI-kompatibel)</option>
-                      <option value="webspeech">Browser-Spracherkennung (online)</option>
-                    </select>
-                  </label>
-                  <Show when={state.stt.mode === 'server'}>
-                    <label class="block space-y-1.5">
-                      <span class="text-sm text-zinc-400">STT-Endpoint (Base-URL)</span>
-                      <input
-                        class={inputCls}
-                        type="url"
-                        placeholder="http://localhost:8000/v1"
-                        value={state.stt.endpoint}
-                        onInput={(e) => setStt({ endpoint: e.currentTarget.value })}
-                      />
-                    </label>
-                    <label class="block space-y-1.5">
-                      <span class="text-sm text-zinc-400">STT-API-Key (optional)</span>
-                      <input
-                        class={inputCls}
-                        type="password"
-                        placeholder="sk-…"
-                        value={state.stt.key}
-                        onInput={(e) => setStt({ key: e.currentTarget.value })}
-                      />
-                    </label>
-                  </Show>
-                <Show when={state.stt.mode === 'wasm'}>
-                  <label class="block space-y-1.5">
-                    <span class="text-sm text-zinc-400">STT-Modell</span>
-                    <select
-                      class={selectCls}
-                      value={state.stt.model}
-                      onChange={(e) =>
-                        setStt({ model: e.currentTarget.value as 'tiny' | 'base' | 'small' })
-                      }
-                    >
-                      <option value="tiny">tiny — ~41 MB, schnellste, schwache Erkennung</option>
-                      <option value="base">base — ~145 MB, guter Kompromiss</option>
-                      <option value="small">small — ~250 MB, beste Qualität, am langsamsten</option>
-                    </select>
-                  </label>
-                  <p class="text-xs text-zinc-600">
-                    Whisper läuft direkt im Browser (WebGPU, sonst WASM). Modell wird beim ersten
-                    Start geladen und gecacht. Ohne WebGPU: tiny/base wählen.
-                  </p>
-                </Show>
-              </div>
-            </Show>
           </section>
 
           <p class="text-xs text-zinc-500 pb-2">Alles lokal gespeichert · Kein Backend</p>
