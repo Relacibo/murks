@@ -215,9 +215,10 @@ export function Cook() {
               }
             >
               <button
-                class="icon-btn text-emerald-400 border-emerald-700 hover:border-emerald-500 hover:text-emerald-300"
+                class="done-btn-round"
                 onClick={(e) => { e.stopPropagation(); executeTool('complete_strang', { strang_id: s().id }) }}
                 title="Strang fertig"
+                aria-label="Strang fertig"
               >
                 ✓
               </button>
