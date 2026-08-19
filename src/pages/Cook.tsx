@@ -91,8 +91,10 @@ export function Cook() {
 
   function chipClass(s: Strang, i: number): string {
     const c = COLOR_STYLES[s.color]
-    if (s.timerExpired) return `${i === activeIdx() ? c.chipActive : c.chip} border-orange-500 text-orange-300`
-    return i === activeIdx() ? c.chipActive : c.chip
+    const base = i === activeIdx() ? c.chipActive : c.chip
+    if (s.timerExpired) return `${base} border-orange-500 text-orange-300`
+    if (isUrgent(s)) return `${base} border-red-600/80`
+    return base
   }
 
   function instruction(s: Strang): string {
@@ -141,7 +143,7 @@ export function Cook() {
                 <span>🔔</span>
               </Show>
               <Show when={!s.done && !s.timerExpired && s.timerEndsAt !== null}>
-                <span class={`font-mono font-semibold ${isUrgent(s) ? 'text-red-400' : ''}`}>
+                <span class="font-mono font-semibold">
                   {tick() && fmtRemaining(s.timerEndsAt!)}
                 </span>
               </Show>
@@ -212,11 +214,7 @@ export function Cook() {
                         }`}
                       >
                         <span class="text-base leading-none">⏱</span>
-                        <span
-                          class={`font-mono text-2xl font-bold tabular-nums ${
-                            urgent() ? 'text-red-400' : 'text-zinc-100'
-                          }`}
-                        >
+                        <span class="font-mono text-2xl font-bold tabular-nums text-zinc-100">
                           {tick() && fmtRemaining(s().timerEndsAt!)}
                         </span>
                         <span class="text-xs text-zinc-400">verbleib.</span>
