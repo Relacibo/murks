@@ -270,7 +270,7 @@ export function Cook() {
       </Show>
 
       {/* ── Strang cards ────────────────────────────────────────────── */}
-      <main class="flex-1 min-h-0 overflow-hidden">
+      <main class="flex-1 min-h-0 overflow-y-auto">
         <Show
           when={strangs().length > 0}
           fallback={
@@ -279,19 +279,10 @@ export function Cook() {
             </div>
           }
         >
-          {/* Mobile: vertikal gestapelt, scrollbar */}
-          <div class="sm:hidden h-full overflow-y-auto flex flex-col gap-2 p-3">
+          <div class="flex flex-wrap gap-3 p-3 items-start">
             <For each={strangs()}>
               {(s) => (
-                <StrangCard s={s} isFocused={s.id === active()?.id} onFocus={() => focusStrang(s.id)} />
-              )}
-            </For>
-          </div>
-          {/* Desktop: horizontal nebeneinander, scrollbar */}
-          <div class="hidden sm:flex h-full overflow-x-auto gap-3 p-4 items-start">
-            <For each={strangs()}>
-              {(s) => (
-                <div class="w-[320px] shrink-0">
+                <div class="w-full sm:w-[320px]">
                   <StrangCard s={s} isFocused={s.id === active()?.id} onFocus={() => focusStrang(s.id)} />
                 </div>
               )}
