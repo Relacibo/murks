@@ -102,8 +102,14 @@
   .card-slot {
     @apply w-[22.5rem] max-w-full shrink-0 snap-start;
   }
+  .card-slot-mobile {
+    @apply snap-center h-full shrink-0 flex flex-col py-2;
+  }
+  .card-slot-mobile:not(.is-active) .card {
+    opacity: 0.5;
+  }
   .card {
-    @apply flex-1 flex flex-col rounded-2xl border bg-zinc-700 p-5 transition-colors border-zinc-600;
+    @apply flex-1 flex flex-col rounded-2xl border bg-zinc-700 p-5 transition-colors transition-opacity duration-300 border-zinc-600;
   }
   .card.is-focused {
     border-color: var(--strang-border-active);

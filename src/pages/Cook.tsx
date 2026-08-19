@@ -30,12 +30,12 @@ export function Cook() {
     return a ? strangs().findIndex((s) => s.id === a.id) : 0
   })
 
-  const slotRefs: Record<string, HTMLDivElement> = {}
+  const slotRefs: Record<string, HTMLDivElement[]> = {}
   createEffect(() => {
     const id = state.cook.focusedStrangId
     if (!id) return
-    const el = slotRefs[id]
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    const el = slotRefs[id]?.find((x) => x.offsetParent !== null)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
   })
 
   createEffect(() => {
@@ -325,8 +325,7 @@ export function Cook() {
                 <div
                   class="card-slot"
                   ref={(el) => {
-                    if (el) slotRefs[s.id] = el
-                    else delete slotRefs[s.id]
+                    if (el) (slotRefs[s.id] ??= []).push(el)
                   }}
                 >
                   <StrangCard
@@ -338,17 +337,25 @@ export function Cook() {
               )}
             </For>
           </div>
-          {/* Mobile: only focused strang */}
-          <div class="sm:hidden flex flex-col px-4 py-4 h-full">
-            <Show when={active()}>
+          {/* Mobile: vertikaler Stapel, aktive Karte mittig, vorherige/nächste peek */}
+          <div class="sm:hidden h-full overflow-y-auto scroll-smooth snap-y snap-mandatory px-4">
+            <For each={strangs()}>
               {(s) => (
-                <StrangCard
-                  s={s()}
-                  isFocused={true}
-                  onFocus={() => {}}
-                />
+                <div
+                  class="card-slot-mobile"
+                  classList={{ 'is-active': s.id === active()?.id }}
+                  ref={(el) => {
+                    if (el) (slotRefs[s.id] ??= []).push(el)
+                  }}
+                >
+                  <StrangCard
+                    s={s}
+                    isFocused={s.id === active()?.id}
+                    onFocus={() => focusStrang(s.id)}
+                  />
+                </div>
               )}
-            </Show>
+            </For>
           </div>
         </Show>
       </main>

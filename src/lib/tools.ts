@@ -231,6 +231,10 @@ export function executeTool(name: string, args: Record<string, unknown>): string
         if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
         patchStrang(id, { done: true, timerEndsAt: null, timerInstruction: null, timerExpired: false })
         showToast(`Fertig: ${strang.name}`)
+        const idx = state.cook.strangs.findIndex((s) => s.id === id)
+        const rest = state.cook.strangs.slice(idx + 1).concat(state.cook.strangs.slice(0, idx))
+        const next = rest.find((s) => !s.done)
+        if (next) setState('cook', 'focusedStrangId', next.id)
         return JSON.stringify({ ok: true })
       }
       case 'focus_strang': {
