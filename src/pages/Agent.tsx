@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, type Accessor, type Setter } from 'solid-js'
 import type { MicVAD } from '@ricky0123/vad-web'
 import { state, sendMessage, clearMessages, pushAgentMessage } from '../state/store'
-import { transcribeAudio, createWebSpeechRecognition } from '../lib/stt'
+import { transcribeAudio, createWebSpeechRecognition, isSttModelCached } from '../lib/stt'
 import { createVoice } from '../lib/voice'
 import { speak, stopSpeaking } from '../lib/tts'
 
@@ -15,6 +15,7 @@ export function Agent(props: AgentProps) {
   const [listening, setListening] = createSignal(false)
   const [speaking, setSpeaking] = createSignal(false)
   const [transcribing, setTranscribing] = createSignal(false)
+  const [sttReady, setSttReady] = createSignal(false)
 
   const agent = createMemo(() => state.agents.find((a) => a.id === state.defaultAgentId))
   const ready = createMemo(() => Boolean(agent()?.endpoint && agent()?.model))
@@ -23,6 +24,20 @@ export function Agent(props: AgentProps) {
   let recognition: ReturnType<typeof createWebSpeechRecognition> = null
   let feedRef: HTMLDivElement | undefined
   let lastSpoken: { text: string } | undefined
+  let sttCheckToken = 0
+
+  createEffect(() => {
+    const mode = state.stt.mode
+    state.stt.model
+    props.configOpen()
+    const token = ++sttCheckToken
+    void (async () => {
+      let ready = true
+      if (mode === 'server') ready = Boolean(state.stt.endpoint)
+      else if (mode === 'wasm') ready = await isSttModelCached()
+      if (token === sttCheckToken) setSttReady(ready)
+    })()
+  })
 
   createEffect(() => {
     state.agent.messages.length
@@ -144,10 +159,18 @@ export function Agent(props: AgentProps) {
     setInput('')
   }
 
+  function sttHint() {
+    if (state.stt.mode === 'server') return 'Kein STT-Endpoint konfiguriert'
+    if (state.stt.mode === 'wasm') return 'STT-Modell nicht geladen'
+    return null
+  }
+
   function micTitle() {
     if (transcribing()) return 'Transkribiere …'
     if (speaking()) return 'Sprache erkannt'
     if (listening()) return 'Höre zu — tippen zum Stoppen'
+    const hint = sttHint()
+    if (hint) return `${hint} — in der Konfiguration`
     return `Hören starten (${state.stt.mode === 'wasm' ? 'lokal' : state.stt.mode})`
   }
 
@@ -228,9 +251,9 @@ export function Agent(props: AgentProps) {
         <button
           type="button"
           onClick={toggleMic}
-          disabled={state.agent.busy}
+          disabled={state.agent.busy || (!sttReady() && !listening())}
           title={micTitle()}
-          class={`h-11 w-11 shrink-0 rounded-full border text-base transition-colors ${
+          class={`h-11 w-11 shrink-0 rounded-full border text-base transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
             speaking()
               ? 'border-red-500 bg-red-500/20 text-red-400 animate-pulse ring-2 ring-red-500/40'
               : listening()
