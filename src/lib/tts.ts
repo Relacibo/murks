@@ -1,0 +1,173 @@
+import { state } from '../state/store'
+import { isModelCached, deleteModelFromCache } from './modelCache'
+
+const TTS_MODEL = 'Xenova/mms-tts-deu'
+const ORT_WASM_PATH = `${import.meta.env.BASE_URL}ort/`
+
+interface TtsPipeline {
+  (text: string): Promise<{ audio: Float32Array; sampling_rate: number }>
+}
+
+type TransformersModule = typeof import('@huggingface/transformers')
+
+let pipelinePromise: Promise<TtsPipeline> | null = null
+
+function getPipeline(): Promise<TtsPipeline> {
+  if (!pipelinePromise) {
+    pipelinePromise = (async () => {
+      let mod: TransformersModule
+      try {
+        mod = await import('@huggingface/transformers')
+      } catch (e) {
+        if (!sessionStorage.getItem('murks:stt-reload')) {
+          sessionStorage.setItem('murks:stt-reload', '1')
+          location.reload()
+          await new Promise<TtsPipeline>(() => {})
+        }
+        throw e
+      }
+      const onnxBackend = mod.env.backends?.onnx
+      if (onnxBackend?.wasm) onnxBackend.wasm.wasmPaths = ORT_WASM_PATH
+      const device = 'gpu' in navigator ? 'webgpu' : 'wasm'
+      return (await mod.pipeline('text-to-speech', TTS_MODEL, {
+        device,
+        dtype: 'q8',
+      })) as unknown as TtsPipeline
+    })()
+  }
+  return pipelinePromise
+}
+
+let audioCtx: AudioContext | null = null
+
+function getAudioCtx(): AudioContext {
+  audioCtx ??= new AudioContext()
+  return audioCtx
+}
+
+let currentSource: AudioBufferSourceNode | null = null
+let token = 0
+
+export function stopSpeaking() {
+  token++
+  try {
+    currentSource?.stop()
+  } catch {
+    // schon gestoppt
+  }
+  currentSource = null
+  if (state.tts.mode === 'webspeech') speechSynthesis.cancel()
+}
+
+function playBuffer(audio: Float32Array, rate: number, myToken: number): Promise<void> {
+  return new Promise((resolve) => {
+    if (token !== myToken) {
+      resolve()
+      return
+    }
+    const ctx = getAudioCtx()
+    void ctx.resume()
+    const buffer = ctx.createBuffer(1, audio.length, rate)
+    buffer.copyToChannel(Float32Array.from(audio), 0)
+    const src = ctx.createBufferSource()
+    src.buffer = buffer
+    src.connect(ctx.destination)
+    src.onended = () => {
+      if (currentSource === src) currentSource = null
+      resolve()
+    }
+    currentSource = src
+    src.start()
+  })
+}
+
+function splitSentences(text: string): string[] {
+  return text
+    .split(/(?<=[.!?…])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+async function speakWasm(sentences: string[], myToken: number) {
+  const pipe = await getPipeline()
+  for (const sentence of sentences) {
+    if (token !== myToken) return
+    const { audio, sampling_rate } = await pipe(sentence)
+    if (token !== myToken) return
+    await playBuffer(audio, sampling_rate, myToken)
+  }
+}
+
+async function speakServer(sentences: string[], myToken: number) {
+  const endpoint = state.tts.endpoint
+  if (!endpoint) throw new Error('Kein TTS-Endpoint konfiguriert')
+  const base = endpoint.replace(/\/+$/, '')
+  for (const sentence of sentences) {
+    if (token !== myToken) return
+    const res = await fetch(`${base}/audio/speech`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(state.tts.key ? { Authorization: `Bearer ${state.tts.key}` } : {}),
+      },
+      body: JSON.stringify({
+        model: 'tts-1',
+        input: sentence,
+        voice: state.tts.voice || 'alloy',
+        response_format: 'wav',
+      }),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const blob = await res.blob()
+    const arrayBuffer = await blob.arrayBuffer()
+    const ctx = getAudioCtx()
+    const buffer = await ctx.decodeAudioData(arrayBuffer)
+    if (token !== myToken) return
+    await playBuffer(buffer.getChannelData(0), buffer.sampleRate, myToken)
+  }
+}
+
+function speakWebSpeech(sentences: string[]) {
+  const text = sentences.join(' ')
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.lang = 'de-DE'
+  const voices = speechSynthesis.getVoices()
+  const german = voices.find((v) => v.lang.toLowerCase().startsWith('de'))
+  if (german) utterance.voice = german
+  speechSynthesis.speak(utterance)
+}
+
+export async function speak(text: string) {
+  stopSpeaking()
+  const myToken = ++token
+  const sentences = splitSentences(text)
+  if (sentences.length === 0) return
+  try {
+    switch (state.tts.mode) {
+      case 'server':
+        await speakServer(sentences, myToken)
+        break
+      case 'webspeech':
+        speakWebSpeech(sentences)
+        break
+      case 'wasm':
+      default:
+        await speakWasm(sentences, myToken)
+    }
+  } catch (e) {
+    console.error('TTS-Fehler:', e)
+  }
+}
+
+export async function isTtsModelCached(): Promise<boolean> {
+  return isModelCached(TTS_MODEL)
+}
+
+export async function downloadTtsModel(): Promise<void> {
+  await getPipeline()
+}
+
+export async function deleteTtsModel(): Promise<void> {
+  await deleteModelFromCache(TTS_MODEL)
+  pipelinePromise = null
+}

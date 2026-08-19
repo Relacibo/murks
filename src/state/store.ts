@@ -31,14 +31,25 @@ export interface SttConfig {
   model: SttModelSize
 }
 
+export type TtsMode = 'wasm' | 'server' | 'webspeech'
+
+export interface TtsConfig {
+  mode: TtsMode
+  endpoint: string
+  key: string
+  voice: string
+}
+
 export interface AgentMessage {
   role: 'user' | 'agent'
   text: string
+  silent?: boolean
 }
 
 export interface AppState {
   config: Config
   stt: SttConfig
+  tts: TtsConfig
   agents: AgentProfile[]
   defaultAgentId: string | null
   agent: {
@@ -58,6 +69,12 @@ const defaults: AppState = {
     endpoint: '',
     key: '',
     model: 'base',
+  },
+  tts: {
+    mode: 'wasm',
+    endpoint: '',
+    key: '',
+    voice: '',
   },
   agents: [],
   defaultAgentId: null,
@@ -87,6 +104,12 @@ function load(): AppState {
         model:
           data.stt?.model === 'tiny' || data.stt?.model === 'small' ? data.stt.model : 'base',
       },
+      tts: {
+        mode: data.tts?.mode === 'server' || data.tts?.mode === 'webspeech' ? data.tts.mode : 'wasm',
+        endpoint: data.tts?.endpoint ?? '',
+        key: data.tts?.key ?? '',
+        voice: data.tts?.voice ?? '',
+      },
       agents,
       defaultAgentId,
       agent: {
@@ -111,6 +134,10 @@ export function setConfig(patch: Partial<Config>) {
 
 export function setStt(patch: Partial<SttConfig>) {
   setState('stt', patch)
+}
+
+export function setTts(patch: Partial<TtsConfig>) {
+  setState('tts', patch)
 }
 
 export function defaultAgent(): AgentProfile | undefined {
@@ -142,12 +169,12 @@ export function clearMessages() {
   setState('agent', 'messages', [])
 }
 
-export function pushAgentMessage(role: AgentMessage['role'], text: string) {
-  setState('agent', 'messages', (m) => [...m, msg(role, text)])
+export function pushAgentMessage(role: AgentMessage['role'], text: string, silent = false) {
+  setState('agent', 'messages', (m) => [...m, msg(role, text, silent)])
 }
 
-function msg(role: AgentMessage['role'], text: string): AgentMessage {
-  return { role, text }
+function msg(role: AgentMessage['role'], text: string, silent = false): AgentMessage {
+  return { role, text, silent }
 }
 
 export async function sendMessage(text: string) {
@@ -190,7 +217,7 @@ export async function sendMessage(text: string) {
   } catch (e) {
     setState('agent', 'messages', (m) => [
       ...m,
-      msg('agent', `Fehler: ${e instanceof Error ? e.message : String(e)}`),
+      msg('agent', `Fehler: ${e instanceof Error ? e.message : String(e)}`, true),
     ])
   } finally {
     setState('agent', 'busy', false)

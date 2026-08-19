@@ -1,4 +1,5 @@
 import { state } from '../state/store'
+import { isModelCached, deleteModelFromCache } from './modelCache'
 
 const ORT_WASM_PATH = `${import.meta.env.BASE_URL}ort/`
 
@@ -132,17 +133,8 @@ export async function transcribeAudio(audio: Float32Array): Promise<string> {
   }
 }
 
-const MODEL_CACHE_KEY = 'transformers-cache'
-
 export async function isSttModelCached(): Promise<boolean> {
-  try {
-    const cache = await caches.open(MODEL_CACHE_KEY)
-    const keys = await cache.keys()
-    const needle = `whisper-${state.stt.model}`
-    return keys.some((r) => r.url.includes(needle))
-  } catch {
-    return false
-  }
+  return isModelCached(`whisper-${state.stt.model}`)
 }
 
 export async function downloadSttModel(): Promise<void> {
@@ -150,7 +142,7 @@ export async function downloadSttModel(): Promise<void> {
 }
 
 export async function deleteSttModel(): Promise<void> {
-  await caches.delete(MODEL_CACHE_KEY)
+  await deleteModelFromCache(`whisper-${state.stt.model}`)
   pipelinePromise = null
   pipelineModel = null
 }

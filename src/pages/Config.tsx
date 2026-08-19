@@ -3,12 +3,14 @@ import {
   state,
   setConfig,
   setStt,
+  setTts,
   addAgent,
   updateAgent,
   removeAgent,
   setDefaultAgent,
 } from '../state/store'
 import { isSttModelCached, downloadSttModel, deleteSttModel } from '../lib/stt'
+import { isTtsModelCached, downloadTtsModel, deleteTtsModel } from '../lib/tts'
 
 const inputCls =
   'bg-zinc-700 border border-zinc-600 rounded-lg px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-zinc-500 placeholder:text-zinc-500 w-full transition-colors hover:border-zinc-500'
@@ -233,9 +235,13 @@ export function ConfigModal(props: ConfigModalProps) {
   const [sttCached, setSttCached] = createSignal<boolean | null>(null)
   const [sttBusy, setSttBusy] = createSignal(false)
   const [sttCacheError, setSttCacheError] = createSignal<string | null>(null)
+  const [ttsCached, setTtsCached] = createSignal<boolean | null>(null)
+  const [ttsBusy, setTtsBusy] = createSignal(false)
+  const [ttsCacheError, setTtsCacheError] = createSignal<string | null>(null)
 
   onMount(() => {
     isSttModelCached().then(setSttCached)
+    isTtsModelCached().then(setTtsCached)
   })
 
   async function handleSttCache() {
@@ -254,6 +260,25 @@ export function ConfigModal(props: ConfigModalProps) {
       setSttCacheError(e instanceof Error ? e.message : String(e))
     } finally {
       setSttBusy(false)
+    }
+  }
+
+  async function handleTtsCache() {
+    if (ttsBusy()) return
+    setTtsBusy(true)
+    setTtsCacheError(null)
+    try {
+      if (ttsCached()) {
+        await deleteTtsModel()
+        setTtsCached(false)
+      } else {
+        await downloadTtsModel()
+        setTtsCached(true)
+      }
+    } catch (e) {
+      setTtsCacheError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setTtsBusy(false)
     }
   }
 
@@ -427,6 +452,90 @@ export function ConfigModal(props: ConfigModalProps) {
                 />
               </label>
             </Show>
+
+            {/* TTS */}
+            <div class="space-y-4 border-t border-zinc-600 pt-4">
+              <h3 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                Ausgabe (TTS)
+              </h3>
+              <label class="block space-y-1.5">
+                <span class="text-sm text-zinc-400">Modus</span>
+                <select
+                  class={selectCls}
+                  value={state.tts.mode}
+                  onChange={(e) =>
+                    setTts({ mode: e.currentTarget.value as 'wasm' | 'server' | 'webspeech' })
+                  }
+                >
+                  <option value="wasm">Lokal (MMS, offline)</option>
+                  <option value="server">Server (OpenAI-kompatibel)</option>
+                  <option value="webspeech">Browser-Stimme</option>
+                </select>
+              </label>
+
+              <Show when={state.tts.mode === 'wasm'}>
+                <div class="flex items-center gap-3 rounded-xl border border-zinc-600 bg-zinc-800 px-4 py-3">
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm text-zinc-300">MMS-TTS (Deutsch)</p>
+                    <p class="text-xs text-zinc-500 mt-0.5">
+                      {ttsBusy()
+                        ? 'Bitte warten …'
+                        : ttsCached() === null
+                          ? 'Prüfe Cache …'
+                          : ttsCached()
+                            ? 'Im Browser-Cache vorhanden'
+                            : 'Noch nicht heruntergeladen'}
+                    </p>
+                  </div>
+                  <button
+                    class="shrink-0 h-9 rounded-lg border border-zinc-600 px-3 text-sm text-zinc-300 hover:border-zinc-400 hover:text-zinc-100 transition-colors disabled:opacity-40"
+                    disabled={ttsBusy() || ttsCached() === null}
+                    onClick={handleTtsCache}
+                  >
+                    {ttsBusy() ? '…' : ttsCached() ? 'Löschen' : 'Laden'}
+                  </button>
+                </div>
+                <Show when={ttsCacheError()}>
+                  <p class="text-xs text-red-400">{ttsCacheError()}</p>
+                </Show>
+                <p class="text-xs text-zinc-500">
+                  ~80 MB. Agenten-Antworten werden automatisch vorgelesen; sprichst du, stoppt
+                  die Wiedergabe.
+                </p>
+              </Show>
+
+              <Show when={state.tts.mode === 'server'}>
+                <label class="block space-y-1.5">
+                  <span class="text-sm text-zinc-400">Endpoint (Base-URL)</span>
+                  <input
+                    class={inputCls}
+                    type="url"
+                    placeholder="http://localhost:8000/v1"
+                    value={state.tts.endpoint}
+                    onInput={(e) => setTts({ endpoint: e.currentTarget.value })}
+                  />
+                </label>
+                <label class="block space-y-1.5">
+                  <span class="text-sm text-zinc-400">API-Key (optional)</span>
+                  <input
+                    class={inputCls}
+                    type="password"
+                    placeholder="sk-…"
+                    value={state.tts.key}
+                    onInput={(e) => setTts({ key: e.currentTarget.value })}
+                  />
+                </label>
+                <label class="block space-y-1.5">
+                  <span class="text-sm text-zinc-400">Stimme</span>
+                  <input
+                    class={inputCls}
+                    placeholder="alloy"
+                    value={state.tts.voice}
+                    onInput={(e) => setTts({ voice: e.currentTarget.value })}
+                  />
+                </label>
+              </Show>
+            </div>
           </section>
 
           {/* Persönlich */}

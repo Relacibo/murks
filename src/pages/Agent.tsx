@@ -3,6 +3,7 @@ import type { MicVAD } from '@ricky0123/vad-web'
 import { state, sendMessage, clearMessages, pushAgentMessage } from '../state/store'
 import { transcribeAudio, createWebSpeechRecognition } from '../lib/stt'
 import { createVoice } from '../lib/voice'
+import { speak, stopSpeaking } from '../lib/tts'
 
 interface AgentProps {
   configOpen: Accessor<boolean>
@@ -21,6 +22,7 @@ export function Agent(props: AgentProps) {
   let vad: MicVAD | null = null
   let recognition: ReturnType<typeof createWebSpeechRecognition> = null
   let feedRef: HTMLDivElement | undefined
+  let lastSpoken: { text: string } | undefined
 
   createEffect(() => {
     state.agent.messages.length
@@ -29,13 +31,23 @@ export function Agent(props: AgentProps) {
     })
   })
 
+  createEffect(() => {
+    const messages = state.agent.messages
+    const last = messages[messages.length - 1]
+    if (last && last.role === 'agent' && !last.silent && last !== lastSpoken) {
+      lastSpoken = last
+      speak(last.text)
+    }
+  })
+
   onCleanup(() => {
     recognition?.stop()
     vad?.destroy()
+    stopSpeaking()
   })
 
   function pushError(message: string) {
-    pushAgentMessage('agent', `STT-Fehler: ${message}`)
+    pushAgentMessage('agent', `STT-Fehler: ${message}`, true)
   }
 
   function finishUtterance(text: string) {
@@ -74,7 +86,10 @@ export function Agent(props: AgentProps) {
     if (!vad) {
       try {
         vad = await createVoice({
-          onSpeechStart: () => setSpeaking(true),
+          onSpeechStart: () => {
+            stopSpeaking()
+            setSpeaking(true)
+          },
           onMisfire: () => setSpeaking(false),
           onSpeechEnd: async (audio) => {
             setSpeaking(false)
@@ -124,6 +139,7 @@ export function Agent(props: AgentProps) {
     e.preventDefault()
     const text = input().trim()
     if (!text) return
+    stopSpeaking()
     sendMessage(text)
     setInput('')
   }
