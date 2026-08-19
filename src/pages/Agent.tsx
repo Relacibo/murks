@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal, onCleanup, type Accessor, type Setter } from 'solid-js'
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, type Accessor, type Setter } from 'solid-js'
 import type { MicVAD } from '@ricky0123/vad-web'
 import { state, sendMessage, clearMessages, pushAgentMessage } from '../state/store'
 import { transcribeAudio, createWebSpeechRecognition } from '../lib/stt'
@@ -20,6 +20,14 @@ export function Agent(props: AgentProps) {
 
   let vad: MicVAD | null = null
   let recognition: ReturnType<typeof createWebSpeechRecognition> = null
+  let feedRef: HTMLDivElement | undefined
+
+  createEffect(() => {
+    state.agent.messages.length
+    queueMicrotask(() => {
+      if (feedRef) feedRef.scrollTop = feedRef.scrollHeight
+    })
+  })
 
   onCleanup(() => {
     recognition?.stop()
@@ -172,7 +180,7 @@ export function Agent(props: AgentProps) {
         </button>
       </div>
 
-      <div class="flex-1 space-y-3 overflow-y-auto py-4">
+      <div ref={feedRef} class="flex-1 space-y-3 overflow-y-auto py-4">
         <Show when={!ready()}>
           <p class="rounded-lg border border-amber-800 bg-amber-950/40 p-3 text-sm text-amber-400">
             Kein Agent konfiguriert. Über <b>⚙</b> oben rechts einen Agenten mit Endpoint und
