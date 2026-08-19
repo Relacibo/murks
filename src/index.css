@@ -83,11 +83,13 @@
     color: var(--strang-text-active);
   }
   .chip.is-urgent {
-    border-color: rgb(220 38 38 / 0.8);
+    --pulse-color: 245 158 11;
+    color: #fcd34d;
+    animation: pulse-border 1.2s ease-in-out infinite;
   }
   .chip.is-expired {
-    border-color: #f97316;
-    color: #fdba74;
+    border-color: #ef4444;
+    color: #fca5a5;
   }
   .chip.is-done {
     text-decoration: line-through;
@@ -99,14 +101,35 @@
   }
 
   /* ── Strang-Karte ───────────────────────────────────────────────── */
-  .card-slot {
-    @apply w-[22.5rem] max-w-full shrink-0 snap-start;
+  .desktop-slot {
+    @apply flex flex-col min-w-[12rem] flex-[1_1_0%] transition-all duration-300;
   }
-  .card-slot-mobile {
-    @apply snap-center h-full shrink-0 flex flex-col py-2;
+  .desktop-slot.is-expanded {
+    @apply flex-[2_1_0%];
   }
-  .card-slot-mobile:not(.is-active) .card {
+  .compact-card {
+    @apply flex items-center gap-2 px-3 py-2.5 min-h-[3.5rem] w-full text-left rounded-lg bg-zinc-800 border border-zinc-700 border-l-4 shrink-0 transition-colors;
+    border-left-color: var(--strang-border);
+  }
+  .compact-card.is-expired {
+    border-color: #ef4444;
+    border-left-color: #ef4444;
+  }
+  .compact-card.is-urgent {
+    --pulse-color: 245 158 11;
+    animation: pulse-border 1.2s ease-in-out infinite;
+  }
+  .compact-card.is-done {
     opacity: 0.5;
+  }
+  @keyframes pulse-border {
+    0%,
+    100% {
+      border-color: rgb(var(--pulse-color) / 0.9);
+    }
+    50% {
+      border-color: rgb(var(--pulse-color) / 0.2);
+    }
   }
   .card {
     @apply flex-1 flex flex-col rounded-2xl border bg-zinc-700 p-5 transition-colors transition-opacity duration-300 border-zinc-600;
@@ -115,7 +138,7 @@
     border-color: var(--strang-border-active);
   }
   .card.is-expired {
-    border-color: #f97316;
+    border-color: #ef4444;
   }
 
   /* ── Timer-Pill ─────────────────────────────────────────────────── */
@@ -123,7 +146,7 @@
     @apply inline-flex items-center gap-2 rounded-full px-5 py-2.5 border bg-zinc-700 border-zinc-600;
   }
   .pill.is-urgent {
-    border-color: #b91c1c;
+    border-color: #f59e0b;
   }
 
   /* ── Buttons ────────────────────────────────────────────────────── */

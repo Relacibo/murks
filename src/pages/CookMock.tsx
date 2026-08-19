@@ -100,7 +100,6 @@ export function CookMock() {
 
       {/* ── Top bar ────────────────────────────────────────────────────── */}
       <header class="shrink-0 flex items-center justify-between px-4 py-3 border-b border-zinc-600">
-        <span class="text-sm font-bold tracking-widest uppercase">MURKS</span>
         <div class="flex items-center gap-2">
           <button
             class="w-9 h-9 flex items-center justify-center rounded-full border border-zinc-600 bg-zinc-700 text-zinc-400 hover:text-zinc-100 hover:border-zinc-600 transition-colors"

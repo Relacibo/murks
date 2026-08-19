@@ -30,14 +30,6 @@ export function Cook() {
     return a ? strangs().findIndex((s) => s.id === a.id) : 0
   })
 
-  const slotRefs: Record<string, HTMLDivElement[]> = {}
-  createEffect(() => {
-    const id = state.cook.focusedStrangId
-    if (!id) return
-    const el = slotRefs[id]?.find((x) => x.offsetParent !== null)
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  })
-
   createEffect(() => {
     // Reset all previews when strang list changes
     strangs()
@@ -150,7 +142,7 @@ export function Cook() {
         </div>
 
         <Show when={s().timerExpired && previewStep() === null}>
-          <div class="text-sm font-semibold text-orange-400 mb-1">Timer abgelaufen!</div>
+          <div class="text-sm font-semibold text-red-400 mb-1">Timer abgelaufen!</div>
           <div class="text-xs text-zinc-400 mb-2">Jetzt:</div>
         </Show>
 
@@ -232,12 +224,45 @@ export function Cook() {
     )
   }
 
+  function CompactStrang(props: { s: Strang }) {
+    const s = () => props.s
+    return (
+      <button
+        class="compact-card"
+        data-color={s().color}
+        classList={{
+          'is-urgent': !s().timerExpired && isUrgent(s()),
+          'is-expired': s().timerExpired,
+          'is-done': s().done,
+        }}
+        onClick={() => focusStrang(s().id)}
+      >
+        <span class={`flex-1 min-w-0 truncate text-sm font-medium text-zinc-100 ${s().done ? 'line-through' : ''}`}>
+          {s().name}
+        </span>
+        <span class="text-xs text-zinc-500 shrink-0">
+          Schritt {s().stepIndex + 1}/{s().steps.length}
+        </span>
+        <Show when={s().done}>
+          <span class="text-emerald-400 shrink-0">✓</span>
+        </Show>
+        <Show when={!s().done && s().timerExpired}>
+          <span class="shrink-0">🔔</span>
+        </Show>
+        <Show when={!s().done && !s().timerExpired && s().timerEndsAt !== null}>
+          <span class="font-mono text-xs font-semibold text-zinc-300 shrink-0">
+            {tick() && fmtRemaining(s().timerEndsAt!)}
+          </span>
+        </Show>
+      </button>
+    )
+  }
+
   return (
     <div class="h-screen bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
       {/* ── Top bar ────────────────────────────────────────────────────── */}
       <header class="shrink-0 flex items-center justify-between px-4 py-3 border-b border-zinc-600">
         <div class="flex items-center gap-3">
-          <span class="text-sm font-bold tracking-widest uppercase">MURKS</span>
           {/* Globale Strang-Navigation */}
           <Show when={strangs().length > 1}>
             <div class="flex items-center gap-1">
@@ -248,41 +273,15 @@ export function Cook() {
           </Show>
         </div>
         <div class="flex items-center gap-2">
-          {/* Timer-only chips in header */}
-          <div class="hidden sm:flex items-center gap-2">
-            <For each={strangs().filter(s => s.timerEndsAt !== null && !s.timerExpired)}>
-              {(s) => (
-                <button
-                  onClick={() => focusStrang(s.id)}
-                  class="chip"
-                  data-color={s.color}
-                  classList={{ 'is-active': s.id === active()?.id, 'is-urgent': isUrgent(s) }}
-                >
-                  <span class="font-mono font-semibold">{tick() && fmtRemaining(s.timerEndsAt!)}</span>
-                </button>
-              )}
-            </For>
-            <For each={strangs().filter(s => s.timerExpired)}>
-              {(s) => (
-                <button
-                  onClick={() => focusStrang(s.id)}
-                  class="chip is-expired"
-                  data-color={s.color}
-                >
-                  🔔
-                </button>
-              )}
-            </For>
-          </div>
           <button class="icon-btn" onClick={() => executeTool('open_zutaten', {})} title="Zutaten">🧾</button>
           <button class="icon-btn" onClick={() => setConfigOpen(true)} title="Konfiguration">⚙</button>
         </div>
       </header>
 
-      {/* ── Mobile: timer chips bar ─────────────────────────────────── */}
-      <Show when={strangs().some(s => s.timerEndsAt !== null || s.timerExpired)}>
-        <div class="sm:hidden shrink-0 flex items-center gap-2 px-4 py-2 border-b border-zinc-600 overflow-x-auto">
-          <For each={strangs().filter(s => s.timerEndsAt !== null && !s.timerExpired)}>
+      {/* ── Topbar-Timerleiste: nur laufende/abgelaufene Timer ───────── */}
+      <Show when={strangs().some((s) => (s.timerEndsAt !== null && !s.timerExpired) || s.timerExpired)}>
+        <div class="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-zinc-600 overflow-x-auto">
+          <For each={strangs().filter((s) => s.timerEndsAt !== null && !s.timerExpired)}>
             {(s) => (
               <button
                 onClick={() => focusStrang(s.id)}
@@ -294,7 +293,7 @@ export function Cook() {
               </button>
             )}
           </For>
-          <For each={strangs().filter(s => s.timerExpired)}>
+          <For each={strangs().filter((s) => s.timerExpired)}>
             {(s) => (
               <button
                 onClick={() => focusStrang(s.id)}
@@ -309,7 +308,7 @@ export function Cook() {
       </Show>
 
       {/* ── Strang cards ────────────────────────────────────────────── */}
-      <main class="flex-1 min-h-0 overflow-y-auto scroll-smooth snap-y snap-proximity">
+      <main class="flex-1 min-h-0 overflow-hidden">
         <Show
           when={strangs().length > 0}
           fallback={
@@ -318,16 +317,11 @@ export function Cook() {
             </div>
           }
         >
-          {/* Desktop: so viele Stränge wie passen, zentriert, Rest wrappt, Navigation snappt */}
-          <div class="hidden sm:flex flex-wrap content-start justify-center gap-4 p-4">
+          {/* Desktop: fokussierte Karte breiter (2:1), alle in einer Reihe */}
+          <div class="hidden sm:flex gap-4 p-4 h-full overflow-x-auto">
             <For each={strangs()}>
               {(s) => (
-                <div
-                  class="card-slot"
-                  ref={(el) => {
-                    if (el) (slotRefs[s.id] ??= []).push(el)
-                  }}
-                >
+                <div class="desktop-slot" classList={{ 'is-expanded': s.id === active()?.id }}>
                   <StrangCard
                     s={s}
                     isFocused={s.id === active()?.id}
@@ -337,25 +331,22 @@ export function Cook() {
               )}
             </For>
           </div>
-          {/* Mobile: vertikaler Stapel, aktive Karte mittig, vorherige/nächste peek */}
-          <div class="sm:hidden h-full overflow-y-auto scroll-smooth snap-y snap-mandatory px-4">
-            <For each={strangs()}>
+          {/* Mobile: expandierte Karte oben, kompakte Strang-Liste darunter */}
+          <div class="sm:hidden h-full flex flex-col px-4 py-3 gap-2 overflow-hidden">
+            <Show when={active()}>
               {(s) => (
-                <div
-                  class="card-slot-mobile"
-                  classList={{ 'is-active': s.id === active()?.id }}
-                  ref={(el) => {
-                    if (el) (slotRefs[s.id] ??= []).push(el)
-                  }}
-                >
-                  <StrangCard
-                    s={s}
-                    isFocused={s.id === active()?.id}
-                    onFocus={() => focusStrang(s.id)}
-                  />
+                <div class="flex-1 min-h-[280px] flex flex-col min-h-0">
+                  <StrangCard s={s()} isFocused={true} onFocus={() => {}} />
                 </div>
               )}
-            </For>
+            </Show>
+            <Show when={strangs().length > 1}>
+              <div class="shrink-0 max-h-[45%] overflow-y-auto flex flex-col gap-2 pb-1">
+                <For each={strangs().filter((s) => s.id !== active()?.id)}>
+                  {(s) => <CompactStrang s={s} />}
+                </For>
+              </div>
+            </Show>
           </div>
         </Show>
       </main>
