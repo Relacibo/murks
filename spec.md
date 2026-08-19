@@ -138,3 +138,16 @@ Zeigt alle UI-States: Normal, Timer abgelaufen, Hört zu, Zutaten-Modal.
 **Agent-Modelle:** Ein LLM (mit Tools) für alles; STT ist als einziges ein separates Modell (andere Modalität). Unterschiedliche Aufgaben = unterschiedliche Kontexte (System-Prompt + eigener Verlauf), nicht unterschiedliche Modelle.
 
 **Bundle:** transformers.js wird per dynamischem Import code-splitted (lazy, ~500 KB Chunk + 23,6 MB ONNX-Runtime-WASM, geprecacht).
+
+## Sprachausgabe (TTS)
+
+**Entscheidung:** Agenten-Antworten werden automatisch vorgelesen (Auto-Speak), ganzer Text in einem Inferenz-Call. Sprichst du (VAD-Speech-Start), stoppt die Wiedergabe sofort (Duplex).
+
+**Backends:**
+1. **Lokal: Piper (rhasspy)** — `piper-tts-web` + Stimme `de_DE-thorsten-high` (~70 MB). Stimme ist pro Modell fest → exakt konsistent über alle Generationen. Phönemisierung (espeak-ng) und Inferenz laufen im Browser.
+2. **Server** — OpenAI-kompatibles `POST {base}/audio/speech` (z.B. kokoro-fastapi), Stimme konfigurierbar.
+3. **Web Speech API** — Fallback.
+
+**Verworfen:**
+- **MMS-TTS (VITS)**: sampelt pro Generation ein zufälliges Latent → Prosodie variiert, klingt wie wechselnde Stimme.
+- **Kokoro-82M-v1.1**: wäre ideal (feste deutsche Stimmen), aber nicht in transformers.js enthalten (v3.8.1 und v4.2.0 geprüft); offizieller Browser-Wrapper `kokoro-js` unterstützt nur v1.0 mit englischen Stimmen. Wieder aufgreifen, sobald transformers.js es unterstützt.

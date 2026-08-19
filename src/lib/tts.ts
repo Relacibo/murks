@@ -1,44 +1,79 @@
 import { state, pushAgentMessage } from '../state/store'
-import { isModelCached, deleteModelFromCache } from './modelCache'
 import type { DownloadProgress } from './modelProgress'
 
-const TTS_MODEL = 'Xenova/mms-tts-deu'
-const ORT_WASM_PATH = `${import.meta.env.BASE_URL}ort/`
+const TTS_VOICE = 'de_DE-thorsten-high'
+const PIPER_CACHE_KEY = 'murks-piper'
+const PIPER_BASE_PATH = `${import.meta.env.BASE_URL}piper/`
+const PIPER_VOICE_BASE_URL = 'https://huggingface.co/rhasspy/piper-voices/resolve/main/'
 
-interface TtsPipeline {
-  (text: string): Promise<{ audio: Float32Array; sampling_rate: number }>
+interface PiperBundle {
+  engine: import('piper-tts-web').PiperWebEngine
+  provider: import('piper-tts-web').RemoteVoiceProvider
 }
 
-type TransformersModule = typeof import('@huggingface/transformers')
-
-let pipelinePromise: Promise<TtsPipeline> | null = null
 let progressCb: ((p: DownloadProgress) => void) | null = null
 
-function getPipeline(): Promise<TtsPipeline> {
-  if (!pipelinePromise) {
-    pipelinePromise = (async () => {
-      let mod: TransformersModule
-      try {
-        mod = await import('@huggingface/transformers')
-      } catch (e) {
-        if (!sessionStorage.getItem('murks:stt-reload')) {
-          sessionStorage.setItem('murks:stt-reload', '1')
-          location.reload()
-          await new Promise<TtsPipeline>(() => {})
+class CacheVoiceProvider {
+  async fetch(url: string): Promise<unknown> {
+    const cache = await caches.open(PIPER_CACHE_KEY)
+    const cached = await cache.match(url)
+    if (cached) {
+      return url.endsWith('.json') ? cached.json() : URL.createObjectURL(await cached.blob())
+    }
+    const fileName = url.split('/').pop() ?? ''
+    progressCb?.({ status: 'download', file: fileName })
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`Could not fetch: ${url}`)
+    const total = Number(res.headers.get('content-length') ?? 0)
+    const reader = res.body?.getReader()
+    if (reader && total > 0) {
+      const chunks: BlobPart[] = []
+      let loaded = 0
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (value) {
+          chunks.push(Uint8Array.from(value))
+          loaded += value.length
+          progressCb?.({
+            status: 'progress',
+            file: fileName,
+            loaded,
+            total,
+            progress: (loaded / total) * 100,
+          })
         }
-        throw e
       }
-      const onnxBackend = mod.env.backends?.onnx
-      if (onnxBackend?.wasm) onnxBackend.wasm.wasmPaths = ORT_WASM_PATH
-      const device = 'gpu' in navigator ? 'webgpu' : 'wasm'
-      return (await mod.pipeline('text-to-speech', TTS_MODEL, {
-        device,
-        dtype: 'q8',
-        progress_callback: (p) => progressCb?.(p as DownloadProgress),
-      })) as unknown as TtsPipeline
+      const body = new Blob(chunks, { type: res.headers.get('content-type') ?? '' })
+      const full = new Response(body, { status: res.status, headers: res.headers })
+      await cache.put(url, full.clone())
+      return url.endsWith('.json') ? full.json() : URL.createObjectURL(await full.blob())
+    }
+    await cache.put(url, res.clone())
+    return url.endsWith('.json') ? res.json() : URL.createObjectURL(await res.blob())
+  }
+}
+
+let piperPromise: Promise<PiperBundle> | null = null
+
+function getPiper(): Promise<PiperBundle> {
+  if (!piperPromise) {
+    piperPromise = (async () => {
+      const { PiperWebEngine, OnnxWebRuntime, PhonemizeWebRuntime, RemoteVoiceProvider } =
+        await import('piper-tts-web')
+      const provider = new RemoteVoiceProvider({
+        provider: new CacheVoiceProvider(),
+        baseUrl: PIPER_VOICE_BASE_URL,
+      })
+      const engine = new PiperWebEngine({
+        onnxRuntime: new OnnxWebRuntime({ basePath: `${PIPER_BASE_PATH}onnx/` }),
+        phonemizeRuntime: new PhonemizeWebRuntime({ basePath: PIPER_BASE_PATH }),
+        voiceProvider: provider,
+      })
+      return { engine, provider }
     })()
   }
-  return pipelinePromise
+  return piperPromise
 }
 
 let audioCtx: AudioContext | null = null
@@ -88,10 +123,14 @@ async function speakWasm(text: string, myToken: number) {
   if (!(await isTtsModelCached())) {
     throw new Error('TTS-Modell nicht heruntergeladen. In der Config unter „Sprache“ laden.')
   }
-  const pipe = await getPipeline()
-  const { audio, sampling_rate } = await pipe(text)
+  const { engine } = await getPiper()
+  const { file } = await engine.generate(text, TTS_VOICE, 0)
   if (token !== myToken) return
-  await playBuffer(audio, sampling_rate, myToken)
+  const arrayBuffer = await file.arrayBuffer()
+  const ctx = getAudioCtx()
+  const buffer = await ctx.decodeAudioData(arrayBuffer)
+  if (token !== myToken) return
+  await playBuffer(buffer.getChannelData(0), buffer.sampleRate, myToken)
 }
 
 async function speakServer(text: string, myToken: number) {
@@ -156,7 +195,13 @@ export async function speak(text: string) {
 }
 
 export async function isTtsModelCached(): Promise<boolean> {
-  return isModelCached(TTS_MODEL)
+  try {
+    const cache = await caches.open(PIPER_CACHE_KEY)
+    const keys = await cache.keys()
+    return keys.some((r) => r.url.includes(TTS_VOICE))
+  } catch {
+    return false
+  }
 }
 
 export async function downloadTtsModel(
@@ -164,13 +209,14 @@ export async function downloadTtsModel(
 ): Promise<void> {
   progressCb = onProgress ?? null
   try {
-    await getPipeline()
+    const { provider } = await getPiper()
+    await provider.fetch(TTS_VOICE)
   } finally {
     progressCb = null
   }
 }
 
 export async function deleteTtsModel(): Promise<void> {
-  await deleteModelFromCache(TTS_MODEL)
-  pipelinePromise = null
+  await caches.delete(PIPER_CACHE_KEY)
+  piperPromise = null
 }

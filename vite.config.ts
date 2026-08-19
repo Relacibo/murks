@@ -27,7 +27,7 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: 'index.html',
-        maximumFileSizeToCacheInBytes: 40 * 1024 * 1024,
+        maximumFileSizeToCacheInBytes: 50 * 1024 * 1024,
         globIgnores: ['assets/*.wasm'],
       },
     }),

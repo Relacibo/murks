@@ -14,7 +14,7 @@ export function TtsSettings() {
             setTts({ mode: e.currentTarget.value as 'wasm' | 'server' | 'webspeech' })
           }
         >
-          <option value="wasm">Lokal (MMS, offline)</option>
+          <option value="wasm">Lokal (Piper, offline)</option>
           <option value="server">Server (OpenAI-kompatibel)</option>
           <option value="webspeech">Browser-Stimme</option>
         </select>

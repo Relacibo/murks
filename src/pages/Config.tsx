@@ -336,7 +336,7 @@ export function ConfigModal(props: ConfigModalProps) {
               <Show when={state.tts.mode === 'wasm'}>
                 <div class="flex items-center gap-3 rounded-xl border border-zinc-600 bg-zinc-800 px-4 py-3">
                   <div class="min-w-0 flex-1">
-                    <p class="text-sm text-zinc-300">MMS-TTS (Deutsch)</p>
+                    <p class="text-sm text-zinc-300">Piper · Thorsten (Deutsch)</p>
                     <p class="text-xs text-zinc-500 mt-0.5">
                       {ttsBusy()
                         ? ttsProgress() !== null
@@ -361,8 +361,8 @@ export function ConfigModal(props: ConfigModalProps) {
                   <p class="text-xs text-red-400">{ttsCacheError()}</p>
                 </Show>
                 <p class="text-xs text-zinc-500">
-                  ~80 MB. Agenten-Antworten werden automatisch vorgelesen; sprichst du, stoppt
-                  die Wiedergabe.
+                  ~70 MB. Feste Stimme — klingt über alle Antworten identisch. Agenten-Antworten
+                  werden automatisch vorgelesen; sprichst du, stoppt die Wiedergabe.
                 </p>
               </Show>
             </div>
