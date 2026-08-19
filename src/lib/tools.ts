@@ -1,4 +1,4 @@
-import { state, setState } from '../state/store'
+import { state, setState, STRANG_COLORS } from '../state/store'
 import { showToast } from './toast'
 
 export interface ToolDef {
@@ -180,9 +180,10 @@ export function executeTool(name: string, args: Record<string, unknown>): string
         const steps = Array.isArray(args.steps) ? args.steps.map(String) : []
         if (!strangName) return JSON.stringify({ error: 'name fehlt' })
         const id = crypto.randomUUID()
+        const color = STRANG_COLORS[state.cook.strangs.length % STRANG_COLORS.length]
         setState('cook', 'strangs', (s) => [
           ...s,
-          { id, name: strangName, steps, stepIndex: 0, done: false, timerEndsAt: null, timerInstruction: null, timerExpired: false },
+          { id, name: strangName, color, steps, stepIndex: 0, done: false, timerEndsAt: null, timerInstruction: null, timerExpired: false },
         ])
         setState('cook', 'focusedStrangId', id)
         showToast(`Strang: ${strangName}`)

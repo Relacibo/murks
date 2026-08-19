@@ -1,8 +1,41 @@
 import { For, Show, createMemo, createSignal, onCleanup } from 'solid-js'
 import { useConfig } from '../App'
-import { state, expireTimers, type Strang } from '../state/store'
+import { state, expireTimers, type Strang, type StrangColor } from '../state/store'
 import { executeTool, fmtRemaining } from '../lib/tools'
 import { createAgentVoice } from '../lib/agentVoice'
+
+const COLOR_STYLES: Record<StrangColor, { chip: string; chipActive: string; name: string }> = {
+  cyan: {
+    chip: 'bg-cyan-950/60 border-cyan-800 text-cyan-300',
+    chipActive: 'bg-cyan-900 border-cyan-500 text-cyan-100',
+    name: 'text-cyan-300',
+  },
+  violet: {
+    chip: 'bg-violet-950/60 border-violet-800 text-violet-300',
+    chipActive: 'bg-violet-900 border-violet-500 text-violet-100',
+    name: 'text-violet-300',
+  },
+  amber: {
+    chip: 'bg-amber-950/60 border-amber-800 text-amber-300',
+    chipActive: 'bg-amber-900 border-amber-500 text-amber-100',
+    name: 'text-amber-300',
+  },
+  emerald: {
+    chip: 'bg-emerald-950/60 border-emerald-800 text-emerald-300',
+    chipActive: 'bg-emerald-900 border-emerald-500 text-emerald-100',
+    name: 'text-emerald-300',
+  },
+  rose: {
+    chip: 'bg-rose-950/60 border-rose-800 text-rose-300',
+    chipActive: 'bg-rose-900 border-rose-500 text-rose-100',
+    name: 'text-rose-300',
+  },
+  sky: {
+    chip: 'bg-sky-950/60 border-sky-800 text-sky-300',
+    chipActive: 'bg-sky-900 border-sky-500 text-sky-100',
+    name: 'text-sky-300',
+  },
+}
 
 export function Cook() {
   const { configOpen, setConfigOpen } = useConfig()
@@ -50,13 +83,16 @@ export function Cook() {
 
   const remaining = (s: Strang) => (s.timerEndsAt !== null ? s.timerEndsAt - Date.now() : null)
 
-  function chipClass(s: Strang, i: number): string {
-    if (i === activeIdx()) return 'border-zinc-300 bg-zinc-700 text-zinc-100'
-    if (s.timerExpired) return 'border-orange-500 bg-zinc-700 text-orange-400'
+  function isUrgent(s: Strang): boolean {
+    tick()
     const r = remaining(s)
-    if (r !== null && r < 120_000) return 'border-red-700 bg-zinc-700 text-red-400'
-    if (r !== null) return 'border-zinc-600 bg-zinc-700 text-zinc-300'
-    return 'border-zinc-600 bg-zinc-700 text-zinc-400'
+    return r !== null && r < 120_000
+  }
+
+  function chipClass(s: Strang, i: number): string {
+    const c = COLOR_STYLES[s.color]
+    if (s.timerExpired) return `${i === activeIdx() ? c.chipActive : c.chip} border-orange-500 text-orange-300`
+    return i === activeIdx() ? c.chipActive : c.chip
   }
 
   function instruction(s: Strang): string {
@@ -105,7 +141,7 @@ export function Cook() {
                 <span>🔔</span>
               </Show>
               <Show when={!s.done && !s.timerExpired && s.timerEndsAt !== null}>
-                <span class="font-mono font-semibold">
+                <span class={`font-mono font-semibold ${isUrgent(s) ? 'text-red-400' : ''}`}>
                   {tick() && fmtRemaining(s.timerEndsAt!)}
                 </span>
               </Show>
@@ -119,6 +155,7 @@ export function Cook() {
         <Show when={active()} fallback={<p class="text-sm text-zinc-500">Noch keine Stränge.</p>}>
           {(s) => {
             const urgent = () => {
+              tick()
               const r = remaining(s())
               return r !== null && r < 120_000
             }
@@ -129,7 +166,7 @@ export function Cook() {
                 }`}
               >
                 <div class="flex items-start justify-between gap-2 mb-1">
-                  <span class="font-semibold text-zinc-100 text-lg leading-tight">{s().name}</span>
+                  <span class={`font-semibold text-lg leading-tight ${COLOR_STYLES[s().color].name}`}>{s().name}</span>
                   <div class="flex items-center gap-2 shrink-0 mt-0.5">
                     <span class="text-xs text-zinc-400">
                       Schritt {s().stepIndex + 1} / {s().steps.length}

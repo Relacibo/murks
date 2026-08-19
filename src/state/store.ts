@@ -55,9 +55,14 @@ export interface AgentMessage {
   silent?: boolean
 }
 
+export type StrangColor = 'cyan' | 'violet' | 'amber' | 'emerald' | 'rose' | 'sky'
+
+export const STRANG_COLORS: StrangColor[] = ['cyan', 'violet', 'amber', 'emerald', 'rose', 'sky']
+
 export interface Strang {
   id: string
   name: string
+  color: StrangColor
   steps: string[]
   stepIndex: number
   done: boolean
@@ -160,6 +165,9 @@ function load(): AppState {
         strangs: Array.isArray(data.cook?.strangs)
           ? data.cook.strangs.map((s: Partial<Strang>) => ({
               ...s,
+              color: STRANG_COLORS.includes(s.color as StrangColor)
+                ? (s.color as StrangColor)
+                : STRANG_COLORS[0],
               timerExpired: s.timerExpired === true,
               timerEndsAt: s.timerEndsAt ?? null,
               timerInstruction: s.timerInstruction ?? null,
