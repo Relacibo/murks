@@ -9,13 +9,30 @@ export function Cook() {
   const voice = createAgentVoice({ configOpen })
 
   const [tick, setTick] = createSignal(Date.now())
-  // Per-strang preview step: strang id → step index
   const [previewSteps, setPreviewSteps] = createSignal<Record<string, number | null>>({})
+  const [lastAgent, setLastAgent] = createSignal<{ text: string; at: number } | null>(null)
   const interval = setInterval(() => {
     setTick(Date.now())
     expireTimers()
   }, 1000)
   onCleanup(() => clearInterval(interval))
+
+  let lastAgentRef: { text: string } | undefined = state.agent.messages[state.agent.messages.length - 1]
+  createEffect(() => {
+    const msgs = state.agent.messages
+    const last = msgs[msgs.length - 1]
+    if (last && last.role === 'agent' && last !== lastAgentRef) {
+      lastAgentRef = last
+      setLastAgent({ text: last.text, at: Date.now() })
+    }
+  })
+
+  const barVisible = () =>
+    voice.listening() ||
+    voice.transcribing() ||
+    voice.speaking() ||
+    state.agent.busy ||
+    (lastAgent() !== null && tick() > 0 && Date.now() - lastAgent()!.at < 8000)
 
   const strangs = () => state.cook.strangs
 
@@ -54,14 +71,6 @@ export function Cook() {
   function setPreview(strangId: string, idx: number | null) {
     setPreviewSteps((prev) => ({ ...prev, [strangId]: idx }))
   }
-
-  const lastUser = createMemo(() => {
-    const msgs = state.agent.messages
-    for (let i = msgs.length - 1; i >= 0; i--) {
-      if (msgs[i].role === 'user') return msgs[i].text
-    }
-    return ''
-  })
 
   const remaining = (s: Strang) => (s.timerEndsAt !== null ? s.timerEndsAt - Date.now() : null)
 
@@ -273,6 +282,16 @@ export function Cook() {
           </Show>
         </div>
         <div class="flex items-center gap-2">
+          <button
+            class="mic-btn"
+            classList={{ 'is-on': voice.listening(), 'is-off': !voice.listening() }}
+            onClick={() => voice.toggleMic()}
+            disabled={state.agent.busy}
+            title={voice.micTitle()}
+            aria-label="Mikrofon umschalten"
+          >
+            {voice.transcribing() ? '…' : voice.listening() ? '■' : '🎤'}
+          </button>
           <button class="icon-btn" onClick={() => executeTool('open_zutaten', {})} title="Zutaten">🧾</button>
           <button class="icon-btn" onClick={() => setConfigOpen(true)} title="Konfiguration">⚙</button>
         </div>
@@ -351,8 +370,8 @@ export function Cook() {
         </Show>
       </main>
 
-      {/* ── Voice bar ──────────────────────────────────────────────────── */}
-      <div class="shrink-0 border-t border-zinc-600 bg-zinc-950 px-4 py-3">
+      {/* ── Voice-Overlay: erscheint bei Aktivität, sonst versteckt ───── */}
+      <div class="voice-overlay" classList={{ 'is-visible': barVisible() }}>
         <div class="transcript-strip">
           <Show
             when={voice.transcribing()}
@@ -360,8 +379,22 @@ export function Cook() {
               <Show
                 when={voice.listening()}
                 fallback={
-                  <Show when={lastUser()} fallback={<p class="text-xs italic text-zinc-500">Sprechen, um mit dem Agenten zu interagieren …</p>}>
-                    {(t) => <p class="text-xs text-zinc-400 text-right w-full">„{t()}"</p>}
+                  <Show
+                    when={voice.speaking()}
+                    fallback={
+                      <Show
+                        when={state.agent.busy}
+                        fallback={
+                          <Show when={lastAgent()}>
+                            {(a) => <p class="text-sm text-zinc-400 line-clamp-2">{a().text}</p>}
+                          </Show>
+                        }
+                      >
+                        <p class="text-xs italic text-zinc-500 animate-pulse">Denke nach …</p>
+                      </Show>
+                    }
+                  >
+                    <p class="text-xs italic text-zinc-400">Sprache erkannt</p>
                   </Show>
                 }
               >
@@ -371,38 +404,6 @@ export function Cook() {
           >
             <p class="text-xs italic text-zinc-500 animate-pulse">Transkribiere …</p>
           </Show>
-        </div>
-
-        <div class="flex items-center gap-3">
-          <div class="relative shrink-0">
-            <Show when={voice.listening()}>
-              <div class="absolute inset-0 rounded-full animate-ping bg-zinc-400 opacity-20" />
-            </Show>
-            <button
-              class="mic-btn"
-              classList={{ 'is-on': voice.listening(), 'is-off': !voice.listening() }}
-              onClick={() => voice.toggleMic()}
-              disabled={state.agent.busy}
-              title={voice.micTitle()}
-              aria-label="Mikrofon umschalten"
-            >
-              🎤
-            </button>
-          </div>
-          <div class="flex flex-col">
-            <span class="text-sm text-zinc-300">
-              {voice.transcribing()
-                ? 'Transkribiere …'
-                : voice.speaking()
-                  ? 'Sprache erkannt'
-                  : voice.listening()
-                    ? 'Höre zu …'
-                    : 'Mikrofon einschalten'}
-            </span>
-            <span class="text-xs text-zinc-500">
-              {voice.listening() ? 'Tippen zum Beenden' : 'Tippen zum Starten'}
-            </span>
-          </div>
         </div>
       </div>
 

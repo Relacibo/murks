@@ -177,13 +177,21 @@
     box-shadow: 0 0 0 2px rgb(244 244 245 / 0.45);
   }
   .mic-btn {
-    @apply relative w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all disabled:opacity-40;
+    @apply relative w-9 h-9 rounded-full flex items-center justify-center text-base transition-all disabled:opacity-40;
   }
   .mic-btn.is-off {
     @apply bg-zinc-700 border border-zinc-600 text-zinc-300 hover:bg-zinc-600;
   }
   .mic-btn.is-on {
     @apply bg-zinc-100 text-zinc-900 ring-2 ring-zinc-300;
+  }
+
+  /* ── Voice-Overlay ──────────────────────────────────────────────── */
+  .voice-overlay {
+    @apply pointer-events-none fixed bottom-3 inset-x-0 px-4 z-40 transition-all duration-300 opacity-0 translate-y-2;
+  }
+  .voice-overlay.is-visible {
+    @apply opacity-100 translate-y-0;
   }
 
   /* ── Transkript-Streifen ────────────────────────────────────────── */
