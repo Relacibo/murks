@@ -60,7 +60,16 @@ export function Agent(props: AgentProps) {
     recognition?.stop()
     vad?.destroy()
     stopSpeaking()
+    document.removeEventListener('visibilitychange', onVisibilityChange)
   })
+
+  function onVisibilityChange() {
+    if (document.hidden) {
+      stopVoice()
+      stopSpeaking()
+    }
+  }
+  document.addEventListener('visibilitychange', onVisibilityChange)
 
   function pushError(message: string) {
     showToast(`STT: ${message}`)
