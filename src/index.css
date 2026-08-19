@@ -84,64 +84,44 @@
     opacity: 0.6;
   }
 
-  /* ── Strip (Mobile: kompakter Strang oben) ─────────────────────── */
-  .strip {
-    @apply shrink-0 flex items-center gap-2 min-h-[44px] pl-2 pr-3 rounded-xl border transition-colors;
+  /* ── Strang-Spalte (Desktop + Mobile-Flow-View): nur Gliederung ── */
+  .column {
+    @apply w-[320px] shrink-0 flex flex-col min-h-0 max-h-full;
+  }
+  .column-header {
+    @apply flex items-center gap-2 w-full text-left px-1 py-2 text-sm font-semibold text-zinc-300 transition-colors hover:text-zinc-100;
+  }
+  .column.is-focused .column-header {
+    color: var(--strang-text-active);
+  }
+  .column-body {
+    @apply flex flex-col gap-2 p-1 flex-1 min-h-0 overflow-y-auto;
+  }
+
+  /* ── Flow-Leiste (Mobile „Jetzt"): alle Flows, wie B-Strips ─────── */
+  .flow-bar {
+    @apply shrink-0 flex items-center gap-2 min-h-[40px] pl-2 pr-3 rounded-xl border transition-colors;
     background-color: var(--strang-bg);
     border-color: var(--strang-border);
   }
-  .strip:hover {
+  .flow-bar:hover {
     background-color: var(--strang-bg-active);
   }
-  .strip.is-active {
+  .flow-bar.is-active {
     background-color: var(--strang-bg-active);
     border-color: var(--strang-border-active);
   }
-  .strip.is-urgent {
-    --pulse-color: 245 158 11;
-    animation: pulse-border 1.2s ease-in-out infinite;
+  .flow-bar.is-done {
+    @apply opacity-60;
   }
-  .strip.is-expired {
-    border-color: #ef4444;
-  }
-  .strip-bar {
+  .flow-bar-mark {
     @apply w-1.5 self-stretch rounded-full shrink-0 my-2;
     background-color: var(--strang-border-active);
   }
 
-  /* ── Strang-Karte (Mobile) ─────────────────────────────────────── */
-  .card {
-    @apply rounded-2xl border border-zinc-700 overflow-hidden;
-  }
-  .card.is-expired {
-    border-color: #ef4444;
-  }
-  .card-decorator {
-    @apply flex items-center gap-2 w-full text-left px-4 py-3 transition-colors;
-    background-color: var(--strang-bg);
-    border-bottom: 1px solid var(--strang-border);
-  }
-
-  /* ── Strang-Spalte (Desktop) ───────────────────────────────────── */
-  .column {
-    @apply w-[320px] shrink-0 flex flex-col rounded-2xl border border-zinc-700 overflow-hidden;
-  }
-  .column.is-focused {
-    border-color: var(--strang-border-active);
-  }
-  .column.is-expired {
-    border-color: #ef4444;
-  }
-  .column-header {
-    @apply flex items-center gap-2 w-full text-left px-4 py-3 transition-colors hover:brightness-125;
-    background-color: var(--strang-bg);
-    border-bottom: 1px solid var(--strang-border);
-  }
-  .column-body {
-    @apply flex flex-col gap-2 p-3 bg-zinc-900/40 flex-1 min-h-0 overflow-y-auto;
-  }
+  /* ── Schritt-Karte: flach, klein, nie verschachtelt ─────────────── */
   .step-card {
-    @apply w-full text-left rounded-xl border px-3 py-2.5 transition-colors hover:brightness-125;
+    @apply w-full text-left rounded-xl border px-3 py-2.5 transition-colors hover:brightness-125 cursor-pointer;
     background-color: var(--strang-bg);
     border-color: var(--strang-border);
     color: var(--strang-text);
@@ -156,6 +136,10 @@
   }
   .step-card.is-past .step-card-title {
     @apply line-through;
+  }
+  .step-card.is-blocked {
+    @apply opacity-70;
+    border-style: dashed;
   }
 
   /* ── Markdown (Step-Description) ───────────────────────────────── */
@@ -186,35 +170,12 @@
     @apply text-xs bg-zinc-800 px-1 py-0.5 rounded;
   }
 
-  /* ── Timer-Pill ─────────────────────────────────────────────────── */
-  .pill {
-    @apply inline-flex items-center gap-2 rounded-full px-5 py-2.5 border bg-zinc-700 border-zinc-600;
-  }
-  .pill.is-urgent {
-    border-color: #f59e0b;
-  }
-
   /* ── Buttons ────────────────────────────────────────────────────── */
   .icon-btn {
     @apply w-9 h-9 flex items-center justify-center rounded-full border border-zinc-600 bg-zinc-700 text-zinc-400 hover:bg-zinc-600 hover:text-zinc-100 transition-colors;
   }
-  .nav-btn {
-    @apply w-10 h-10 flex items-center justify-center rounded-full border border-zinc-600 text-zinc-400 hover:bg-zinc-700 hover:border-zinc-500 hover:text-zinc-200 transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-zinc-400;
-  }
   .jump-btn {
     @apply px-4 py-2.5 rounded-xl border border-zinc-300 text-sm text-zinc-100 transition-colors min-h-[44px] hover:bg-zinc-700 shrink-0;
-  }
-  .step-dot {
-    @apply h-2.5 flex-1 rounded-full transition-colors bg-zinc-700;
-  }
-  .step-dot.is-done {
-    @apply bg-zinc-400;
-  }
-  .step-dot.is-active {
-    background-color: var(--strang-text);
-  }
-  .step-dot.is-preview {
-    box-shadow: 0 0 0 2px rgb(244 244 245 / 0.45);
   }
   .mic-btn {
     @apply relative w-9 h-9 rounded-full flex items-center justify-center text-base transition-all disabled:opacity-40;

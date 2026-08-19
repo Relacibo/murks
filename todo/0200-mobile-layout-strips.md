@@ -1,23 +1,17 @@
-# 0200 · Mobile Layout: Strips + Schritt-Karte (Spec B2)
+# 0200 · Mobile: „Jetzt"-View + „Flow"-View (Konzept C)
 
-**Prio: HOCH**
+**Prio: HOCH** — ersetzt B2 (Strips + eine Karte)
 
 ## Was
-Mobile: feste Strips für alle Stränge oben, eine große Schritt-Karte für den fokussierten Strang.
+Mobile: View „Jetzt" (alle aktiven Karten über alle Flows) + View „Flow" (Karten eines Flows, ≈ Desktop-Spalte). Flow-Leiste oben (alle Flows, wie B-Strips).
 
 ## Tasks
-- [x] Strips-Komponente: `🍚 Summary · Timer · x/y`, 44px Tap-Target, kein Name (Emoji + Farbe)
-- [x] Strips: feste Reihenfolge (Anlegereihenfolge), Dringlichkeit via Farbe/Puls
-- [x] Strip-Tap → Fokus wechseln
-- [x] Schritt-Karte: Header (Name + Timer + x/y) + Description (Markdown, scrollt vertikal)
-- [x] Timer auf der Karte (Pill, wenn läuft)
-- [x] ◀ ▶ Navigation + Dots (`○○●○○`)
-- [x] ✓ Weiter Button (set_step; letzter Schritt → complete_strang)
-- [x] Browse-Modus: ◀ ▶ zeigt Nachbarschritte, setzt nichts aktiv
-- [x] Browse-Badge (`[später]` / `[bereits erledigt]`)
-- [x] `● Aktuell`-Chip springt zurück zum aktiven Schritt
-- [x] `↩ Hierhin`-Button (set_step)
-- [~] Bei ≥ 4 Strängen: Schritttitel weglassen → **verworfen**, Summary wird nie weggelassen (Spec)
+- [x] Flow-Leiste: alle Flows oben (Emoji + Name, done gedimmt), Tap → Flow-View
+- [x] „Jetzt"-View: nur aktive Karten (Abhängigkeiten erfüllt, nicht done), mehrere pro Flow möglich, flacher Stapel
+- [x] „Flow"-View: Zurück-Button + Kartenstapel des Flows (done/active/blocked sichtbar)
+- [x] Karten nie verschachtelt, klein, gestapelt (siehe Spec „Kartendesign")
+- [x] ✓ Weiter = complete_step + Navigation; blockierte Karte: ✓ deaktiviert + „Wartet auf …"
+- [~] Reihenfolge der „Jetzt"-Karten: **offen** (aktuell Anlegereihenfolge)
 
 ## Abhängigkeit
 → 0100 (Step-Datenmodell)

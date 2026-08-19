@@ -1,17 +1,19 @@
-# 3400 · Mehrere Timer pro Strang
+# 3400 · Mehrere Timer pro Strang (Timer pro Schritt)
 
 **Prio: NIEDRIG**
 
 ## Was
-Ein Strang kann mehrere gleichzeitig laufende Timer haben
-(z.B. „Teig 30min ruhen" + „Ofen vorheizen 15min").
+Ein Strang kann mehrere gleichzeitig laufende Timer haben — umgesetzt als **Timer pro Schritt (Karte)**:
+mehrere Schritte eines Strangs können parallel Timer laufen lassen.
 
 ## Tasks
-- [ ] `Strang.timers: Timer[]` statt einzelner Timer-Felder
-- [ ] `start_timer`: kann mehrere Timer anlegen
-- [ ] `cancel_timer`: `timer_id` required
-- [ ] UI: mehrere Timer-Pills auf der Karte
-- [ ] Migration: bestehende Einzel-Timer → `timers[0]`
+- [x] `Step.timerEndsAt / timerInstruction / timerExpired` (statt `Strang.timer*`)
+- [x] `start_timer`: `strang_id` + `step_index`
+- [x] `cancel_timer`: `strang_id` + `step_index`
+- [x] UI: Timer in der Schritt-Karte + Topbar-Chips (Emoji + Summary + Zeit)
+- [x] Migration: alter Strang-Timer → Timer des aktiven Schritts
+- [x] `complete_step` / `complete_strang` brechen Schritt-Timer ab
+- [x] `expireTimers` über alle Schritte, Toast mit Strang + Summary
 
 ## Abhängigkeit
-→ State-Key-Bump
+→ 0100

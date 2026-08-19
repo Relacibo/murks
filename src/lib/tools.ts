@@ -36,6 +36,18 @@ export const TOOLS: ToolDef[] = [
               properties: {
                 summary: { type: 'string', description: 'Kurzbezeichnung, max. 2 Wörter, z.B. "Teig anrühren"' },
                 description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt)' },
+                depends_on: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      strang_id: { type: 'string' },
+                      step_index: { type: 'number', description: '0-basiert' },
+                    },
+                    required: ['strang_id', 'step_index'],
+                  },
+                  description: 'Optionale Abhängigkeiten (Schritte, die zuerst erledigt sein müssen)',
+                },
               },
               required: ['summary', 'description'],
             },
@@ -57,8 +69,35 @@ export const TOOLS: ToolDef[] = [
           strang_id: { type: 'string' },
           summary: { type: 'string', description: 'Kurzbezeichnung, max. 2 Wörter, z.B. "Abschmecken"' },
           description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt)' },
+          depends_on: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                strang_id: { type: 'string' },
+                step_index: { type: 'number', description: '0-basiert' },
+              },
+              required: ['strang_id', 'step_index'],
+            },
+            description: 'Optionale Abhängigkeiten (Schritte, die zuerst erledigt sein müssen)',
+          },
         },
         required: ['strang_id', 'summary', 'description'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'complete_step',
+      description: 'Schritt abschließen (done). Laufender Timer des Schritts wird abgebrochen.',
+      parameters: {
+        type: 'object',
+        properties: {
+          strang_id: { type: 'string' },
+          step_index: { type: 'number', description: '0-basiert' },
+        },
+        required: ['strang_id', 'step_index'],
       },
     },
   },
@@ -81,18 +120,19 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'start_timer',
-      description: 'Timer für einen Strang starten.',
+      description: 'Timer für einen SCHRITT starten (mehrere Schritte eines Strangs können parallel Timer laufen lassen).',
       parameters: {
         type: 'object',
         properties: {
           strang_id: { type: 'string' },
+          step_index: { type: 'number', description: '0-basiert' },
           seconds: { type: 'number' },
           on_expire_instruction: {
             type: 'string',
             description: 'Anweisung, die beim Ablaufen gilt, z.B. "Nudeln abgießen"',
           },
         },
-        required: ['strang_id', 'seconds'],
+        required: ['strang_id', 'step_index', 'seconds'],
       },
     },
   },
@@ -100,11 +140,14 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'cancel_timer',
-      description: 'Laufenden Timer eines Strangs abbrechen.',
+      description: 'Laufenden Timer eines Schritts abbrechen.',
       parameters: {
         type: 'object',
-        properties: { strang_id: { type: 'string' } },
-        required: ['strang_id'],
+        properties: {
+          strang_id: { type: 'string' },
+          step_index: { type: 'number', description: '0-basiert' },
+        },
+        required: ['strang_id', 'step_index'],
       },
     },
   },
@@ -185,6 +228,16 @@ function patchStrang(id: string, patch: Record<string, unknown>) {
   setState('cook', 'strangs', (str) => str.map((s) => (s.id === id ? { ...s, ...patch } : s)))
 }
 
+function patchStep(strangId: string, stepIndex: number, patch: Record<string, unknown>) {
+  setState('cook', 'strangs', (str) =>
+    str.map((s) =>
+      s.id === strangId
+        ? { ...s, steps: s.steps.map((st, i) => (i === stepIndex ? { ...st, ...patch } : st)) }
+        : s,
+    ),
+  )
+}
+
 function fmtRemaining(endsAt: number): string {
   const s = Math.max(0, Math.round((endsAt - Date.now()) / 1000))
   const mm = Math.floor(s / 60)
@@ -204,11 +257,17 @@ export function executeTool(name: string, args: Record<string, unknown>): string
         const icon = String(args.icon ?? '').trim()
         const steps = Array.isArray(args.steps)
           ? args.steps.map((st) => {
-              if (typeof st === 'string') return { summary: st, description: '' }
+              if (typeof st === 'string') return { summary: st, description: '', dependsOn: [] }
               const o = (st ?? {}) as Record<string, unknown>
               return {
                 summary: String(o.summary ?? '').trim(),
                 description: String(o.description ?? '').trim(),
+                dependsOn: Array.isArray(o.depends_on)
+                  ? (o.depends_on as Record<string, unknown>[]).map((d) => ({
+                      strang_id: String(d?.strang_id ?? '').trim(),
+                      step_index: Number(d?.step_index ?? 0),
+                    }))
+                  : [],
               }
             })
           : []
@@ -225,12 +284,17 @@ export function executeTool(name: string, args: Record<string, unknown>): string
             name: strangName,
             icon: icon || null,
             color,
-            steps: steps.map((st) => ({ ...st, description: st.description || st.summary })),
+            steps: steps.map((st) => ({
+              summary: st.summary,
+              description: st.description || st.summary,
+              done: false,
+              dependsOn: st.dependsOn,
+              timerEndsAt: null,
+              timerInstruction: null,
+              timerExpired: false,
+            })),
             stepIndex: 0,
             done: false,
-            timerEndsAt: null,
-            timerInstruction: null,
-            timerExpired: false,
           },
         ])
         setState('cook', 'focusedStrangId', id)
@@ -244,10 +308,42 @@ export function executeTool(name: string, args: Record<string, unknown>): string
         const strang = findStrang(id)
         if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
         if (!summary) return JSON.stringify({ error: 'summary fehlt' })
-        const step = { summary, description: description || summary }
+        const dependsOn = Array.isArray(args.depends_on)
+          ? (args.depends_on as Record<string, unknown>[]).map((d) => ({
+              strang_id: String(d?.strang_id ?? '').trim(),
+              step_index: Number(d?.step_index ?? 0),
+            }))
+          : []
+        const step = {
+          summary,
+          description: description || summary,
+          done: false,
+          dependsOn,
+          timerEndsAt: null,
+          timerInstruction: null,
+          timerExpired: false,
+        }
         patchStrang(id, { steps: [...strang.steps, step] })
         showToast(`${strang.name}: + „${summary}"`)
         return JSON.stringify({ ok: true, step_index: strang.steps.length })
+      }
+      case 'complete_step': {
+        const id = String(args.strang_id ?? '')
+        const stepIdx = Number(args.step_index)
+        const strang = findStrang(id)
+        if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
+        if (!Number.isInteger(stepIdx) || stepIdx < 0 || stepIdx >= strang.steps.length) {
+          return JSON.stringify({ error: `step_index muss 0..${strang.steps.length - 1} sein` })
+        }
+        const steps = strang.steps.map((st, i) =>
+          i === stepIdx
+            ? { ...st, done: true, timerEndsAt: null, timerInstruction: null, timerExpired: false }
+            : st,
+        )
+        const allDone = steps.every((st) => st.done)
+        patchStrang(id, { steps, done: allDone ? true : strang.done })
+        showToast(`${strang.name}: „${strang.steps[stepIdx].summary}" fertig`)
+        return JSON.stringify({ ok: true })
       }
       case 'set_step': {
         const id = String(args.strang_id ?? '')
@@ -257,31 +353,40 @@ export function executeTool(name: string, args: Record<string, unknown>): string
         if (!Number.isInteger(idx) || idx < 0 || idx >= strang.steps.length) {
           return JSON.stringify({ error: `step_index muss 0..${strang.steps.length - 1} sein` })
         }
-        patchStrang(id, { stepIndex: idx, timerExpired: false })
+        patchStrang(id, { stepIndex: idx })
         showToast(`${strang.name}: Schritt ${idx + 1}/${strang.steps.length}`)
         return JSON.stringify({ ok: true })
       }
       case 'start_timer': {
         const id = String(args.strang_id ?? '')
+        const stepIdx = Number(args.step_index)
         const seconds = Number(args.seconds)
         const strang = findStrang(id)
         if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
+        if (!Number.isInteger(stepIdx) || stepIdx < 0 || stepIdx >= strang.steps.length) {
+          return JSON.stringify({ error: `step_index muss 0..${strang.steps.length - 1} sein` })
+        }
         if (!Number.isFinite(seconds) || seconds <= 0) {
           return JSON.stringify({ error: 'seconds muss positiv sein' })
         }
         const endsAt = Date.now() + seconds * 1000
-        patchStrang(id, {
+        patchStep(id, stepIdx, {
           timerEndsAt: endsAt,
           timerExpired: false,
           timerInstruction: args.on_expire_instruction ? String(args.on_expire_instruction) : null,
         })
-        showToast(`⏱ Timer: ${fmtRemaining(endsAt)} (${strang.name})`)
+        showToast(`⏱ Timer: ${fmtRemaining(endsAt)} (${strang.name}: ${strang.steps[stepIdx].summary})`)
         return JSON.stringify({ ok: true, endsAt })
       }
       case 'cancel_timer': {
         const id = String(args.strang_id ?? '')
-        if (!findStrang(id)) return JSON.stringify({ error: 'Unbekannter Strang' })
-        patchStrang(id, { timerEndsAt: null, timerInstruction: null, timerExpired: false })
+        const stepIdx = Number(args.step_index)
+        const strang = findStrang(id)
+        if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
+        if (!Number.isInteger(stepIdx) || stepIdx < 0 || stepIdx >= strang.steps.length) {
+          return JSON.stringify({ error: `step_index muss 0..${strang.steps.length - 1} sein` })
+        }
+        patchStep(id, stepIdx, { timerEndsAt: null, timerInstruction: null, timerExpired: false })
         showToast('⏱ Timer abgebrochen')
         return JSON.stringify({ ok: true })
       }
@@ -289,7 +394,16 @@ export function executeTool(name: string, args: Record<string, unknown>): string
         const id = String(args.strang_id ?? '')
         const strang = findStrang(id)
         if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
-        patchStrang(id, { done: true, timerEndsAt: null, timerInstruction: null, timerExpired: false })
+        patchStrang(id, {
+          done: true,
+          steps: strang.steps.map((st) => ({
+            ...st,
+            done: true,
+            timerEndsAt: null,
+            timerInstruction: null,
+            timerExpired: false,
+          })),
+        })
         showToast(`Fertig: ${strang.name}`)
         const idx = state.cook.strangs.findIndex((s) => s.id === id)
         const rest = state.cook.strangs.slice(idx + 1).concat(state.cook.strangs.slice(0, idx))

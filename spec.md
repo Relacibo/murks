@@ -1,6 +1,9 @@
-# MURKS — UI/UX Spec v2
+# MURKS — UI/UX Spec v3 (Konzept C)
 
 Voice-first Kochassistent-PWA. KI navigiert primär per Tool, Nutzer übersteuert per Touch.
+
+> **B2 verworfen.** Konzept C: Schritte haben optionale Abhängigkeiten; „aktiv" heißt
+> Abhängigkeiten erfüllt. Mobile zeigt alle aktiven Karten (statt Strips + eine Karte).
 
 ---
 
@@ -13,14 +16,11 @@ Ein paralleler Kochprozess (z.B. „Reis", „Soße", „Salat").
 interface Strang {
   id: string
   name: string
-  icon: string | null      // Emoji, vom LLM vergeben (add_strang) — Strip-Identität
+  icon: string | null      // Emoji, vom LLM vergeben (add_strang) — visuelle Identität
   color: StrangColor
   steps: Step[]
-  stepIndex: number        // aktiver Schritt (0-basiert)
+  stepIndex: number        // „Zeiger" des Flows (Navigation, 0-basiert)
   done: boolean
-  timerEndsAt: number | null
-  timerInstruction: string | null
-  timerExpired: boolean
   zutaten: Zutat[]         // Zutaten gehören zum Strang, nicht global
 }
 ```
@@ -29,155 +29,167 @@ interface Strang {
 **1 Karte = 1 Schritt. Schritte sind nie verschachtelt.**
 
 ```ts
-interface Step {
-  summary: string      // Kurzbezeichnung, reiner Text, 1 Zeile, max ~2 Wörter (System-Prompt)
-  description: string  // Volltext, Markdown-rendered (ausgeklappte Karte)
+interface StepRef {
+  strang_id: string
+  step_index: number
 }
-// Eingeklappt/Strip: 🍚 Summary · ⏱ Timer-Chip (nur wenn läuft) · x/y (klein grau).
-//   Kein Name — Emoji (LLM) + Strang-Farbe identifizieren den Strang.
-// Ausgeklappt: Header 🍝 Name · ⏱ Timer · x/y (Name als Kontext-Anker beim Browsen),
-//   darunter description (Markdown) statt summary.
+
+interface Step {
+  summary: string          // Kurzbezeichnung, reiner Text, 1 Zeile, max ~2 Wörter (System-Prompt)
+  description: string      // Volltext, Markdown-rendered
+  done: boolean            // Schritt einzeln abschließbar (✓ Weiter / complete_step)
+  dependsOn: StepRef[]     // optionale Abhängigkeiten — eigener oder anderer Flow
+  timerEndsAt: number | null
+  timerInstruction: string | null
+  timerExpired: boolean
+}
 ```
 
-> **Migration:** `steps: string[]` → `steps: Step[]`. Alte Daten: `string` wird `summary`, `description: ""`.
+### Abgeleitete Schritt-Zustände
+- **blocked**: mind. eine Abhängigkeit nicht `done`
+- **active**: alle Abhängigkeiten `done`, selbst nicht `done` → wird auf Mobile in „Jetzt" angezeigt
+- **done**: explizit abgeschlossen
+
+### Abschluss-Regeln
+- **Navigation allein schließt nie ab** (◀▶, Dots, Klick auf Desktop-Karte, `set_step`).
+- **✓ Weiter** = expliziter Abschluss: `complete_step` (aktueller Schritt) + Navigation zum nächsten.
+- `complete_strang` = alle Schritte `done` + Strang `done` + alle Schritt-Timer abbrechen.
+- `Strang.done` gilt zusätzlich als abgeleitet, wenn alle Schritte `done` sind.
+
+> **Migration:** `steps: string[]` → `steps: Step[]`. Alte Daten: `string` wird `summary`,
+> `description: ""`; alte Strang-Timer → Timer des aktiven Schritts.
+> Neue Felder defaulten: `done: false`, `dependsOn: []`.
+> Offen: `dependsOn` referenziert per Index — Indizes verschieben sich bei `add_step`
+> (für v1 akzeptiert; später stabile Step-IDs).
 
 ---
 
 ## Mobile Layout (≤ 639px)
 
-### Prinzip
-Wenig Platz → immer genau **ein** Strang fokussiert, dessen **aktueller Schritt** als große Karte.
-Alle anderen Stränge als kompakte Strips oben.
+### Prinzip (Konzept C)
+Zwei Views:
 
-### Aufbau
+1. **„Jetzt"** (Standard, mobile-only): **alle aktiven Karten über alle Flows** —
+   die Dinge, die gerade dran sind. Blocked/done-Karten sind ausgeblendet.
+2. **„Flow"**: die Karten **eines** Flows — optisch identisch mit einer Desktop-Spalte
+   (vertikaler Kartenstapel mit allen Zuständen: done/active/blocked).
+
+Wechsel: Tap auf den Flow-Header einer „Jetzt"-Karte → „Flow"-View dieses Flows;
+Zurück-Button → „Jetzt".
+
+### Aufbau „Jetzt"
 
 ```
 ┌────────────────────────────────────┐
-│ MURKS                  🎤  📄  ⚙  │  ← Topbar
+│ ⏱🍚04:00  ⏱🥗01:12      🎤  📄  ⚙ │  ← Topbar: Timer-Chips + Buttons (kein Logo)
 ├────────────────────────────────────┤
-│ 🍚 Quellen lassen  07:41  3/5     │  ← Strip: Tap = Fokus wechseln
-│ 🥗 Dressing anrühren       1/4    │
-├────────────────────────────────────┤
-│ ╔════════════════════════════════╗ │
-│ ║ 🍝 SAUCE                  3/5  ║ │  ← fokussierter Strang: Name + x/y
-│ ║                                ║ │    (Kontext-Anker beim Browsen)
-│ ║  Hitze auf mittel, offen ~10   ║ │  ← ausgeklappt: description (Markdown,
-│ ║  min köcheln, gelegentlich     ║ │    scrollt vertikal bei Bedarf)
-│ ║  rühren.                       ║ │    eingeklappt: nur summary (1 Zeile)
-│ ║                                ║ │
-│ ║  ⏱ 01:12  verbleib.       ⚠  ║ │  ← Timer (gehört zum Strang)
-│ ║                                ║ │
-│ ║  ◀  ○○●○○  ▶   [ ✓ Weiter ]  ║ │  ← Navigation + Fortschritt
-│ ╚════════════════════════════════╝ │
-│  „Höre zu …"                       │  ← Voice-Overlay (nur wenn aktiv)
+│ ┌──────────────────────────────┐   │
+│ │ 🍝 SAUCE ▸           2/4     │   │  ← Flow-Header (Tap → Flow-View)
+│ ├──────────────────────────────┤   │
+│ │ Einreduzieren ⏱ 07:41  2/4   │   │  ← aktive Karte
+│ │ Hitze mittel, ~10 min        │   │
+│ │ köcheln.                     │   │
+│ │              [ ✓ Weiter ]    │   │
+│ └──────────────────────────────┘   │
+│ ┌──────────────────────────────┐   │
+│ │ 🍚 REIS ▸             3/5    │   │
+│ ├──────────────────────────────┤   │
+│ │ Quellen lassen ⏱ 04:00  3/5  │   │
+│ │ …                            │   │
+│ │              [ ✓ Weiter ]    │   │
+│ └──────────────────────────────┘   │
 └────────────────────────────────────┘
 ```
 
-### Strips (obere Leiste)
+- **Reihenfolge: offen.** Kandidaten: Anlegereihenfolge, Timer-Dringlichkeit, KI-Priorität
+  (s. „Offene Fragen").
+- Karten voll ausgeklappt: Emoji + Summary + ⏱ Timer + x/y + Description (Markdown).
+- ✓ Weiter = `complete_step` + Navigation (Navigation allein schließt nie ab).
+- Blocked-Karte im Flow: ✓ Weiter deaktiviert + Hinweis auf fehlende Abhängigkeit.
 
-- **Feste Reihenfolge** = Anlegereihenfolge. Nie umsortieren — räumliches Gedächtnis.
-- Mindesthöhe: 44px Tap-Target.
-- Inhalt: `🍚 Summary (truncated) · Timer-Chip (nur wenn läuft) · x/y` — kein Name, Emoji + Farbe identifizieren
-- Dringlichkeit via Farbe/Puls/Bell-Icon, **nie** via Umsortieren.
-- Summary wird nie weggelassen (Kerninfo des Strips), max ~2 Wörter.
-- Tap = Fokus auf diesen Strang wechseln.
+### Aufbau „Flow" (≈ Desktop-Spalte)
 
-### Schrittnavigation (◀ ▶)
-
-- **Swipe links/rechts** oder **◀/▶** = vorherigen/nächsten Schritt **ansehen** (Browse-Modus).
-- Browse ≠ Fortschritt. Swipe setzt keinen Schritt aktiv.
-- Fortschritt nur über **✓ Weiter**-Button oder KI (`set_step` / `complete_strang`).
-- Beim Wegbrowsen vom aktiven Schritt:
-  - Karte zeigt `[später]`- oder `[bereits erledigt]`-Badge.
-  - `● Aktuell`-Chip springt zurück zum aktiven Schritt.
-  - `↩ Hierhin springen`-Button setzt diesen Schritt aktiv (`set_step`).
-- Dots `○○●○○` zeigen Position; aktiver Schritt ausgefüllt.
-
-### Fokus wechseln
-
-- Tap auf Strip = manueller Fokuswechsel.
-- KI navigiert via `focus_strang` + `set_step`.
-- KI-Fokus animiert: Strip expandiert zur Karte (Akkordeon-Animation).
+Wie Desktop: Flow-Header + vertikaler Kartenstapel (done gedimmt, active hervorgehoben,
+blocked mit Hinweis), scrollbar. Keine ◀▶-Browse-Navigation nötig — alles sichtbar.
 
 ---
 
 ## Desktop Layout (≥ 640px)
 
 ### Prinzip
-Genug Platz → **Spalten pro Strang**, alle Schritte als Karten **vertikal gestapelt**, scrollbar.
+Genug Platz → **Spalten pro Strang** (nur Gliederung mit Überschrift, keine Karte),
+alle Schritte als **voll ausgeklappte Karten** vertikal gestapelt, scrollbar.
 Keine Browsing-Navigation nötig — alles sichtbar.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ MURKS                                                    🎤  📄  ⚙  │
+│ ⏱🍚04:00 ⏱🥗01:12 ⏱🥫07:41                        🎤  📄  ⚙      │  ← Topbar
 ├──────────┬───────────────────────┬───────────────────────────────────┤
-│ ▍REIS    │ ▍SAUCE         ⚠01:12 │ ▍SALAT                           │
-│ ⏱ 07:41  │                       │                                   │
-├──────────┤ ┌───────────────────┐ │ ┌───────────────────┐            │
-│┌────────┐│ │ ✓ Zwiebeln andüns.│ │ │ ✓ Salat waschen   │            │
-││✓ Kochen││ ├───────────────────┤ │ ╔═══════════════════╗            │
-│╔════════╗│ │ ✓ Passata zugeben │ │ ║  Öl, Essig, Senf,  ║            │
-│║Quellen ║│ ╔═══════════════════╗ │ ║  gut verrühren …   ║            │
-│║lassen  ║│ ║  Hitze mittel,    ║ │ ╚═══════════════════╝            │
-│╚════════╝│ ║  ~10 min köcheln. ║ │ ┌───────────────────┐            │
-│┌────────┐│ ╚═══════════════════╝ │ │   Anmachen        │            │
-││Auflock.││                       │ └───────────────────┘            │
-│└────────┘│ ┌───────────────────┐ │                                   │
-│          │ │   Abschmecken     │ │                                   │
+│ 🍚 REIS  │ 🍝 SAUCE              │ 🥗 SALAT                          │  ← Spalten-Header
+│          │                       │                                   │    (nur Gliederung)
+│┌────────┐│ ┌───────────────────┐ │ ┌───────────────────┐            │
+││✓ Kochen││ │ ✓ Zwiebeln ⏱ 03:00│ │ │ ✓ Salat waschen   │            │
+││  …     ││ │   andünsten 1/4   │ │ │   …               │            │
+│╔════════╗│ ╔═══════════════════╗ │ ╔═══════════════════╗            │
+│║Quellen ║│ ║  Einreduzieren    ║ │ ║  Dressing ⏱ 01:12  ║            │
+│║lassen   ║│ ║  ⏱ 07:41  2/4     ║ │ ║  1/4 …            ║            │
+│║ …      ║│ ║  Hitze mittel, …  ║ │ ╚═══════════════════╝            │
+│╚════════╝│ ╚═══════════════════╝ │ ┌───────────────────┐            │
+│┌────────┐│ ┌───────────────────┐ │ │  Anmachen         │            │
+││Auflock.││ │  Abschmecken      │ │ │   …               │            │
+││  …     ││ │   …               │ │ └───────────────────┘            │
+│└────────┘│ └───────────────────┘ │                                   │
 └──────────┴─┴───────────────────┴─┴───────────────────────────────────┘
 ```
 
 - **Spaltenreihenfolge:** fix = Anlegereihenfolge.
-- **Aktiver Schritt:** hervorgehoben (gefetteter Rahmen, Strang-Farbe).
-- **Vergangene Schritte:** gedimmt + durchgestrichen.
-- **Zukünftige Schritte:** dezenter als aktiver.
-- **Strang-Header** (Spaltenüberschrift): Name + Timer. Klick = fokussieren.
-- Vertikales Scrollen pro Spalte. Kein horizontales Scrollen.
+- **Spalte ist keine Karte** — nur Header (Emoji + Name, Klick = fokussieren) + Kartenstapel.
+- **Alle Schritt-Karten ausgeklappt** (Description sichtbar).
+- Karten-Header: `🍚 Summary · ⏱ Timer (nur wenn läuft) · x/y`.
+- **active:** hervorgehoben (gefetteter Rahmen, Strang-Farbe).
+- **done:** gedimmt + Summary durchgestrichen.
+- **blocked:** dezenter + 🔒 (Abhängigkeit offen), ✓ Weiter deaktiviert.
+- **Mehrere Karten pro Strang können gleichzeitig Timer laufen lassen.**
+- Vertikales Scrollen pro Spalte. Kein horizontales Scrollen (bis auf die Spalten selbst).
 
 ---
 
 ## Kartendesign
 
-Tap auf Header = ein-/ausklappen. Nur der Body wechselt: summary ↔ description.
+**Karten werden nie verschachtelt.** Keine Karte-in-Karte (auch keine Spalte als Karte):
+Spalten- und Flow-Header sind reine Gliederung. Die Schritt-Karten bilden einen
+**flachen Stapel kleiner Karten**.
 
-### Eingeklappt (identisch zum Strip, kein Name)
-```
-╔══════════════════════════════════╗
-║ 🍝 Einreduzieren · ⏱ 01:12 · 3/5 ║  ← Emoji + Farbe = Strang-Identität,
-╚══════════════════════════════════╝    Summary truncate, x/y klein grau
-```
+**Karten klein halten:** Header (`🍚 Summary · ⏱ Timer · x/y`) + Description + ggf. ✓ Weiter.
+Mehrere Karten stehen untereinander (Stapel).
 
-### Ausgeklappt — aktiver Schritt (Mobile)
-```
-╔══════════════════════════════════╗
-║ 🍝 SAUCE   ⏱ 01:12         3 / 5  ║  ← Name erscheint (Kontext-Anker), x/y klein grau
-╠══════════════════════════════════╣
-║                                  ║
-║  Hitze auf mittel, offen ~10     ║  ← Description (Markdown-rendered,
-║  min köcheln, gelegentlich       ║    ~14px, scrollt vertikal)
-║  rühren.                         ║
-║                                  ║
-║  ⏱ 01:12  verbleib.        ⚠   ║  ← Timer (nur wenn läuft)
-║                                  ║
-║  ◀  ○○●○○  ▶    [ ✓ Weiter ]   ║  ← Nav + Fortschritt
-╚══════════════════════════════════╝
-```
+> Fehlerhafte Vorgänger-Umsetzung: verschachtelte Karten (Spalte als Karte mit
+> Unterkarten) — Commit `e6a6011` (v0.4.0), verworfen.
 
-### Browse-Zustand (vom aktiven Schritt weggeswipt)
+**Alle Karten sind immer voll ausgeklappt** (Summary + Description). Kein Ein-/Ausklappen mehr.
+
+### Karten-Header
+`🍚 Summary · ⏱ Timer (nur wenn läuft) · x/y`
+
+### Zustände
+- **active**: hervorgehoben (gefetteter Rahmen, Strang-Farbe)
+- **blocked**: dezenter, 🔒-Hinweis auf fehlende Abhängigkeit, ✓ Weiter deaktiviert
+- **done**: gedimmt, Summary durchgestrichen, Description bleibt sichtbar
+
+### Karte (allgemein)
 ```
-╔══════════════════════════════════╗
-║ ▍ SAUCE  [später]  4/5  ●Aktuell→║  ← Name bleibt Kontext-Anker; Badge + Rücksprung
-╠══════════════════════════════════╣
-║  Salz, Pfeffer, Prise Zucker …   ║  ← Description des gebrowsten Schritts
-║                                  ║
-║  ◀  ○○○●○  ▶   [ ↩ Hierhin ]   ║
-╚══════════════════════════════════╝
+┌──────────────────────────────────┐
+│ 🍝 Einreduzieren ⏱ 07:41   2/4  │  ← Header (Summary · Timer · x/y)
+│                                  │
+│ Hitze mittel, ~10 min köcheln.  │  ← Description (Markdown, immer sichtbar)
+│                                  │
+│              [ ✓ Weiter ]        │  ← expliziter Abschluss (+ Navigation)
+└──────────────────────────────────┘
 ```
 
-### Desktop-Karten
-- Aktiver Schritt: ausgeklappt → description (Markdown).
-- Vergangene: gedimmt, eingeklappt → summary.
-- Zukünftige: eingeklappt → summary (optional ausklappbar → description).
+- Klick auf Karte (Desktop/Flow-View) = `set_step` — Navigation, kein Abschluss.
+- ✓ Weiter = `complete_step` + Navigation zum nächsten Schritt.
+- Mobile „Jetzt"-View: Karten einzeln untereinander, kein Klick-Navigation nötig.
 
 ---
 
@@ -192,19 +204,30 @@ Tap auf Header = ein-/ausklappen. Nur der Body wechselt: summary ↔ description
 
 ## Timer
 
-- Gehören zum **Strang** (nicht zu einem Schritt).
-- Sichtbar: Strip (Timer-Chip), ausgeklappte Karte (Header + großer Pill), Desktop-Spalten-Header.
-- Dringlichkeit: Orange + Pulsieren < 2 min, Bell-Icon + Orange-Rand bei Ablauf.
-- Bei Ablauf: KI navigiert aktiv zum betroffenen Strang.
-- Mehrere Timer pro Strang: zukünftig (`timers: Timer[]`), aktuell ein Timer.
+- Gehören zum **Schritt** (Karte), nicht zum Strang.
+- **Mehrere Schritte eines Strangs können gleichzeitig Timer laufen lassen** (parallele aktive Karten).
+- Sichtbar: in der Schritt-Karte (Header), Topbar-Timer-Chips (mit Zeit + Emoji/Summary).
+- Dringlichkeit: Orange + Pulsieren < 2 min, Bell-Icon + Rot bei Ablauf.
+- Bei Ablauf: KI navigiert aktiv zum betroffenen Schritt (`focus_strang` + `set_step`).
+- `complete_strang` / `complete_step` brechen den laufenden Timer des Schritts ab.
+
+---
+
+## Topbar
+
+- **Eine einzige Leiste** — keine zweite Timer-Leiste darunter.
+- Kein Logo/Schriftzug „MURKS".
+- Links: Timer-Chips (⏱ Emoji + Summary + Zeit), scrollbar; rechts: 🎤 📄 ⚙.
+- Chip-Dringlichkeit: gelb pulsierend < 2 min, rot (Bell) bei Ablauf. Klick = zu Schritt springen.
 
 ---
 
 ## Voice-Overlay
 
-- Nur sichtbar wenn aktiv (Mic an / transkribiert / KI aktiv / ≤ 8s nach KI-Antwort).
+- Nur sichtbar wenn aktiv (Mic an / transkribiert / KI aktiv / ≤ 12s nach KI-Antwort / ≤ 10s nach STT-Text).
 - Mic-Button immer erreichbar in der Topbar.
-- Letzter KI-Text: max. 2 Zeilen, fade-out nach 8s.
+- Erkannte Eingabe (STT-Text) als eigener Streifen, fade-out nach 10s.
+- Letzter KI-Text: max. 4 Zeilen, fade-out nach 12s.
 
 ---
 
@@ -212,12 +235,14 @@ Tap auf Header = ein-/ausklappen. Nur der Body wechselt: summary ↔ description
 
 | Tool | Änderung |
 |---|---|
-| `add_strang` | `steps: Step[]` statt `steps: string[]`; zusätzlich `icon` (Emoji, LLM vergibt) |
-| `add_step` | `summary` + `description` statt `text` |
-| `set_step` | unverändert |
+| `add_strang` | `steps: Step[]` statt `steps: string[]`; zusätzlich `icon` (Emoji, LLM vergibt); Steps optional mit `depends_on` |
+| `add_step` | `summary` + `description` statt `text`; optional `depends_on` |
+| `set_step` | unverändert (reine Navigation, schließt nie ab) |
+| `complete_step` | **neu**: Schritt abschließen (`done`), Timer des Schritts abbrechen |
 | `focus_strang` | unverändert |
-| `start_timer` / `cancel_timer` | unverändert |
-| `complete_strang` | unverändert |
+| `start_timer` | `strang_id` + `step_index` (Timer gehört zum Schritt) |
+| `cancel_timer` | `strang_id` + `step_index` |
+| `complete_strang` | alle Schritte `done` + Strang `done` + alle Schritt-Timer abbrechen |
 | `add_zutaten` | `strang_id` required |
 | `open_zutaten` | `strang_id` required |
 | `toggle_zutaten` / `close_zutaten` | unverändert |
@@ -226,7 +251,8 @@ Tap auf Header = ein-/ausklappen. Nur der Body wechselt: summary ↔ description
 
 ## Offene Fragen
 
-- Mehrere Timer pro Strang (gleichzeitig)?
+- Reihenfolge der „Jetzt"-View (Anlegereihenfolge vs. Timer-Dringlichkeit vs. KI-Priorität)?
+- `dependsOn` referenziert per Index — Indizes verschieben sich bei `add_step` (stabile Step-IDs später)?
 - Schritt-spezifische Zutaten?
 - Swipe-Schwellwert / Achsenerkennung bei nassen Händen?
 - Einkaufslisten-Ansicht (alle Stränge aggregiert)?

@@ -1,12 +1,12 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js'
 import { SolidMarkdown as Markdown } from 'solid-markdown'
 import { useConfig } from '../App'
-import { state, expireTimers, type Strang } from '../state/store'
+import { state, expireTimers, type Strang, type Step } from '../state/store'
 import { executeTool, fmtRemaining } from '../lib/tools'
 import { createAgentVoice } from '../lib/agentVoice'
 import {
   FiMic, FiMicOff, FiMoreHorizontal, FiFileText, FiSettings,
-  FiArrowUp, FiArrowDown, FiCheck, FiBell, FiX,
+  FiCheck, FiBell, FiX, FiLock, FiChevronLeft,
 } from 'solid-icons/fi'
 
 export function Cook() {
@@ -14,7 +14,7 @@ export function Cook() {
   const voice = createAgentVoice({ configOpen })
 
   const [tick, setTick] = createSignal(Date.now())
-  const [previewSteps, setPreviewSteps] = createSignal<Record<string, number | null>>({})
+  const [flowView, setFlowView] = createSignal<string | null>(null)
   const [lastAgent, setLastAgent] = createSignal<{ text: string; at: number } | null>(null)
   const interval = setInterval(() => {
     setTick(Date.now())
@@ -55,295 +55,197 @@ export function Cook() {
     return all.find((s) => s.id === state.cook.focusedStrangId) ?? all[0]
   })
 
-  const activeIdx = createMemo(() => {
-    const a = active()
-    return a ? strangs().findIndex((s) => s.id === a.id) : 0
-  })
-
-  createEffect(() => {
-    // Reset all previews when strang list changes
-    strangs()
-    setPreviewSteps({})
-  })
-
   function focusStrang(id: string) {
     executeTool('focus_strang', { strang_id: id })
   }
-  function prev() {
-    const n = strangs().length
-    if (n > 0) focusStrang(strangs()[(activeIdx() - 1 + n) % n].id)
-  }
-  function next() {
-    const n = strangs().length
-    if (n > 0) focusStrang(strangs()[(activeIdx() + 1) % n].id)
+
+  /* ── Schritt-Zustände ──────────────────────────────────────────────── */
+  function depDone(s: Strang, step: Step, dep: { strang_id: string; step_index: number }): boolean {
+    const ts = strangs().find((x) => x.id === dep.strang_id)
+    if (!ts) return false
+    const dstep = ts.steps[dep.step_index]
+    return dstep?.done === true
   }
 
-  function getPreview(strangId: string): number | null {
-    return previewSteps()[strangId] ?? null
-  }
-  function setPreview(strangId: string, idx: number | null) {
-    setPreviewSteps((prev) => ({ ...prev, [strangId]: idx }))
+  function stepState(s: Strang, step: Step): 'done' | 'blocked' | 'active' {
+    if (step.done) return 'done'
+    if (step.dependsOn.some((d) => !depDone(s, step, d))) return 'blocked'
+    return 'active'
   }
 
-  const remaining = (s: Strang) => (s.timerEndsAt !== null ? s.timerEndsAt - Date.now() : null)
+  function strangDone(s: Strang): boolean {
+    return s.done || s.steps.every((st) => st.done)
+  }
 
-  function isUrgent(s: Strang): boolean {
+  function blockedBy(s: Strang, step: Step): string[] {
+    return step.dependsOn
+      .filter((d) => !depDone(s, step, d))
+      .map((d) => {
+        const ts = strangs().find((x) => x.id === d.strang_id)
+        const label = ts?.steps[d.step_index]?.summary ?? '?'
+        return `${ts?.icon ?? ''} ${label}`.trim()
+      })
+  }
+
+  /* ── Timer ─────────────────────────────────────────────────────────── */
+  const stepRemaining = (st: Step) => (st.timerEndsAt !== null ? st.timerEndsAt - Date.now() : null)
+  const stepUrgent = (st: Step) => {
     tick()
-    const r = remaining(s)
+    const r = stepRemaining(st)
     return r !== null && r < 120_000
   }
 
-  /* ── Strip: kompakter Strang oben (Mobile) ───────────────────────── */
-  function Strip(props: { s: Strang; isFocused: boolean; onFocus: () => void }) {
-    const s = () => props.s
-    const urgent = () => { tick(); const r = remaining(s()); return r !== null && r < 120_000 }
-    const step = () => s().steps[s().stepIndex]
-    return (
-      <button
-        class="strip"
-        data-color={s().color}
-        classList={{ 'is-active': props.isFocused, 'is-urgent': urgent(), 'is-expired': s().timerExpired }}
-        onClick={props.onFocus}
-      >
-        <span class="strip-bar" />
-        <Show when={s().icon}>
-          <span class="text-base leading-none shrink-0">{s().icon}</span>
-        </Show>
-        <span class="text-sm truncate min-w-0 flex-1 text-left" style={{ color: 'var(--strang-text)' }}>
-          {step()?.summary ?? '—'}
-        </span>
-        <Show when={s().done}>
-          <FiCheck size={12} class="text-emerald-400 shrink-0" />
-        </Show>
-        <Show when={s().timerExpired}>
-          <FiBell size={12} class="text-orange-400 shrink-0" />
-        </Show>
-        <Show when={!s().done && !s().timerExpired && s().timerEndsAt !== null}>
-          <span class="font-mono text-xs font-semibold shrink-0" style={{ color: 'var(--strang-text)' }}>
-            {tick() && fmtRemaining(s().timerEndsAt!)}
-          </span>
-        </Show>
-        <span class="text-xs text-zinc-500 tabular-nums shrink-0">
-          {s().stepIndex + 1}/{s().steps.length}
-        </span>
-      </button>
-    )
+  const runningTimers = createMemo(() =>
+    strangs().flatMap((s) =>
+      s.steps
+        .map((st, i) => ({ s, st, i }))
+        .filter((x) => x.st.timerEndsAt !== null && !x.st.timerExpired),
+    ),
+  )
+  const expiredTimers = createMemo(() =>
+    strangs().flatMap((s) => s.steps.map((st, i) => ({ s, st, i })).filter((x) => x.st.timerExpired)),
+  )
+
+  function jumpToStep(s: Strang, i: number) {
+    focusStrang(s.id)
+    executeTool('set_step', { strang_id: s.id, step_index: i })
   }
 
-  /* ── Schritt-Karte des fokussierten Strangs (Mobile) ────────────── */
-  function MobileStepCard(props: { s: Strang }) {
+  function completeAndAdvance(s: Strang, i: number) {
+    executeTool('complete_step', { strang_id: s.id, step_index: i })
+    if (i < s.steps.length - 1) {
+      executeTool('set_step', { strang_id: s.id, step_index: i + 1 })
+    }
+  }
+
+  /* ── Aktive Karten (Mobile „Jetzt") ───────────────────────────────── */
+  const flowsWithActive = createMemo(() =>
+    strangs()
+      .map((s) => ({
+        s,
+        cards: s.steps
+          .map((st, i) => ({ st, i }))
+          .filter((x) => !strangDone(s) && stepState(s, x.st) === 'active'),
+      }))
+      .filter((f) => f.cards.length > 0),
+  )
+
+  const flowStrang = createMemo(() => strangs().find((x) => x.id === flowView()))
+
+  /* ── Schritt-Karte (flach, klein, nie verschachtelt) ──────────────── */
+  function StepCard(props: { s: Strang; i: number }) {
     const s = () => props.s
-    const previewStep = () => getPreview(s().id)
-    const shown = () => previewStep() ?? s().stepIndex
-    const step = () => s().steps[shown()]
-    const urgent = () => { tick(); const r = remaining(s()); return r !== null && r < 120_000 }
-
-    function browse(delta: number) {
-      const idx = Math.max(0, Math.min(shown() + delta, s().steps.length - 1))
-      setPreview(s().id, idx === s().stepIndex ? null : idx)
-    }
-    function goNext() {
-      if (s().stepIndex >= s().steps.length - 1) {
-        executeTool('complete_strang', { strang_id: s().id })
-      } else {
-        executeTool('set_step', { strang_id: s().id, step_index: s().stepIndex + 1 })
-        setPreview(s().id, null)
-      }
-    }
-
+    const i = () => props.i
+    const st = () => s().steps[i()]
+    const stateName = () => stepState(s(), st())
+    const urgent = () => stepUrgent(st())
     return (
-      <div class="card h-full flex flex-col" data-color={s().color} classList={{ 'is-expired': s().timerExpired }}>
-        {/* Header: Name + Timer + x/y */}
-        <div class="card-decorator">
-          <span class="text-sm font-semibold truncate flex-1 min-w-0" style={{ color: 'var(--strang-text-active)' }}>
-            {s().icon ? `${s().icon} ${s().name}` : s().name}
-          </span>
-          <Show when={s().timerExpired}>
-            <FiBell size={13} class="text-orange-400 shrink-0" />
+      <div
+        class="step-card"
+        data-color={s().color}
+        classList={{
+          'is-active': stateName() === 'active',
+          'is-past': stateName() === 'done',
+          'is-blocked': stateName() === 'blocked',
+        }}
+        onClick={() => jumpToStep(s(), i())}
+      >
+        <div class="flex items-center gap-2">
+          <Show when={s().icon}>
+            <span class="text-base leading-none shrink-0">{s().icon}</span>
           </Show>
-          <Show when={!s().done && !s().timerExpired && s().timerEndsAt !== null}>
+          <span class="step-card-title text-sm flex-1 min-w-0 truncate">{st().summary}</span>
+          <Show when={stateName() === 'blocked'}>
+            <FiLock size={12} class="shrink-0 opacity-60" />
+          </Show>
+          <Show when={stateName() === 'done'}>
+            <FiCheck size={12} class="shrink-0" />
+          </Show>
+          <Show when={st().timerExpired}>
+            <FiBell size={12} class="text-orange-400 shrink-0" />
+          </Show>
+          <Show when={st().timerEndsAt !== null && !st().timerExpired}>
             <span
-              class="font-mono text-xs font-semibold shrink-0"
-              style={{ color: urgent() ? '#fcd34d' : 'var(--strang-text-active)' }}
+              class="font-mono text-xs font-semibold shrink-0 tabular-nums"
+              classList={{ 'text-amber-300 animate-pulse': urgent() }}
             >
-              {tick() && fmtRemaining(s().timerEndsAt!)}
+              {tick() && fmtRemaining(st().timerEndsAt!)}
             </span>
           </Show>
-          <Show when={s().done}>
-            <FiCheck size={13} class="text-emerald-400 shrink-0" />
-          </Show>
-          <span class="text-xs text-zinc-400 opacity-60 tabular-nums shrink-0">
-            {shown() + 1}/{s().steps.length}
+          <span class="text-xs opacity-60 tabular-nums shrink-0">
+            {i() + 1}/{s().steps.length}
           </span>
         </div>
 
-        {/* Browse-Badges */}
-        <Show when={previewStep() !== null}>
-          <div class="flex items-center gap-2 px-4 pt-3">
-            <span class="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border border-zinc-500 text-zinc-400 shrink-0">
-              {shown() > s().stepIndex ? 'später' : 'bereits erledigt'}
-            </span>
-            <button
-              class="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border border-zinc-500 text-zinc-300 hover:bg-zinc-700 transition-colors shrink-0"
-              onClick={() => setPreview(s().id, null)}
-            >
-              ● Aktuell
-            </button>
+        <Show when={st().description}>
+          <div class="step-description mt-2">
+            <Markdown>{st().description}</Markdown>
           </div>
         </Show>
 
-        {/* Description (scrollt) + Timer */}
-        <div class="flex-1 min-h-0 overflow-y-auto px-4 py-3">
-          <Show when={step()} fallback={<p class="text-sm text-zinc-500">Kein Schritt.</p>}>
-            <div class="step-description" classList={{ 'opacity-60': s().done }}>
-              <Markdown>{step()!.description || step()!.summary}</Markdown>
-            </div>
-          </Show>
+        <Show when={stateName() === 'blocked'}>
+          <p class="mt-2 text-xs opacity-70">Wartet auf: {blockedBy(s(), st()).join(', ')}</p>
+        </Show>
 
-          <Show when={!s().done && !s().timerExpired && s().timerEndsAt !== null}>
-            <div class="flex items-center mt-4">
-              <div class="pill" classList={{ 'is-urgent': urgent() }}>
-                <span class="text-sm leading-none text-zinc-400">⏱</span>
-                <span class="font-mono text-xl font-bold tabular-nums text-zinc-100">
-                  {tick() && fmtRemaining(s().timerEndsAt!)}
-                </span>
-                <span class="text-xs text-zinc-400">verbleib.</span>
-              </div>
-            </div>
-          </Show>
-
-          <Show when={s().timerExpired && s().timerInstruction}>
-            <p class="mt-3 text-sm font-semibold text-red-400">{s().timerInstruction}</p>
-          </Show>
-        </div>
-
-        {/* Footer: Browse-Nav + Fortschritt */}
-        <div class="shrink-0 flex items-center gap-3 px-4 py-3 border-t border-zinc-700/60">
-          <div class="flex items-center gap-2">
-            <button class="nav-btn" onClick={() => browse(-1)} disabled={shown() === 0} aria-label="Vorherigen Schritt ansehen">
-              <FiArrowUp />
-            </button>
-            <button
-              class="nav-btn"
-              onClick={() => browse(1)}
-              disabled={shown() >= s().steps.length - 1}
-              aria-label="Nächsten Schritt ansehen"
-            >
-              <FiArrowDown />
-            </button>
-          </div>
-          <div class="flex-1 flex gap-1.5">
-            <For each={s().steps}>
-              {(_, i) => (
-                <button
-                  class="step-dot"
-                  classList={{
-                    'is-done': i() < s().stepIndex,
-                    'is-active': i() === s().stepIndex,
-                    'is-preview': i() === shown() && previewStep() !== null,
-                  }}
-                  onClick={() => setPreview(s().id, i() === s().stepIndex ? null : i())}
-                  aria-label={`Schritt ${i() + 1} ansehen`}
-                />
-              )}
-            </For>
-          </div>
-          <Show
-            when={previewStep() !== null}
-            fallback={
-              <Show when={!s().done}>
-                <button class="jump-btn" onClick={goNext}>
-                  {s().stepIndex >= s().steps.length - 1 ? 'Fertig' : '✓ Weiter'}
-                </button>
-              </Show>
-            }
-          >
+        <Show when={stateName() === 'active' && !strangDone(s())}>
+          <div class="flex justify-end mt-3">
             <button
               class="jump-btn"
-              onClick={() => {
-                executeTool('set_step', { strang_id: s().id, step_index: previewStep()! })
-                setPreview(s().id, null)
+              onClick={(e) => {
+                e.stopPropagation()
+                completeAndAdvance(s(), i())
               }}
             >
-              ↩ Hierhin
+              ✓ Weiter
             </button>
-          </Show>
-        </div>
+          </div>
+        </Show>
       </div>
     )
   }
 
-  /* ── Strang-Spalte (Desktop) ────────────────────────────────────── */
+  /* ── Flow-Leiste (Mobile „Jetzt"): alle Flows oben, wie B-Strips ── */
+  function FlowBar(props: { s: Strang; isFocused: boolean; onOpen: () => void }) {
+    const s = () => props.s
+    return (
+      <button
+        class="flow-bar"
+        data-color={s().color}
+        classList={{ 'is-active': props.isFocused, 'is-done': strangDone(s()) }}
+        onClick={props.onOpen}
+      >
+        <span class="flow-bar-mark" />
+        <Show when={s().icon}>
+          <span class="text-base leading-none shrink-0">{s().icon}</span>
+        </Show>
+        <span class="text-sm truncate" style={{ color: 'var(--strang-text)' }}>
+          {s().name}
+        </span>
+        <Show when={strangDone(s())}>
+          <FiCheck size={12} class="text-emerald-400 shrink-0" />
+        </Show>
+      </button>
+    )
+  }
+
+  /* ── Spalten-Header (Desktop) ─────────────────────────────────────── */
   function StrangColumn(props: { s: Strang; isFocused: boolean; onFocus: () => void }) {
     const s = () => props.s
-    const urgent = () => { tick(); const r = remaining(s()); return r !== null && r < 120_000 }
     return (
-      <div
-        class="column"
-        data-color={s().color}
-        classList={{ 'is-focused': props.isFocused, 'is-expired': s().timerExpired }}
-      >
+      <div class="column" data-color={s().color} classList={{ 'is-focused': props.isFocused }}>
         <button class="column-header" onClick={props.onFocus}>
-          <span class="text-sm font-semibold truncate flex-1 min-w-0" style={{ color: 'var(--strang-text-active)' }}>
-            {s().icon ? `${s().icon} ${s().name}` : s().name}
-          </span>
-          <Show when={s().timerExpired}>
-            <FiBell size={13} class="text-orange-400 shrink-0" />
+          <Show when={s().icon}>
+            <span class="text-base leading-none shrink-0">{s().icon}</span>
           </Show>
-          <Show when={!s().done && !s().timerExpired && s().timerEndsAt !== null}>
-            <span
-              class="font-mono text-xs font-semibold shrink-0"
-              style={{ color: urgent() ? '#fcd34d' : 'var(--strang-text-active)' }}
-            >
-              {tick() && fmtRemaining(s().timerEndsAt!)}
-            </span>
-          </Show>
-          <Show when={s().done}>
+          <span class="text-sm font-semibold truncate flex-1 min-w-0">{s().name}</span>
+          <Show when={strangDone(s())}>
             <FiCheck size={13} class="text-emerald-400 shrink-0" />
           </Show>
-          <span class="text-xs text-zinc-400 opacity-60 tabular-nums shrink-0">
-            {s().stepIndex + 1}/{s().steps.length}
-          </span>
         </button>
-
         <div class="column-body">
           <For each={s().steps}>
-            {(step, i) => {
-              const isActive = () => i() === s().stepIndex
-              const isPast = () => i() < s().stepIndex
-              return (
-                <button
-                  class="step-card"
-                  classList={{ 'is-active': isActive(), 'is-past': isPast() }}
-                  onClick={() => {
-                    if (!isActive()) executeTool('set_step', { strang_id: s().id, step_index: i() })
-                  }}
-                >
-                  <div class="flex items-center gap-2">
-                    <span class="text-xs font-mono shrink-0 opacity-60">{i() + 1}</span>
-                    <Show when={isPast()}>
-                      <FiCheck size={12} class="shrink-0" />
-                    </Show>
-                    <span class="step-card-title text-sm flex-1 min-w-0 truncate">{step.summary}</span>
-                  </div>
-                  <Show when={isActive() && step.description}>
-                    <div class="step-description mt-2">
-                      <Markdown>{step.description}</Markdown>
-                    </div>
-                  </Show>
-                </button>
-              )
-            }}
+            {(_, i) => <StepCard s={s()} i={i()} />}
           </For>
-          <Show when={!s().done && !s().timerExpired && s().timerEndsAt !== null}>
-            <div class="pill self-center" classList={{ 'is-urgent': urgent() }}>
-              <span class="text-sm leading-none text-zinc-400">⏱</span>
-              <span class="font-mono text-xl font-bold tabular-nums text-zinc-100">
-                {tick() && fmtRemaining(s().timerEndsAt!)}
-              </span>
-              <span class="text-xs text-zinc-400">verbleib.</span>
-            </div>
-          </Show>
         </div>
       </div>
     )
@@ -351,10 +253,43 @@ export function Cook() {
 
   return (
     <div class="h-screen bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
-      {/* ── Top bar ────────────────────────────────────────────────────── */}
-      <header class="shrink-0 flex items-center justify-between px-4 py-3 border-b border-zinc-600">
-        <span class="text-sm font-bold tracking-widest uppercase text-zinc-300">MURKS</span>
-        <div class="flex items-center gap-2">
+      {/* ── Topbar: Timer-Chips + Buttons (eine Leiste, kein Logo) ────── */}
+      <header class="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-zinc-600">
+        <div class="flex-1 min-w-0 flex items-center gap-2 overflow-x-auto">
+          <For each={runningTimers()}>
+            {(x) => (
+              <button
+                class="chip"
+                data-color={x.s.color}
+                classList={{
+                  'is-urgent': stepUrgent(x.st),
+                  'is-active': x.s.id === active()?.id && x.i === x.s.stepIndex,
+                }}
+                onClick={() => jumpToStep(x.s, x.i)}
+              >
+                <Show when={x.s.icon}>
+                  <span class="text-base leading-none">{x.s.icon}</span>
+                </Show>
+                <span class="text-xs truncate max-w-24">{x.st.summary}</span>
+                <span class="font-mono font-semibold tabular-nums">
+                  {tick() && fmtRemaining(x.st.timerEndsAt!)}
+                </span>
+              </button>
+            )}
+          </For>
+          <For each={expiredTimers()}>
+            {(x) => (
+              <button class="chip is-expired" data-color={x.s.color} onClick={() => jumpToStep(x.s, x.i)}>
+                <Show when={x.s.icon}>
+                  <span class="text-base leading-none">{x.s.icon}</span>
+                </Show>
+                <span class="text-xs truncate max-w-24">{x.st.summary}</span>
+                <FiBell size={12} />
+              </button>
+            )}
+          </For>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
           <button
             class="mic-btn"
             classList={{ 'is-on': voice.listening(), 'is-off': !voice.listening() }}
@@ -376,36 +311,7 @@ export function Cook() {
         </div>
       </header>
 
-      {/* ── Topbar-Timerleiste: nur laufende/abgelaufene Timer ───────── */}
-      <Show when={strangs().some((s) => (s.timerEndsAt !== null && !s.timerExpired) || s.timerExpired)}>
-        <div class="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-zinc-600 overflow-x-auto">
-          <For each={strangs().filter((s) => s.timerEndsAt !== null && !s.timerExpired)}>
-            {(s) => (
-              <button
-                onClick={() => focusStrang(s.id)}
-                class="chip"
-                data-color={s.color}
-                classList={{ 'is-active': s.id === active()?.id, 'is-urgent': isUrgent(s) }}
-              >
-                <span class="font-mono font-semibold">{tick() && fmtRemaining(s.timerEndsAt!)}</span>
-              </button>
-            )}
-          </For>
-          <For each={strangs().filter((s) => s.timerExpired)}>
-            {(s) => (
-              <button
-                onClick={() => focusStrang(s.id)}
-                class="chip is-expired"
-                data-color={s.color}
-              >
-                <FiBell size={12} />
-              </button>
-            )}
-          </For>
-        </div>
-      </Show>
-
-      {/* ── Stränge: Strips + Karte (Mobile) / Spalten (Desktop) ────── */}
+      {/* ── Karten ─────────────────────────────────────────────────────── */}
       <main class="flex-1 min-h-0 flex flex-col">
         <Show
           when={strangs().length > 0}
@@ -415,25 +321,65 @@ export function Cook() {
             </div>
           }
         >
-          {/* Mobile: Strips oben, fokussierte Karte unten */}
-          <div class="sm:hidden shrink-0 flex gap-2 px-3 py-2 overflow-x-auto border-b border-zinc-600">
-            <For each={strangs()}>
+          {/* Mobile: „Jetzt" (alle aktiven Karten) ↔ „Flow" (eine Spalte) */}
+          <div class="sm:hidden flex-1 min-h-0 flex flex-col overflow-hidden">
+            <Show
+              when={flowStrang()}
+              fallback={
+                <>
+                  {/* Flow-Leiste: alle Flows (wie B-Strips), Tap → Flow-View */}
+                  <div class="shrink-0 flex gap-2 px-3 py-2 overflow-x-auto border-b border-zinc-600">
+                    <For each={strangs()}>
+                      {(s) => (
+                        <FlowBar
+                          s={s}
+                          isFocused={s.id === active()?.id}
+                          onOpen={() => setFlowView(s.id)}
+                        />
+                      )}
+                    </For>
+                  </div>
+                  {/* Alle aktiven Karten — flacher Stapel, mehrere pro Flow möglich */}
+                  <div class="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-2">
+                    <For each={flowsWithActive()}>
+                      {(f) => (
+                        <For each={f.cards}>
+                          {(c) => <StepCard s={f.s} i={c.i} />}
+                        </For>
+                      )}
+                    </For>
+                    <Show when={flowsWithActive().length === 0}>
+                      <p class="text-sm text-zinc-500 text-center py-8">Alles erledigt.</p>
+                    </Show>
+                  </div>
+                </>
+              }
+            >
               {(s) => (
-                <Strip
-                  s={s}
-                  isFocused={s.id === active()?.id}
-                  onFocus={() => focusStrang(s.id)}
-                />
+                <div class="flex-1 min-h-0 flex flex-col">
+                  <div class="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-zinc-600">
+                    <button
+                      class="icon-btn"
+                      onClick={() => setFlowView(null)}
+                      aria-label="Zurück zu Jetzt"
+                    >
+                      <FiChevronLeft size={16} />
+                    </button>
+                    <span class="text-sm font-semibold truncate">
+                      {s().icon ? `${s().icon} ${s().name}` : s().name}
+                    </span>
+                  </div>
+                  <div class="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-2">
+                    <For each={s().steps}>
+                      {(_, i) => <StepCard s={s()} i={i()} />}
+                    </For>
+                  </div>
+                </div>
               )}
-            </For>
-          </div>
-          <div class="sm:hidden flex-1 min-h-0 p-3">
-            <Show when={active()}>
-              {(a) => <MobileStepCard s={a()} />}
             </Show>
           </div>
 
-          {/* Desktop: eine Spalte pro Strang */}
+          {/* Desktop: eine Spalte pro Strang (nur Gliederung, Karten flach) */}
           <div class="hidden sm:flex flex-1 min-h-0 gap-3 p-3 overflow-x-auto items-stretch">
             <For each={strangs()}>
               {(s) => (

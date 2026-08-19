@@ -1,20 +1,22 @@
-# 0300 · Desktop Layout: Spalten pro Strang (Spec B2)
+# 0300 · Desktop Layout: Spalten pro Strang (Konzept C)
 
 **Prio: HOCH**
 
 ## Was
-Desktop: eine Spalte pro Strang, alle Schritte als Karten vertikal gestapelt, scrollbar.
+Desktop: eine Spalte pro Strang (nur Gliederung — **keine Karte**), alle Schritt-Karten als flacher Stapel.
 
 ## Tasks
-- [x] Spalten-Header: Strangname + Timer + x/y (+ Emoji, + ✓ bei done)
-- [x] Schritt-Karten vertikal gestapelt in der Spalte
-- [x] Aktiver Schritt: hervorgehoben (Strang-Farbe, Description sichtbar)
-- [x] Vergangene Schritte: gedimmt + durchgestrichen, nur Summary
-- [x] Zukünftige Schritte: Summary sichtbar, Description erscheint bei Aktivierung
-- [x] Kein Browse-Modus nötig (alles sichtbar)
-- [x] Spaltenreihenfolge: fix (Anlegereihenfolge)
-- [x] Horizontales Scrollen der Spalten wenn viele Stränge
-- [~] „Description optional ausklappbar" → Klick auf Schrittkarte setzt Schritt aktiv (zeigt Description)
+- [x] Spalten-Header: Emoji + Name (+ ✓ bei done) — reine Gliederung, keine Karte
+- [x] Schritt-Karten vertikal gestapelt, **nie verschachtelt**
+- [x] Alle Karten ausgeklappt (Description immer sichtbar)
+- [x] Karten-Header: Emoji + Summary + ⏱ Timer + x/y
+- [x] Zustände: active (hervorgehoben), done (gedimmt, durchgestrichen), blocked (dashed + 🔒 + „Wartet auf …")
+- [x] Mehrere Karten pro Strang können gleichzeitig Timer laufen lassen
+- [x] Klick auf Karte = set_step (Navigation, kein Abschluss)
+- [x] Spaltenreihenfolge fix (Anlegereihenfolge), horizontales Scrollen
+
+## Verworfen
+- B2-Variante „Spalte als Karte mit Unterkarten" (verschachtelt) — Commit `e6a6011` (v0.4.0)
 
 ## Abhängigkeit
 → 0100, 0200

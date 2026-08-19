@@ -16,6 +16,7 @@ const DEFAULT_SYSTEM_PROMPT = [
   'Du bist MURKS, die KI einer Rezeptkochsoftware. Dein Name ist Murks — du reagierst auf diese Anrede.',
   'Du hilfst beim Kochen: Gerichte planen, Schritte koordinieren, Timer setzen, parallele Kochstränge im Blick behalten.',
   'Jeder Schritt hat eine summary (max. 2 Wörter, z.B. „Teig anrühren") und eine description (vollständige, eigenständig ausführbare Anweisung mit Zutaten, Mengen und Methode; Markdown erlaubt).',
+  'Schritte können optional Abhängigkeiten haben (depends_on): Verweise auf andere Schritte (eigener oder anderer Strang), die zuerst erledigt sein müssen. Ein Schritt ist erst aktiv, wenn alle Abhängigkeiten erledigt sind.',
   'Vergib beim Anlegen eines Strangs ein passendes Emoji als icon (z.B. 🍚 für Reis) — es identifiziert den Strang visuell.',
   'Wir sprechen per Stimme: Der Nutzer diktiert seine Eingaben, deine Antworten werden vorgelesen. Sprich natürlich wie ein Gesprächspartner, nicht wie ein Textprogramm.',
   'Ton: trocken, direkt, präzise — aber hilfsbereit und zugewandt, nie abweisend oder herablassend. Keine leeren Floskeln, kein Smalltalk, keine Emojis, keine Sternchen-Gesten wie *lacht*.',
@@ -23,7 +24,7 @@ const DEFAULT_SYSTEM_PROMPT = [
   'Deine Antworten werden vorgelesen: kurze Sätze, keine Markdown-Formatierung, keine Listen.',
   'Der Nutzer spricht per Spracherkennung, die Fehler machen kann. Bei offensichtlich verrauschtem oder unsinnigem Input frage höchstens einmal kurz und freundlich nach und übergehe es danach.',
   'Wenn keine Antwort nötig ist — z.B. reine Bestätigung, Geräusch oder verrauschtes Transkript — antworte ausschließlich mit „OK." und sonst nichts. Diese Antwort wird nicht vorgelesen und nicht angezeigt.',
-  'Du hast Werkzeuge, um die Kochoberfläche zu steuern: add_strang, add_step, set_step, start_timer, cancel_timer, complete_strang, focus_strang, add_zutaten, toggle_zutaten, open_zutaten, close_zutaten, get_cook_state.',
+  'Du hast Werkzeuge, um die Kochoberfläche zu steuern: add_strang, add_step, set_step, complete_step, start_timer, cancel_timer, complete_strang, focus_strang, add_zutaten, toggle_zutaten, open_zutaten, close_zutaten, get_cook_state.',
   'Rufe get_cook_state auf, wenn du den aktuellen Stand nicht kennst. Kommentiere Werkzeug-Aktionen nicht — die Oberfläche bestätigt sie selbst. Antworte nur „OK." oder sprich, wenn es inhaltlich etwas zu sagen gibt.',
   'Antworte so kurz wie möglich. Nutze verfügbare Werkzeuge, statt Dinge in Text zu beschreiben.',
 ].join(' ')
@@ -62,9 +63,19 @@ export type StrangColor = 'cyan' | 'violet' | 'amber' | 'emerald' | 'rose' | 'sk
 
 export const STRANG_COLORS: StrangColor[] = ['cyan', 'violet', 'amber', 'emerald', 'rose', 'sky']
 
+export interface StepRef {
+  strang_id: string
+  step_index: number
+}
+
 export interface Step {
   summary: string
   description: string
+  done: boolean
+  dependsOn: StepRef[]
+  timerEndsAt: number | null
+  timerInstruction: string | null
+  timerExpired: boolean
 }
 
 export interface Strang {
@@ -75,9 +86,6 @@ export interface Strang {
   steps: Step[]
   stepIndex: number
   done: boolean
-  timerEndsAt: number | null
-  timerInstruction: string | null
-  timerExpired: boolean
 }
 
 export interface Zutat {
@@ -190,29 +198,64 @@ function hydrate(data: unknown): AppState {
       defaultAgentId,
       cook: {
         strangs: Array.isArray(cook.strangs)
-          ? (cook.strangs as (Partial<Strang> & { steps?: (string | Step)[] })[]).map((s) => ({
-              id: String(s.id ?? ''),
-              name: String(s.name ?? ''),
-              icon: typeof s.icon === 'string' && s.icon.trim() !== '' ? s.icon.trim() : null,
-              steps: Array.isArray(s.steps)
-                ? s.steps.map((st) =>
-                    typeof st === 'string'
-                      ? { summary: st, description: '' }
-                      : {
-                          summary: String(st?.summary ?? '').trim(),
-                          description: String(st?.description ?? '').trim(),
-                        },
-                  )
-                : [],
-              color: STRANG_COLORS.includes(s.color as StrangColor)
-                ? (s.color as StrangColor)
-                : STRANG_COLORS[0],
-              stepIndex: typeof s.stepIndex === 'number' ? s.stepIndex : 0,
-              done: s.done === true,
-              timerEndsAt: s.timerEndsAt ?? null,
-              timerInstruction: s.timerInstruction ?? null,
-              timerExpired: s.timerExpired === true,
-            }))
+          ? (
+              cook.strangs as (Partial<Strang> & {
+                steps?: (string | Partial<Step>)[]
+                timerEndsAt?: number | null
+                timerInstruction?: string | null
+                timerExpired?: boolean
+              })[]
+            ).map((s) => {
+              const steps: Step[] = Array.isArray(s.steps)
+                ? s.steps.map((st) => ({
+                    summary:
+                      typeof st === 'string'
+                        ? st
+                        : String(st?.summary ?? '').trim(),
+                    description:
+                      typeof st === 'string' ? '' : String(st?.description ?? '').trim(),
+                    done: typeof st === 'string' ? false : st?.done === true,
+                    dependsOn:
+                      typeof st === 'string'
+                        ? []
+                        : Array.isArray(st?.dependsOn)
+                          ? (st.dependsOn as StepRef[]).map((d) => ({
+                              strang_id: String(d?.strang_id ?? ''),
+                              step_index: Number(d?.step_index ?? 0),
+                            }))
+                          : [],
+                    timerEndsAt: typeof st === 'string' ? null : (st?.timerEndsAt ?? null),
+                    timerInstruction:
+                      typeof st === 'string' ? null : (st?.timerInstruction ?? null),
+                    timerExpired: typeof st === 'string' ? false : st?.timerExpired === true,
+                  }))
+                : []
+              const stepIndex = typeof s.stepIndex === 'number' ? s.stepIndex : 0
+              // Migration: alter Strang-Timer → Timer des aktiven Schritts
+              if (
+                typeof s.timerEndsAt === 'number' &&
+                steps[stepIndex] &&
+                steps[stepIndex].timerEndsAt === null
+              ) {
+                steps[stepIndex] = {
+                  ...steps[stepIndex],
+                  timerEndsAt: s.timerEndsAt,
+                  timerInstruction: s.timerInstruction ?? null,
+                  timerExpired: s.timerExpired === true,
+                }
+              }
+              return {
+                id: String(s.id ?? ''),
+                name: String(s.name ?? ''),
+                icon: typeof s.icon === 'string' && s.icon.trim() !== '' ? s.icon.trim() : null,
+                steps,
+                color: STRANG_COLORS.includes(s.color as StrangColor)
+                  ? (s.color as StrangColor)
+                  : STRANG_COLORS[0],
+                stepIndex,
+                done: s.done === true,
+              }
+            })
           : [],
         zutaten: Array.isArray(cook.zutaten) ? (cook.zutaten as Zutat[]) : [],
         focusedStrangId: (cook.focusedStrangId as string | null) ?? null,
@@ -310,16 +353,25 @@ function msg(role: AgentMessage['role'], text: string, silent = false): AgentMes
 
 export function expireTimers() {
   const now = Date.now()
-  const expired = state.cook.strangs.filter(
-    (s) => !s.timerExpired && s.timerEndsAt !== null && s.timerEndsAt <= now,
-  )
-  for (const s of expired) {
-    setState('cook', 'strangs', (str) =>
-      str.map((x) =>
-        x.id === s.id ? { ...x, timerEndsAt: null, timerExpired: true } : x,
-      ),
-    )
-    showToast(`⏰ Timer abgelaufen: ${s.name}${s.timerInstruction ? ` — ${s.timerInstruction}` : ''}`)
+  for (const s of state.cook.strangs) {
+    s.steps.forEach((step, idx) => {
+      if (step.timerExpired || step.timerEndsAt === null || step.timerEndsAt > now) return
+      setState('cook', 'strangs', (str) =>
+        str.map((x) =>
+          x.id === s.id
+            ? {
+                ...x,
+                steps: x.steps.map((st, i) =>
+                  i === idx ? { ...st, timerEndsAt: null, timerExpired: true } : st,
+                ),
+              }
+            : x,
+        ),
+      )
+      showToast(
+        `⏰ Timer abgelaufen: ${s.name} — ${step.summary}${step.timerInstruction ? ` (${step.timerInstruction})` : ''}`,
+      )
+    })
   }
 }
 
