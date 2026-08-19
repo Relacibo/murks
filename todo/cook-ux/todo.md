@@ -56,3 +56,4 @@
 - Desktop-Rechts-Panel („Gespräch" aus dem Mock) noch nicht integriert — aktuell nur Voice-Leiste unten
 - Was passiert, wenn alle Stränge fertig sind? Zurück zum Chat / Session-Ende?
 - Strang löschen/bearbeiten via Agent fehlt (`remove_strang`/`update_strang`) — siehe todo/timer-ux/todo.md
+- Schritt als Titel + Detailtext trennen (Karte: Schritt-Label als Untertitel, Instruktion darunter)? Prompt verlangt aktuell vollständige Anweisungen im Schritttext — falls das zu lang wird, Struktur ändern
