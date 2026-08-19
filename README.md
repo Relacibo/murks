@@ -2,8 +2,6 @@
 
 > **M**URKS — **u**nterwürfige **R**ezept**k**och**s**oftware
 
-**M**inimal **u**nterwürfige **R**ezept**k**och**s**oftware
-
 PWA auf Basis von Vite + SolidJS + Tailwind. Trocken, minimalistisch, direkt —
 mit einer Prise Unterwürfigkeit. Keine Höflichkeitsfloskeln.
 
