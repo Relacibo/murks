@@ -1,4 +1,4 @@
-import { state } from '../state/store'
+import { state, pushAgentMessage } from '../state/store'
 import { isModelCached, deleteModelFromCache } from './modelCache'
 
 const TTS_MODEL = 'Xenova/mms-tts-deu'
@@ -82,6 +82,9 @@ function playBuffer(audio: Float32Array, rate: number, myToken: number): Promise
 }
 
 async function speakWasm(text: string, myToken: number) {
+  if (!(await isTtsModelCached())) {
+    throw new Error('TTS-Modell nicht heruntergeladen. In der Config unter „Sprache“ laden.')
+  }
   const pipe = await getPipeline()
   const { audio, sampling_rate } = await pipe(text)
   if (token !== myToken) return
@@ -141,7 +144,11 @@ export async function speak(text: string) {
         await speakWasm(clean, myToken)
     }
   } catch (e) {
-    console.error('TTS-Fehler:', e)
+    pushAgentMessage(
+      'agent',
+      `TTS-Fehler: ${e instanceof Error ? e.message : String(e)}`,
+      true,
+    )
   }
 }
 
