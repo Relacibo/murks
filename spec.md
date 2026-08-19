@@ -1,153 +1,225 @@
-# MURKS: Minimal unterwürfige Rezept- und Küchensoftware
+# MURKS — UI/UX Spec v2
 
-## Namensherkunft & Akronym
-**MURKS** ist das offizielle Projekt-Akronym. Es entstand aus der bewussten Abkehr von künstlich freundlichen, "sykophantischen" KI-Assistenten. Das Ziel ist eine Software, die ohne Höflichkeitsfloskeln, Lobeshymnen oder unnötigen Smalltalk funktioniert.
-
-Das Akronym steht für:
-**M**inimal **u**nterwürfige **R**ezept- **u**nd **K**üchen-**S**oftware
-
-Die Namenswahl unterstreicht den Anspruch: trocken, minimalistisch, direkt und strikt auf die Funktion konzentriert.
-
-## Verorfene / Abgelehnte Kandidaten
-Während der Findungsphase wurden verschiedene Alternativen diskutiert und verworfen:
-* **K.O.T.Z. (Küchen-Optimierte-Tool-Zusammenstellung):** Zunächst als humorvolles Akronym erdacht, aber letztlich verworfen. Der Hauptgrund war schlicht, dass sich kein wirklich eleganter, flüssiger Aufbau für das letzte Wort (wie "Zusammenstellung") finden ließ – es wirkte zu sperrig und erzwungen.
-
-## Plattform
-MURKS ist eine **PWA** (installierbar, offlinefähig), gebaut mit **Vite + SolidJS + TypeScript + Tailwind**. Bewusst ohne UI-Komponentenbibliothek: keine klassische Website, sondern eine app-artige Oberfläche. Lizenz: AGPL-3.0-or-later (Reinhard Bronner). Gehostet auf GitHub Pages, Deployment per GitHub Actions bei Push auf `main`.
-
-## Architektur-Entscheidungen
-* **State:** `createStore` (Solid) mit automatischer Persistenz in `localStorage`. Kein Backend, keine Cloud – alles lokal im Browser.
-* **Routing:** `@solidjs/router`. Keine Navigationsleiste. Beim Erststart ohne fertigen Default-Agent → Setup-Wizard; danach: Default-Agent vorhanden → Chat, fehlend → Config (nicht schließbar). Config nur über einen kleinen ⚙-Knopf (Ecke) oder Swipe-Geste erreichbar.
-* **Agent:** Chat spricht ein **OpenAI-kompatibles** Endpoint an (`POST {base}/chat/completions`). Endpoint und Model werden in der Config gepflegt.
-* **Agent-Profile:** Vergangene Agenten werden als Liste gespeichert. Ein Agent ist Default, er wird im Chat verwendet. Profile sind anlegbar, editierbar, löschbar.
-* **Lokale AIs:** Netzwerk-lokale oder lokale Modelle (z.B. Ollama unter `http://localhost:11434/v1`, LM Studio unter `http://localhost:1234/v1`) funktionieren offline – Browser erlauben `localhost`-Fetches aus HTTPS-Seiten.
-* **Offline-Fähigkeit:** Statische Assets werden vom Service Worker geprecacht; Netzwerk-Features (externe Agent-Endpoints) brauchen Verbindung.
-
-## Onboarding (Setup-Wizard)
-
-Beim Erststart (kein gültiger Default-Agent, `setupDone` nicht gesetzt) erscheint ein vierstufiger Wizard statt der Config:
-
-1. **Name** — `displayName`, fließt in den System-Prompt des Agenten ein
-2. **Agent** — Endpoint, API-Key, Modell (Abrufen-Liste). Ohne Endpoint + Modell geht es nicht weiter
-3. **Stimme** — STT-Modus/-Modellgröße, TTS-Modus (Defaults: lokal)
-4. **Modelle** — Whisper + MMS-TTS herunterladen mit Fortschrittsanzeige (MB + Prozent), einzeln überspringbar
-
-Wizard gesamt überspringbar (`setupDone = true`) — außer auf dem Agent-Schritt, der ist Pflicht. Nach Überspringen ohne gültigen Agenten übernimmt das Config-Modal (nicht schließbar, bis ein gültiger Agent existiert). Modell-Downloads sind auch später in der Config möglich (mit Fortschrittsanzeige). Formular-Sektionen (Agent/STT/TTS) werden als Komponenten zwischen Wizard und Config geteilt.
-
-## Scope
-Hauptsächlich für den Eigengebrauch eines Nutzers. Kein Mehrbenutzer-Betrieb, keine Serverkomponente geplant. Der Fokus liegt auf einer agentengesteuerten Chat-View plus lokaler Config.
+Voice-first Kochassistent-PWA. KI navigiert primär per Tool, Nutzer übersteuert per Touch.
 
 ---
 
-## Cook View — UI-Design & Konzept
+## Kerndatenmodell
 
-### Vision
-MURKS soll das parallele Kochen unterstützen: mehrere Gerichte/Komponenten laufen gleichzeitig, die KI koordiniert Timing und Schritte. Primär bedienbar per **Voice** (Hände sind beim Kochen voll). Der Agent bekommt Tools, um die UI zu steuern (Timer setzen, Schritt weiterschalten, Strang hinzufügen, etc.) — er "antwortet" also nicht primär in Text, sondern in Aktionen.
+### Strang (Flow)
+Ein paralleler Kochprozess (z.B. „Reis", „Soße", „Salat").
 
-### Entscheidungen
-
-**Timeline-Abstraktion vs. flaches Rezept?**
-→ **Timeline-Abstraktion**, aber flach dargestellt. Während des Kochens sieht der Nutzer keine verschachtelte Schrittliste — nur das, was gerade aktiv ist. Intern gibt es "Strangs" (parallele Kochkomponenten: Reis, Soße, Lasagne), jeder Strang hat eine eigene Schrittfolge und eigene Timer. Die Komplexität bleibt im State, die UI zeigt immer nur den aktuellen Schritt pro Strang.
-
-**Chat-Position / Voice-Interface?**
-→ Kein eigener Chat-View während des Kochens. Nur eine persistente **Voice-Leiste** unten:
-- **Mic-Toggle** (kein Push-to-Talk, kein Dauersenden): einmal tippen = ein, nochmal = aus. Funktioniert mit Ellbogen/Knöchel. Langfristig: Web Speech API `continuous: true` in PWA — kein Button nötig.
-- Transkript-Streifen: zeigt zuletzt Erkanntes ("ok ich hab die lasagne in den ofen getan") — wichtig, da Spracherkennung fehleranfällig ist
-- Agent-Aktionen erscheinen als kurze **Toast-Meldungen** über der Leiste ("✓ Timer gestellt: 45 min"), kein Fließtext-Chat
-- Listening-State: Text wechselt zu "Höre zu …", Puls-Animation am Mic-Button
-
-**Navigation während des Kochens?**
-→ **Kein Scrollen** — zu fehleranfällig mit nassen/vollen Händen. Stattdessen:
-- **Eine Strang-Karte gleichzeitig** nimmt die gesamte Hauptfläche ein
-- **Chip-Leiste** oben zeigt alle Strangs + deren laufende Timer auf einen Blick. Chip antippen = direkter Sprung zu dem Strang (einzige manuelle Navigation ohne AI nötig)
-- **‹ / › Buttons** (unten links) als Fallback für manuelle Navigation zwischen Strangs
-- Die **AI navigiert primär** per Tool (`focus_strang(id)`) — z.B. "Geh zur Lasagne" oder automatisch wenn Timer abläuft
-
-**Timer-Anzeige in Chips?**
-→ **In der aktiven Karten-Ansicht** prominent als Pill (`⏱ 12:34 verbleib.`). **In der Chip-Leiste** immer sichtbar für alle Strangs, auch wenn die Karte nicht aktiv ist. Chip-Farben signalisieren Dringlichkeit: normal → grau, unter 2 Min → rot, abgelaufen → orange/Bell. Kein separater Timer-View nötig.
-
-**Was passiert wenn Timer abläuft?**
-→ Die Karte wechselt in einen **Alert-State** (orange Border, Bell-Icon, "Timer abgelaufen!") und zeigt sofort die nächste Instruktion ("Jetzt: Lasagne aus dem Ofen nehmen, 10 Min ruhen lassen"). Kein extra Modal nötig — der Nutzer sieht es direkt im Kontext. Zusätzlich: Toast-Notification über der Voice-Leiste.
-
-**Wie viele Views?**
-→ **3 Views / Overlays** reichen:
-1. **Cook View** (Haupt-View beim Kochen): Strang-Karten + Voice-Leiste, immer sichtbar
-2. **Zutaten-Modal** (Bottom Sheet): Checkliste aller Zutaten, abkoppelbar per 🧾-Button; Agent kann es auch öffnen
-3. **Config-Modal** (Bottom Sheet, existiert bereits): Agent-Einstellungen, via ⚙-Button
-
-Kein separater "Rezept-View" während des Kochens — zu viel Information, zu ablenkend. Schritte kommen Strang-weise.
-
-### Strang-Karten (Strang = parallele Kochkomponente)
-
-```
-┌─ Strang-Name ───────── Schritt X von Y ─┐
-│  Aktuelle Instruktion (text-base, lesbar) │
-│                                           │
-│  ┌─ Timer-Pill ──────────────────────┐   │
-│  │  ⏱  12 : 34  verbleib.           │   │
-│  └───────────────────────────────────┘   │
-│                            [✓ Fertig]    │
-└───────────────────────────────────────────┘
+```ts
+interface Strang {
+  id: string
+  name: string
+  color: StrangColor
+  steps: Step[]
+  stepIndex: number        // aktiver Schritt (0-basiert)
+  done: boolean
+  timerEndsAt: number | null
+  timerInstruction: string | null
+  timerExpired: boolean
+  zutaten: Zutat[]         // Zutaten gehören zum Strang, nicht global
+}
 ```
 
-**Expired State (orange):**
+### Schritt (Step)
+**1 Karte = 1 Schritt. Schritte sind nie verschachtelt.**
+
+```ts
+interface Step {
+  title: string        // kurze Überschrift, z.B. „Teig anrühren"
+  description: string  // ausführliche Anweisung, z.B. „Eier mit Mehl, Wasser
+                       // und einer Prise Salz in eine Schüssel geben und mit
+                       // dem Rührgerät glatt rühren."
+}
 ```
-┌─ Strang-Name ──────────────── 🔔 ────────┐
-│  Timer abgelaufen!                        │
-│  ─────────────────                        │
-│  Jetzt: Lasagne aus dem Ofen nehmen,      │
-│  10 Minuten ruhen lassen.                 │
-│                            [✓ Fertig]    │
-└───────────────────────────────────────────┘
-```
 
-### Agent-Tools (für Deepseek zu implementieren)
-Der Agent soll folgende UI-Tools bekommen:
-- `add_strang(name, steps[])` — neuen Strang hinzufügen
-- `set_step(strang_id, step_index)` — Schritt weiterschalten
-- `start_timer(strang_id, seconds, on_expire_instruction)` — Timer starten
-- `cancel_timer(strang_id)` — Timer abbrechen
-- `open_zutaten()` / `close_zutaten()` — Zutaten-Modal steuern
-- `show_toast(message)` — kurze Benachrichtigung
-- `complete_strang(strang_id)` — Strang als fertig markieren
-
-### Design-System (Kochansicht)
-Identisch zum restlichen App-Design (zinc-Palette, mobile-first). Spezifisch für Cook View:
-- Strang-Karten: `bg-zinc-900 border border-zinc-700 rounded-xl p-4`
-- Timer-Pill: `bg-zinc-800 border border-zinc-700 rounded-full px-4 py-2`, Zeit in `font-mono text-xl font-semibold`
-- Timer-Expired-Karte: `border-orange-500 bg-zinc-900`
-- Mic-Button: `bg-zinc-100 text-zinc-900 rounded-full w-14 h-14` (min 56px)
-- Listening-Ring: `animate-pulse ring-2 ring-zinc-400` um den Mic-Button
-- Toast: `bg-zinc-800 text-zinc-100 rounded-full px-4 py-2 text-sm` über Voice-Leiste
-
-### Mockup
-Ein statisches Mockup liegt unter `/mock` (Route `/mock`, Datei `src/pages/CookMock.tsx`).
-Zeigt alle UI-States: Normal, Timer abgelaufen, Hört zu, Zutaten-Modal.
+> **Migration:** `steps: string[]` → `steps: Step[]`. Alte Daten: `string` wird `title`, `description: ""`.
 
 ---
 
-## Spracherkennung (STT)
+## Mobile Layout (≤ 639px)
 
-**Entscheidung:** Transkription als austauschbares Backend mit drei Modi (Config-Auswahl):
-1. **Lokal (WASM/WebGPU)** — Standard: `onnx-community/whisper-small` (multilingual, quantisiert q8, ~250 MB) via `@huggingface/transformers`. WebGPU wenn verfügbar, sonst WASM-CPU (automatisch). Modell wird beim ersten Start geladen und im Browser gecacht → danach komplett offline. Kein Server nötig.
-2. **Server** — OpenAI-kompatibles Endpoint (`POST {base}/audio/transcriptions`), z.B. faster-whisper im LAN.
-3. **Web Speech API** — Fallback, online, kein Setup.
+### Prinzip
+Wenig Platz → immer genau **ein** Strang fokussiert, dessen **aktueller Schritt** als große Karte.
+Alle anderen Stränge als kompakte Strips oben.
 
-**Audio-Flow:** Mic-Toggle → MediaRecorder (WebM/Opus) → decode + Resample auf 16 kHz → Transkription → Ergebnis ins Eingabefeld (editierbar, kein Auto-Send — Spracherkennung ist fehleranfällig).
+### Aufbau
 
-**Agent-Modelle:** Ein LLM (mit Tools) für alles; STT ist als einziges ein separates Modell (andere Modalität). Unterschiedliche Aufgaben = unterschiedliche Kontexte (System-Prompt + eigener Verlauf), nicht unterschiedliche Modelle.
+```
+┌────────────────────────────────────┐
+│ MURKS                  🎤  📄  ⚙  │  ← Topbar
+├────────────────────────────────────┤
+│ ▍REIS   Quellen lassen  07:41  3/5 │  ← Strip: Tap = Fokus wechseln
+│ ▍SALAT  Dressing anrühren      1/4 │
+├────────────────────────────────────┤
+│ ╔════════════════════════════════╗ │
+│ ║ ▍SAUCE                    3/5  ║ │  ← fokussierter Strang
+│ ║                                ║ │
+│ ║  Einreduzieren                 ║ │  ← Schritttitel (groß)
+│ ║                                ║ │
+│ ║  Hitze auf mittel, offen ~10   ║ │  ← Beschreibung (scrollt vertikal
+│ ║  min köcheln, gelegentlich     ║ │    bei Bedarf)
+│ ║  rühren.                       ║ │
+│ ║                                ║ │
+│ ║  ⏱ 01:12  verbleib.       ⚠  ║ │  ← Timer (gehört zum Strang)
+│ ║                                ║ │
+│ ║  ◀  ○○●○○  ▶   [ ✓ Weiter ]  ║ │  ← Navigation + Fortschritt
+│ ╚════════════════════════════════╝ │
+│  „Höre zu …"                       │  ← Voice-Overlay (nur wenn aktiv)
+└────────────────────────────────────┘
+```
 
-**Bundle:** transformers.js wird per dynamischem Import code-splitted (lazy, ~500 KB Chunk + 23,6 MB ONNX-Runtime-WASM, geprecacht).
+### Strips (obere Leiste)
 
-## Sprachausgabe (TTS)
+- **Feste Reihenfolge** = Anlegereihenfolge. Nie umsortieren — räumliches Gedächtnis.
+- Mindesthöhe: 44px Tap-Target.
+- Inhalt: `▍ Name · aktueller Schritttitel (truncated) · Timer · x/y`
+- Dringlichkeit via Farbe/Puls/Bell-Icon, **nie** via Umsortieren.
+- Bei ≥ 4 Strängen: Schritttitel weglassen → nur `▍ Name · Timer`.
+- Tap = Fokus auf diesen Strang wechseln.
 
-**Entscheidung:** Agenten-Antworten werden automatisch vorgelesen (Auto-Speak), ganzer Text in einem Inferenz-Call. Sprichst du (VAD-Speech-Start), stoppt die Wiedergabe sofort (Duplex).
+### Schrittnavigation (◀ ▶)
 
-**Backends:**
-1. **Lokal: Piper (rhasspy)** — `piper-tts-web` + Stimme `de_DE-thorsten-high` (~70 MB). Stimme ist pro Modell fest → exakt konsistent über alle Generationen. Phönemisierung (espeak-ng) und Inferenz laufen im Browser.
-2. **Server** — OpenAI-kompatibles `POST {base}/audio/speech` (z.B. kokoro-fastapi), Stimme konfigurierbar.
-3. **Web Speech API** — Fallback.
+- **Swipe links/rechts** oder **◀/▶** = vorherigen/nächsten Schritt **ansehen** (Browse-Modus).
+- Browse ≠ Fortschritt. Swipe setzt keinen Schritt aktiv.
+- Fortschritt nur über **✓ Weiter**-Button oder KI (`set_step` / `complete_strang`).
+- Beim Wegbrowsen vom aktiven Schritt:
+  - Karte zeigt `[später]`- oder `[bereits erledigt]`-Badge.
+  - `● Aktuell`-Chip springt zurück zum aktiven Schritt.
+  - `↩ Hierhin springen`-Button setzt diesen Schritt aktiv (`set_step`).
+- Dots `○○●○○` zeigen Position; aktiver Schritt ausgefüllt.
 
-**Verworfen:**
-- **MMS-TTS (VITS)**: sampelt pro Generation ein zufälliges Latent → Prosodie variiert, klingt wie wechselnde Stimme.
-- **Kokoro-82M-v1.1**: wäre ideal (feste deutsche Stimmen), aber nicht in transformers.js enthalten (v3.8.1 und v4.2.0 geprüft); offizieller Browser-Wrapper `kokoro-js` unterstützt nur v1.0 mit englischen Stimmen. Wieder aufgreifen, sobald transformers.js es unterstützt.
+### Fokus wechseln
+
+- Tap auf Strip = manueller Fokuswechsel.
+- KI navigiert via `focus_strang` + `set_step`.
+- KI-Fokus animiert: Strip expandiert zur Karte (Akkordeon-Animation).
+
+---
+
+## Desktop Layout (≥ 640px)
+
+### Prinzip
+Genug Platz → **Spalten pro Strang**, alle Schritte als Karten **vertikal gestapelt**, scrollbar.
+Keine Browsing-Navigation nötig — alles sichtbar.
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ MURKS                                                    🎤  📄  ⚙  │
+├──────────┬───────────────────────┬───────────────────────────────────┤
+│ ▍REIS    │ ▍SAUCE         ⚠01:12 │ ▍SALAT                           │
+│ ⏱ 07:41  │                       │                                   │
+├──────────┤ ┌───────────────────┐ │ ┌───────────────────┐            │
+│┌────────┐│ │ ✓ Zwiebeln andüns.│ │ │ ✓ Salat waschen   │            │
+││✓ Kochen││ ├───────────────────┤ │ ╔═══════════════════╗            │
+│╔════════╗│ │ ✓ Passata zugeben │ │ ║  Dressing anrühren ║            │
+│║Quellen ║│ ╔═══════════════════╗ │ ║  Öl, Essig, Senf … ║            │
+│║lassen  ║│ ║  Einreduzieren    ║ │ ╚═══════════════════╝            │
+│╚════════╝│ ║  Hitze mittel,    ║ │ ┌───────────────────┐            │
+│┌────────┐│ ║  ~10 min köcheln. ║ │ │   Anmachen        │            │
+││Auflock.││ ╚═══════════════════╝ │ └───────────────────┘            │
+│└────────┘│ ┌───────────────────┐ │                                   │
+│          │ │   Abschmecken     │ │                                   │
+└──────────┴─┴───────────────────┴─┴───────────────────────────────────┘
+```
+
+- **Spaltenreihenfolge:** fix = Anlegereihenfolge.
+- **Aktiver Schritt:** hervorgehoben (gefetteter Rahmen, Strang-Farbe).
+- **Vergangene Schritte:** gedimmt + durchgestrichen.
+- **Zukünftige Schritte:** dezenter als aktiver.
+- **Strang-Header** (Spaltenüberschrift): Name + Timer. Klick = fokussieren.
+- Vertikales Scrollen pro Spalte. Kein horizontales Scrollen.
+
+---
+
+## Kartendesign
+
+### Aktiver Schritt (Mobile — voll sichtbar)
+```
+╔══════════════════════════════════╗
+║ ▍ Strangname              3 / 5  ║  ← Decorator (Strang-Farbe)
+╠══════════════════════════════════╣
+║                                  ║
+║  Einreduzieren                   ║  ← Titel (groß, ~18px)
+║                                  ║
+║  Hitze auf mittel, offen ~10     ║  ← Beschreibung (~14px, scrollt)
+║  min köcheln, gelegentlich       ║
+║  rühren.                         ║
+║                                  ║
+║  ⏱ 01:12  verbleib.        ⚠   ║  ← Timer (nur wenn läuft)
+║                                  ║
+║  ◀  ○○●○○  ▶    [ ✓ Weiter ]   ║  ← Nav + Fortschritt
+╚══════════════════════════════════╝
+```
+
+### Browse-Zustand (vom aktiven Schritt weggeswipt)
+```
+╔══════════════════════════════════╗
+║ ▍ Strangname  [später]  ●Aktuell→║  ← Badge + Rücksprung
+╠══════════════════════════════════╣
+║  Abschmecken              4 / 5  ║
+║  Salz, Pfeffer, Prise Zucker …   ║
+║                                  ║
+║  ◀  ○○○●○  ▶   [ ↩ Hierhin ]   ║
+╚══════════════════════════════════╝
+```
+
+### Desktop-Karten
+- Aktiver Schritt: voller Inhalt (Titel + Beschreibung).
+- Vergangene: gedimmt, Beschreibung eingeklappt.
+- Zukünftige: Titel sichtbar, Beschreibung eingeklappt (optional ausklappbar).
+
+---
+
+## Zutaten
+
+- Gehören zum **Strang**, nicht global.
+- Zutaten-Modal öffnet sich pro Strang.
+- `open_zutaten` / `add_zutaten` erfordern `strang_id`.
+- Globale Einkaufsliste (alle Zutaten aggregiert) bleibt als separate Ansicht möglich.
+
+---
+
+## Timer
+
+- Gehören zum **Strang** (nicht zu einem Schritt).
+- Sichtbar: im Strip (Mobile), Spalten-Header (Desktop) + aktiver Karte.
+- Dringlichkeit: Orange + Pulsieren < 2 min, Bell-Icon + Orange-Rand bei Ablauf.
+- Bei Ablauf: KI navigiert aktiv zum betroffenen Strang.
+- Mehrere Timer pro Strang: zukünftig (`timers: Timer[]`), aktuell ein Timer.
+
+---
+
+## Voice-Overlay
+
+- Nur sichtbar wenn aktiv (Mic an / transkribiert / KI aktiv / ≤ 8s nach KI-Antwort).
+- Mic-Button immer erreichbar in der Topbar.
+- Letzter KI-Text: max. 2 Zeilen, fade-out nach 8s.
+
+---
+
+## KI-Tools (Delta zu v1)
+
+| Tool | Änderung |
+|---|---|
+| `add_strang` | `steps: Step[]` statt `steps: string[]` |
+| `add_step` | `title` + `description` statt `text` |
+| `set_step` | unverändert |
+| `focus_strang` | unverändert |
+| `start_timer` / `cancel_timer` | unverändert |
+| `complete_strang` | unverändert |
+| `add_zutaten` | `strang_id` required |
+| `open_zutaten` | `strang_id` required |
+| `toggle_zutaten` / `close_zutaten` | unverändert |
+
+---
+
+## Offene Fragen
+
+- Mehrere Timer pro Strang (gleichzeitig)?
+- Schritt-spezifische Zutaten?
+- Swipe-Schwellwert / Achsenerkennung bei nassen Händen?
+- Einkaufslisten-Ansicht (alle Stränge aggregiert)?
