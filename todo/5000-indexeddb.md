@@ -8,12 +8,14 @@
 - Nötig für: Rezept-Sammlung, Session-History, große Rezepte
 
 ## Tasks
-- [ ] Library evaluieren (idb, Dexie.js)
-- [ ] Store-Migration: createStore + localStorage → IndexedDB
-- [ ] Async-Wrapper für bestehende sync-Zugriffe
-- [ ] Migration bestehender localStorage-Daten
-- [ ] State-Key-Bump
+- [x] Library evaluieren (idb, Dexie.js) → **kein Dependency nötig**: eigener Mini-Wrapper
+      `src/lib/db.ts` (~40 Zeilen, 1 ObjectStore, 1 Key) reicht — idb/Dexie wären Overkill
+- [x] Store-Migration: createStore + localStorage → IndexedDB
+- [x] Async-Wrapper für bestehende sync-Zugriffe: Hydration beim Start (async),
+      `stateReady`-Signal, Splash in App.tsx, persist per debounced Save (300ms)
+- [x] Migration bestehender localStorage-Daten → **Legacy-Pfad wieder entfernt** (Cleanup):
+      IndexedDB ist die einzige Quelle; alter localStorage-State wird verworfen
+- [x] State-Key-Bump → entfällt (IndexedDB hat keinen Key)
 
 ## Hinweis
-Sinnvoll NACH Sessions/Deeplinks (1200) angehen, da dann klar ist
-welche Daten wie strukturiert werden müssen.
+- Import/Export (5200) sollte später auf die IndexedDB aufsetzen.

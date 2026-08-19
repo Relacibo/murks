@@ -113,9 +113,6 @@
   .card {
     @apply rounded-2xl border border-zinc-700 overflow-hidden;
   }
-  .card.is-focused {
-    border-color: var(--strang-border-active);
-  }
   .card.is-expired {
     border-color: #ef4444;
   }

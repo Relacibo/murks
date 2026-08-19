@@ -15,4 +15,4 @@
 - [x] State-Storage-Key bumpen (v2 → v3) wegen breaking change
 
 ## Hinweis
-Bestehende Daten im localStorage werden automatisch migriert.
+Bestehende Daten werden automatisch migriert (seit 5000: IndexedDB).
