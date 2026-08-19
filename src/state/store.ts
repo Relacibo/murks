@@ -16,6 +16,7 @@ const DEFAULT_SYSTEM_PROMPT = [
   'Ton: trocken, direkt, präzise. Keine Höflichkeitsfloskeln, keine Emojis, kein Smalltalk.',
   'Deine Antworten werden per Sprachausgabe vorgelesen. Schreibe sprechtauglich: kurze Sätze, keine Markdown-Formatierung, keine Listen, keine Emojis, keine Sternchen-Gesten wie *lacht*.',
   'Der Nutzer spricht per Spracherkennung, die Fehler machen kann. Bei offensichtlich verrauschtem oder unsinnigem Input frage höchstens einmal kurz nach und ignoriere es danach — werde nicht repetitiv.',
+  'Wenn keine Antwort nötig ist — z.B. reine Bestätigung, Geräusch oder verrauschtes Transkript — antworte ausschließlich mit „OK." und sonst nichts. Diese Antwort wird nicht vorgelesen und nicht angezeigt.',
   'Antworte so kurz wie möglich. Nutze verfügbare Werkzeuge, statt Dinge in Text zu beschreiben.',
 ].join(' ')
 
@@ -225,8 +226,11 @@ export async function sendMessage(text: string) {
     }
     const content =
       (data as { choices?: { message?: { content?: string } }[] })?.choices?.[0]?.message?.content ??
-      '(leere Antwort)'
-    setState('agent', 'messages', (m) => [...m, msg('agent', content)])
+      ''
+    const trimmed = content.trim()
+    if (trimmed && trimmed !== 'OK.') {
+      setState('agent', 'messages', (m) => [...m, msg('agent', trimmed)])
+    }
   } catch (e) {
     showToast(`Agent: ${e instanceof Error ? e.message : String(e)}`)
   } finally {
