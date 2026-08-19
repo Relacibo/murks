@@ -1,6 +1,7 @@
 import { createEffect } from 'solid-js'
 import { createStore } from 'solid-js/store'
 import { showToast } from '../lib/toast'
+import { TOOLS, executeTool } from '../lib/tools'
 
 export interface AgentProfile {
   id: string
@@ -17,6 +18,8 @@ const DEFAULT_SYSTEM_PROMPT = [
   'Deine Antworten werden per Sprachausgabe vorgelesen. Schreibe sprechtauglich: kurze Sätze, keine Markdown-Formatierung, keine Listen, keine Emojis, keine Sternchen-Gesten wie *lacht*.',
   'Der Nutzer spricht per Spracherkennung, die Fehler machen kann. Bei offensichtlich verrauschtem oder unsinnigem Input frage höchstens einmal kurz nach und ignoriere es danach — werde nicht repetitiv.',
   'Wenn keine Antwort nötig ist — z.B. reine Bestätigung, Geräusch oder verrauschtes Transkript — antworte ausschließlich mit „OK." und sonst nichts. Diese Antwort wird nicht vorgelesen und nicht angezeigt.',
+  'Du hast Werkzeuge, um die Kochoberfläche zu steuern: add_strang, set_step, start_timer, cancel_timer, complete_strang, focus_strang, open_zutaten, close_zutaten, get_cook_state.',
+  'Rufe get_cook_state auf, wenn du den aktuellen Stand nicht kennst. Bestätige Werkzeug-Aktionen mit höchstens einem kurzen Satz — oder nur „OK.", wenn nichts zu sagen ist.',
   'Antworte so kurz wie möglich. Nutze verfügbare Werkzeuge, statt Dinge in Text zu beschreiben.',
 ].join(' ')
 
@@ -50,6 +53,22 @@ export interface AgentMessage {
   silent?: boolean
 }
 
+export interface Strang {
+  id: string
+  name: string
+  steps: string[]
+  stepIndex: number
+  done: boolean
+  timerEndsAt: number | null
+  timerInstruction: string | null
+}
+
+export interface CookState {
+  strangs: Strang[]
+  focusedStrangId: string | null
+  zutatenOpen: boolean
+}
+
 export interface AppState {
   config: Config
   setupDone: boolean
@@ -57,6 +76,7 @@ export interface AppState {
   tts: TtsConfig
   agents: AgentProfile[]
   defaultAgentId: string | null
+  cook: CookState
   agent: {
     messages: AgentMessage[]
     busy: boolean
@@ -84,6 +104,11 @@ const defaults: AppState = {
   },
   agents: [],
   defaultAgentId: null,
+  cook: {
+    strangs: [],
+    focusedStrangId: null,
+    zutatenOpen: false,
+  },
   agent: {
     messages: [],
     busy: false,
@@ -119,6 +144,11 @@ function load(): AppState {
       },
       agents,
       defaultAgentId,
+      cook: {
+        strangs: Array.isArray(data.cook?.strangs) ? data.cook.strangs : [],
+        focusedStrangId: data.cook?.focusedStrangId ?? null,
+        zutatenOpen: data.cook?.zutatenOpen === true,
+      },
       agent: {
         messages: Array.isArray(data.agent?.messages) ? data.agent.messages : [],
         busy: false,
@@ -188,6 +218,25 @@ function msg(role: AgentMessage['role'], text: string, silent = false): AgentMes
   return { role, text, silent }
 }
 
+export function expireTimers() {
+  const now = Date.now()
+  const expired = state.cook.strangs.filter(
+    (s) => s.timerEndsAt !== null && s.timerEndsAt <= now,
+  )
+  for (const s of expired) {
+    setState('cook', 'strangs', (str) =>
+      str.map((x) => (x.id === s.id ? { ...x, timerEndsAt: null } : x)),
+    )
+    showToast(`⏰ Timer abgelaufen: ${s.name}${s.timerInstruction ? ` — ${s.timerInstruction}` : ''}`)
+  }
+}
+
+interface RawToolCall {
+  id: string
+  type: 'function'
+  function: { name: string; arguments: string }
+}
+
 export async function sendMessage(text: string) {
   const agent = defaultAgent()
   if (!agent || !agent.endpoint || !agent.model || state.agent.busy) return
@@ -197,40 +246,71 @@ export async function sendMessage(text: string) {
     const system = state.config.displayName
       ? `${DEFAULT_SYSTEM_PROMPT} Der Nutzer heißt ${state.config.displayName}.`
       : DEFAULT_SYSTEM_PROMPT
-    const chatMessages = [
+    const convo: Array<Record<string, unknown>> = [
       { role: 'system', content: system },
       ...state.agent.messages.map((m) => ({
         role: m.role === 'agent' ? 'assistant' : 'user',
         content: m.text,
       })),
     ]
-    const res = await fetch(`${agent.endpoint.replace(/\/+$/, '')}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(agent.key ? { Authorization: `Bearer ${agent.key}` } : {}),
-      },
-      body: JSON.stringify({
-        model: agent.model,
-        stream: false,
-        messages: chatMessages,
-      }),
-    })
-    const data = await res.json().catch(() => null)
-    if (!res.ok) {
-      const errMsg =
-        (data && typeof data === 'object' && 'error' in data
-          ? String((data as { error: unknown }).error)
-          : null) ?? `HTTP ${res.status}`
-      throw new Error(errMsg)
+    for (let round = 0; round < 6; round++) {
+      const res = await fetch(`${agent.endpoint.replace(/\/+$/, '')}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(agent.key ? { Authorization: `Bearer ${agent.key}` } : {}),
+        },
+        body: JSON.stringify({
+          model: agent.model,
+          stream: false,
+          messages: convo,
+          tools: TOOLS,
+          tool_choice: 'auto',
+        }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        const errMsg =
+          (data && typeof data === 'object' && 'error' in data
+            ? String((data as { error: unknown }).error)
+            : null) ?? `HTTP ${res.status}`
+        throw new Error(errMsg)
+      }
+      const message = (data as { choices?: { message?: Record<string, unknown> }[] })?.choices?.[0]
+        ?.message
+      if (!message) throw new Error('Leere Antwort vom Agenten')
+      const toolCalls = Array.isArray(message.tool_calls)
+        ? (message.tool_calls as RawToolCall[])
+        : []
+      if (toolCalls.length > 0) {
+        convo.push({
+          role: 'assistant',
+          content: typeof message.content === 'string' ? message.content : null,
+          tool_calls: toolCalls.map((tc) => ({
+            id: tc.id,
+            type: 'function',
+            function: { name: tc.function.name, arguments: tc.function.arguments },
+          })),
+        })
+        for (const tc of toolCalls) {
+          let args: Record<string, unknown> = {}
+          try {
+            args = JSON.parse(tc.function.arguments || '{}')
+          } catch {
+            // unbrauchbare Argumente → Fehler an den Agenten zurückmelden
+          }
+          const result = executeTool(tc.function.name, args)
+          convo.push({ role: 'tool', tool_call_id: tc.id, content: result })
+        }
+        continue
+      }
+      const content = typeof message.content === 'string' ? message.content.trim() : ''
+      if (content && content !== 'OK.') {
+        setState('agent', 'messages', (m) => [...m, msg('agent', content)])
+      }
+      return
     }
-    const content =
-      (data as { choices?: { message?: { content?: string } }[] })?.choices?.[0]?.message?.content ??
-      ''
-    const trimmed = content.trim()
-    if (trimmed && trimmed !== 'OK.') {
-      setState('agent', 'messages', (m) => [...m, msg('agent', trimmed)])
-    }
+    throw new Error('Zu viele Werkzeug-Runden')
   } catch (e) {
     showToast(`Agent: ${e instanceof Error ? e.message : String(e)}`)
   } finally {

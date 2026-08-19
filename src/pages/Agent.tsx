@@ -1,10 +1,15 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, type Accessor, type Setter } from 'solid-js'
 import type { MicVAD } from '@ricky0123/vad-web'
-import { state, sendMessage, clearMessages } from '../state/store'
+import { state, sendMessage, clearMessages, expireTimers } from '../state/store'
 import { transcribeAudio, createWebSpeechRecognition, isSttModelCached } from '../lib/stt'
 import { createVoice } from '../lib/voice'
 import { speak, stopSpeaking } from '../lib/tts'
 import { showToast } from '../lib/toast'
+
+function fmtRemaining(endsAt: number): string {
+  const s = Math.max(0, Math.round((endsAt - Date.now()) / 1000))
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
 
 interface AgentProps {
   configOpen: Accessor<boolean>
@@ -17,6 +22,14 @@ export function Agent(props: AgentProps) {
   const [speaking, setSpeaking] = createSignal(false)
   const [transcribing, setTranscribing] = createSignal(false)
   const [sttReady, setSttReady] = createSignal(false)
+  const [tick, setTick] = createSignal(Date.now())
+
+  const timerInterval = setInterval(() => {
+    setTick(Date.now())
+    expireTimers()
+  }, 1000)
+
+  onCleanup(() => clearInterval(timerInterval))
 
   const agent = createMemo(() => state.agents.find((a) => a.id === state.defaultAgentId))
   const ready = createMemo(() => Boolean(agent()?.endpoint && agent()?.model))
@@ -228,6 +241,29 @@ export function Agent(props: AgentProps) {
           ⚙
         </button>
       </div>
+
+      <Show when={state.cook.strangs.length > 0}>
+        <div class="flex flex-wrap gap-1.5 border-b border-zinc-800 pb-2">
+          <For each={state.cook.strangs}>
+            {(s) => {
+              tick()
+              return (
+                <span
+                  class={`rounded-full border px-2.5 py-1 text-xs ${
+                    s.id === state.cook.focusedStrangId
+                      ? 'border-zinc-400 bg-zinc-800 text-zinc-200'
+                      : 'border-zinc-700 text-zinc-400'
+                  } ${s.done ? 'line-through opacity-60' : ''}`}
+                >
+                  {s.name}
+                  {s.done ? ' ✓' : ` ${s.stepIndex + 1}/${s.steps.length}`}
+                  {s.timerEndsAt !== null ? ` ⏱ ${fmtRemaining(s.timerEndsAt)}` : ''}
+                </span>
+              )
+            }}
+          </For>
+        </div>
+      </Show>
 
       <div ref={feedRef} class="flex-1 space-y-3 overflow-y-auto py-4">
         <Show when={!ready()}>
