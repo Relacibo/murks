@@ -2,8 +2,9 @@
 
 > **M**URKS — **u**nterwürfige **R**ezept**k**och**s**oftware
 
-PWA auf Basis von Vite + SolidJS + Tailwind. Trocken, minimalistisch, direkt.
-Keine Höflichkeitsfloskeln.
+PWA auf Basis von Vite + SolidJS + Tailwind. Man spricht, MURKS koordiniert:
+Die KI führt den Kochfluss — Kochstränge, Schritte, Timer — bei minimalem Input.
+Hände frei. Trocken, direkt. Keine Höflichkeitsfloskeln.
 
 <!-- Alternative, rekursiv elegant: **M**inimal **u**nterwürfig, **r**echt **k**östlich, **s**elten Murks -->
 
