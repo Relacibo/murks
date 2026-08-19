@@ -32,7 +32,7 @@ Beim Erststart (kein gültiger Default-Agent, `setupDone` nicht gesetzt) erschei
 3. **Stimme** — STT-Modus/-Modellgröße, TTS-Modus (Defaults: lokal)
 4. **Modelle** — Whisper + MMS-TTS herunterladen mit Fortschrittsanzeige (MB + Prozent), einzeln überspringbar
 
-Wizard gesamt überspringbar (`setupDone = true`) — dann übernimmt das Config-Modal (nicht schließbar, bis ein gültiger Agent existiert). Modell-Downloads sind auch später in der Config möglich (mit Fortschrittsanzeige). Formular-Sektionen (Agent/STT/TTS) werden als Komponenten zwischen Wizard und Config geteilt.
+Wizard gesamt überspringbar (`setupDone = true`) — außer auf dem Agent-Schritt, der ist Pflicht. Nach Überspringen ohne gültigen Agenten übernimmt das Config-Modal (nicht schließbar, bis ein gültiger Agent existiert). Modell-Downloads sind auch später in der Config möglich (mit Fortschrittsanzeige). Formular-Sektionen (Agent/STT/TTS) werden als Komponenten zwischen Wizard und Config geteilt.
 
 ## Scope
 Hauptsächlich für den Eigengebrauch eines Nutzers. Kein Mehrbenutzer-Betrieb, keine Serverkomponente geplant. Der Fokus liegt auf einer agentengesteuerten Chat-View plus lokaler Config.
