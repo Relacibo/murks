@@ -6,14 +6,15 @@
 Desktop: eine Spalte pro Strang, alle Schritte als Karten vertikal gestapelt, scrollbar.
 
 ## Tasks
-- [ ] Spalten-Header: Strangname + Timer
-- [ ] Schritt-Karten vertikal gestapelt in der Spalte
-- [ ] Aktiver Schritt: hervorgehoben (Strang-Farbe, voller Inhalt)
-- [ ] Vergangene Schritte: gedimmt, Beschreibung eingeklappt
-- [ ] Zukünftige Schritte: Titel sichtbar, Beschreibung optional ausklappbar
-- [ ] Kein Browse-Modus nötig (alles sichtbar)
-- [ ] Spaltenreihenfolge: fix (Anlegereihenfolge)
-- [ ] Horizontales Scrollen der Spalten wenn viele Stränge
+- [x] Spalten-Header: Strangname + Timer + x/y (+ Emoji, + ✓ bei done)
+- [x] Schritt-Karten vertikal gestapelt in der Spalte
+- [x] Aktiver Schritt: hervorgehoben (Strang-Farbe, Description sichtbar)
+- [x] Vergangene Schritte: gedimmt + durchgestrichen, nur Summary
+- [x] Zukünftige Schritte: Summary sichtbar, Description erscheint bei Aktivierung
+- [x] Kein Browse-Modus nötig (alles sichtbar)
+- [x] Spaltenreihenfolge: fix (Anlegereihenfolge)
+- [x] Horizontales Scrollen der Spalten wenn viele Stränge
+- [~] „Description optional ausklappbar" → Klick auf Schrittkarte setzt Schritt aktiv (zeigt Description)
 
 ## Abhängigkeit
 → 0100, 0200

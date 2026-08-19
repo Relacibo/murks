@@ -13,6 +13,7 @@ Ein paralleler Kochprozess (z.B. „Reis", „Soße", „Salat").
 interface Strang {
   id: string
   name: string
+  icon: string | null      // Emoji, vom LLM vergeben (add_strang) — Strip-Identität
   color: StrangColor
   steps: Step[]
   stepIndex: number        // aktiver Schritt (0-basiert)
@@ -29,14 +30,16 @@ interface Strang {
 
 ```ts
 interface Step {
-  title: string        // kurze Überschrift, z.B. „Teig anrühren"
-  description: string  // ausführliche Anweisung, z.B. „Eier mit Mehl, Wasser
-                       // und einer Prise Salz in eine Schüssel geben und mit
-                       // dem Rührgerät glatt rühren."
+  summary: string      // Kurzbezeichnung, reiner Text, 1 Zeile, max ~2 Wörter (System-Prompt)
+  description: string  // Volltext, Markdown-rendered (ausgeklappte Karte)
 }
+// Eingeklappt/Strip: 🍚 Summary · ⏱ Timer-Chip (nur wenn läuft) · x/y (klein grau).
+//   Kein Name — Emoji (LLM) + Strang-Farbe identifizieren den Strang.
+// Ausgeklappt: Header 🍝 Name · ⏱ Timer · x/y (Name als Kontext-Anker beim Browsen),
+//   darunter description (Markdown) statt summary.
 ```
 
-> **Migration:** `steps: string[]` → `steps: Step[]`. Alte Daten: `string` wird `title`, `description: ""`.
+> **Migration:** `steps: string[]` → `steps: Step[]`. Alte Daten: `string` wird `summary`, `description: ""`.
 
 ---
 
@@ -52,17 +55,15 @@ Alle anderen Stränge als kompakte Strips oben.
 ┌────────────────────────────────────┐
 │ MURKS                  🎤  📄  ⚙  │  ← Topbar
 ├────────────────────────────────────┤
-│ ▍REIS   Quellen lassen  07:41  3/5 │  ← Strip: Tap = Fokus wechseln
-│ ▍SALAT  Dressing anrühren      1/4 │
+│ 🍚 Quellen lassen  07:41  3/5     │  ← Strip: Tap = Fokus wechseln
+│ 🥗 Dressing anrühren       1/4    │
 ├────────────────────────────────────┤
 │ ╔════════════════════════════════╗ │
-│ ║ ▍SAUCE                    3/5  ║ │  ← fokussierter Strang
-│ ║                                ║ │
-│ ║  Einreduzieren                 ║ │  ← Schritttitel (groß)
-│ ║                                ║ │
-│ ║  Hitze auf mittel, offen ~10   ║ │  ← Beschreibung (scrollt vertikal
-│ ║  min köcheln, gelegentlich     ║ │    bei Bedarf)
-│ ║  rühren.                       ║ │
+│ ║ 🍝 SAUCE                  3/5  ║ │  ← fokussierter Strang: Name + x/y
+│ ║                                ║ │    (Kontext-Anker beim Browsen)
+│ ║  Hitze auf mittel, offen ~10   ║ │  ← ausgeklappt: description (Markdown,
+│ ║  min köcheln, gelegentlich     ║ │    scrollt vertikal bei Bedarf)
+│ ║  rühren.                       ║ │    eingeklappt: nur summary (1 Zeile)
 │ ║                                ║ │
 │ ║  ⏱ 01:12  verbleib.       ⚠  ║ │  ← Timer (gehört zum Strang)
 │ ║                                ║ │
@@ -76,9 +77,9 @@ Alle anderen Stränge als kompakte Strips oben.
 
 - **Feste Reihenfolge** = Anlegereihenfolge. Nie umsortieren — räumliches Gedächtnis.
 - Mindesthöhe: 44px Tap-Target.
-- Inhalt: `▍ Name · aktueller Schritttitel (truncated) · Timer · x/y`
+- Inhalt: `🍚 Summary (truncated) · Timer-Chip (nur wenn läuft) · x/y` — kein Name, Emoji + Farbe identifizieren
 - Dringlichkeit via Farbe/Puls/Bell-Icon, **nie** via Umsortieren.
-- Bei ≥ 4 Strängen: Schritttitel weglassen → nur `▍ Name · Timer`.
+- Summary wird nie weggelassen (Kerninfo des Strips), max ~2 Wörter.
 - Tap = Fokus auf diesen Strang wechseln.
 
 ### Schrittnavigation (◀ ▶)
@@ -115,12 +116,12 @@ Keine Browsing-Navigation nötig — alles sichtbar.
 ├──────────┤ ┌───────────────────┐ │ ┌───────────────────┐            │
 │┌────────┐│ │ ✓ Zwiebeln andüns.│ │ │ ✓ Salat waschen   │            │
 ││✓ Kochen││ ├───────────────────┤ │ ╔═══════════════════╗            │
-│╔════════╗│ │ ✓ Passata zugeben │ │ ║  Dressing anrühren ║            │
-│║Quellen ║│ ╔═══════════════════╗ │ ║  Öl, Essig, Senf … ║            │
-│║lassen  ║│ ║  Einreduzieren    ║ │ ╚═══════════════════╝            │
-│╚════════╝│ ║  Hitze mittel,    ║ │ ┌───────────────────┐            │
-│┌────────┐│ ║  ~10 min köcheln. ║ │ │   Anmachen        │            │
-││Auflock.││ ╚═══════════════════╝ │ └───────────────────┘            │
+│╔════════╗│ │ ✓ Passata zugeben │ │ ║  Öl, Essig, Senf,  ║            │
+│║Quellen ║│ ╔═══════════════════╗ │ ║  gut verrühren …   ║            │
+│║lassen  ║│ ║  Hitze mittel,    ║ │ ╚═══════════════════╝            │
+│╚════════╝│ ║  ~10 min köcheln. ║ │ ┌───────────────────┐            │
+│┌────────┐│ ╚═══════════════════╝ │ │   Anmachen        │            │
+││Auflock.││                       │ └───────────────────┘            │
 │└────────┘│ ┌───────────────────┐ │                                   │
 │          │ │   Abschmecken     │ │                                   │
 └──────────┴─┴───────────────────┴─┴───────────────────────────────────┘
@@ -137,16 +138,23 @@ Keine Browsing-Navigation nötig — alles sichtbar.
 
 ## Kartendesign
 
-### Aktiver Schritt (Mobile — voll sichtbar)
+Tap auf Header = ein-/ausklappen. Nur der Body wechselt: summary ↔ description.
+
+### Eingeklappt (identisch zum Strip, kein Name)
 ```
 ╔══════════════════════════════════╗
-║ ▍ Strangname              3 / 5  ║  ← Decorator (Strang-Farbe)
+║ 🍝 Einreduzieren · ⏱ 01:12 · 3/5 ║  ← Emoji + Farbe = Strang-Identität,
+╚══════════════════════════════════╝    Summary truncate, x/y klein grau
+```
+
+### Ausgeklappt — aktiver Schritt (Mobile)
+```
+╔══════════════════════════════════╗
+║ 🍝 SAUCE   ⏱ 01:12         3 / 5  ║  ← Name erscheint (Kontext-Anker), x/y klein grau
 ╠══════════════════════════════════╣
 ║                                  ║
-║  Einreduzieren                   ║  ← Titel (groß, ~18px)
-║                                  ║
-║  Hitze auf mittel, offen ~10     ║  ← Beschreibung (~14px, scrollt)
-║  min köcheln, gelegentlich       ║
+║  Hitze auf mittel, offen ~10     ║  ← Description (Markdown-rendered,
+║  min köcheln, gelegentlich       ║    ~14px, scrollt vertikal)
 ║  rühren.                         ║
 ║                                  ║
 ║  ⏱ 01:12  verbleib.        ⚠   ║  ← Timer (nur wenn läuft)
@@ -158,19 +166,18 @@ Keine Browsing-Navigation nötig — alles sichtbar.
 ### Browse-Zustand (vom aktiven Schritt weggeswipt)
 ```
 ╔══════════════════════════════════╗
-║ ▍ Strangname  [später]  ●Aktuell→║  ← Badge + Rücksprung
+║ ▍ SAUCE  [später]  4/5  ●Aktuell→║  ← Name bleibt Kontext-Anker; Badge + Rücksprung
 ╠══════════════════════════════════╣
-║  Abschmecken              4 / 5  ║
-║  Salz, Pfeffer, Prise Zucker …   ║
+║  Salz, Pfeffer, Prise Zucker …   ║  ← Description des gebrowsten Schritts
 ║                                  ║
 ║  ◀  ○○○●○  ▶   [ ↩ Hierhin ]   ║
 ╚══════════════════════════════════╝
 ```
 
 ### Desktop-Karten
-- Aktiver Schritt: voller Inhalt (Titel + Beschreibung).
-- Vergangene: gedimmt, Beschreibung eingeklappt.
-- Zukünftige: Titel sichtbar, Beschreibung eingeklappt (optional ausklappbar).
+- Aktiver Schritt: ausgeklappt → description (Markdown).
+- Vergangene: gedimmt, eingeklappt → summary.
+- Zukünftige: eingeklappt → summary (optional ausklappbar → description).
 
 ---
 
@@ -186,7 +193,7 @@ Keine Browsing-Navigation nötig — alles sichtbar.
 ## Timer
 
 - Gehören zum **Strang** (nicht zu einem Schritt).
-- Sichtbar: im Strip (Mobile), Spalten-Header (Desktop) + aktiver Karte.
+- Sichtbar: Strip (Timer-Chip), ausgeklappte Karte (Header + großer Pill), Desktop-Spalten-Header.
 - Dringlichkeit: Orange + Pulsieren < 2 min, Bell-Icon + Orange-Rand bei Ablauf.
 - Bei Ablauf: KI navigiert aktiv zum betroffenen Strang.
 - Mehrere Timer pro Strang: zukünftig (`timers: Timer[]`), aktuell ein Timer.
@@ -205,8 +212,8 @@ Keine Browsing-Navigation nötig — alles sichtbar.
 
 | Tool | Änderung |
 |---|---|
-| `add_strang` | `steps: Step[]` statt `steps: string[]` |
-| `add_step` | `title` + `description` statt `text` |
+| `add_strang` | `steps: Step[]` statt `steps: string[]`; zusätzlich `icon` (Emoji, LLM vergibt) |
+| `add_step` | `summary` + `description` statt `text` |
 | `set_step` | unverändert |
 | `focus_strang` | unverändert |
 | `start_timer` / `cancel_timer` | unverändert |
