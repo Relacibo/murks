@@ -1,5 +1,6 @@
 import { state } from '../state/store'
 import { isModelCached, deleteModelFromCache } from './modelCache'
+import type { DownloadProgress } from './modelProgress'
 
 const ORT_WASM_PATH = `${import.meta.env.BASE_URL}ort/`
 
@@ -15,6 +16,7 @@ type TransformersModule = typeof import('@huggingface/transformers')
 
 let pipelinePromise: Promise<AsrPipeline> | null = null
 let pipelineModel: string | null = null
+let progressCb: ((p: DownloadProgress) => void) | null = null
 
 async function createPipeline(
   mod: TransformersModule,
@@ -26,6 +28,7 @@ async function createPipeline(
   return (await mod.pipeline('automatic-speech-recognition', model, {
     device,
     dtype: 'q8',
+    progress_callback: (p) => progressCb?.(p as DownloadProgress),
   })) as unknown as AsrPipeline
 }
 
@@ -69,7 +72,7 @@ function getPipeline(): Promise<AsrPipeline> {
 
 async function transcribeWasm(audio: Float32Array): Promise<string> {
   if (!(await isSttModelCached())) {
-    throw new Error('STT-Modell nicht heruntergeladen. In der Config unter „Speicher“ herunterladen.')
+    throw new Error('STT-Modell nicht heruntergeladen. In der Config unter „Sprache“ laden.')
   }
   const pipe = await getPipeline()
   const out = await pipe(audio, {
@@ -137,8 +140,15 @@ export async function isSttModelCached(): Promise<boolean> {
   return isModelCached(`whisper-${state.stt.model}`)
 }
 
-export async function downloadSttModel(): Promise<void> {
-  await getPipeline()
+export async function downloadSttModel(
+  onProgress?: (p: DownloadProgress) => void,
+): Promise<void> {
+  progressCb = onProgress ?? null
+  try {
+    await getPipeline()
+  } finally {
+    progressCb = null
+  }
 }
 
 export async function deleteSttModel(): Promise<void> {

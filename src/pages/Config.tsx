@@ -2,8 +2,6 @@ import { For, Show, createSignal, onMount } from 'solid-js'
 import {
   state,
   setConfig,
-  setStt,
-  setTts,
   addAgent,
   updateAgent,
   removeAgent,
@@ -11,100 +9,15 @@ import {
 } from '../state/store'
 import { isSttModelCached, downloadSttModel, deleteSttModel } from '../lib/stt'
 import { isTtsModelCached, downloadTtsModel, deleteTtsModel } from '../lib/tts'
-
-const inputCls =
-  'bg-zinc-700 border border-zinc-600 rounded-lg px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-zinc-500 placeholder:text-zinc-500 w-full transition-colors hover:border-zinc-500'
-
-const selectCls = `${inputCls} cursor-pointer`
+import { inputCls } from '../components/fields'
+import { ModelPicker } from '../components/ModelPicker'
+import { SttSettings } from '../components/SttSettings'
+import { TtsSettings } from '../components/TtsSettings'
 
 interface ConfigModalProps {
   open: boolean
   onClose: () => void
   dismissible: boolean
-}
-
-// ── Model picker ──────────────────────────────────────────────────────────────
-
-interface ModelPickerProps {
-  agentId: string
-  endpoint: string
-  apiKey: string
-  model: string
-}
-
-function ModelPicker(props: ModelPickerProps) {
-  const [models, setModels] = createSignal<string[]>([])
-  const [loading, setLoading] = createSignal(false)
-  const [error, setError] = createSignal<string | null>(null)
-  const [fetched, setFetched] = createSignal(false)
-
-  const canFetch = () => Boolean(props.endpoint)
-
-  async function fetchModels() {
-    setLoading(true)
-    setError(null)
-    try {
-      const base = props.endpoint.replace(/\/+$/, '')
-      const res = await fetch(`${base}/models`, {
-        headers: props.apiKey ? { Authorization: `Bearer ${props.apiKey}` } : {},
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json() as { data?: { id: string }[] }
-      const ids = (data.data ?? []).map((m) => m.id).sort()
-      if (ids.length === 0) throw new Error('Keine Modelle gefunden')
-      setModels(ids)
-      setFetched(true)
-      if (!props.model && ids[0]) updateAgent(props.agentId, { model: ids[0] })
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-      setFetched(false)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div class="space-y-1.5">
-      <div class="flex items-center justify-between">
-        <span class="text-xs text-zinc-400">Modell</span>
-        <button
-          class={`text-xs px-2 py-0.5 rounded border transition-colors ${
-            canFetch()
-              ? 'border-zinc-600 text-zinc-400 hover:border-zinc-400 hover:text-zinc-200'
-              : 'border-zinc-600 text-zinc-700 cursor-not-allowed'
-          }`}
-          disabled={!canFetch() || loading()}
-          onClick={fetchModels}
-        >
-          {loading() ? '…' : 'Abrufen'}
-        </button>
-      </div>
-      <Show
-        when={fetched() && models().length > 0}
-        fallback={
-          <input
-            class={inputCls}
-            placeholder="llama3.2"
-            value={props.model}
-            onInput={(e) => updateAgent(props.agentId, { model: e.currentTarget.value })}
-          />
-        }
-      >
-        <select
-          class={selectCls}
-          value={props.model}
-          onChange={(e) => updateAgent(props.agentId, { model: e.currentTarget.value })}
-        >
-          <For each={models()}>
-            {(m) => <option value={m}>{m}</option>}
-          </For>
-        </select>
-      </Show>
-      <Show when={error()}>
-        <p class="text-xs text-red-400">{error()}</p>
-      </Show>
-    </div>
-  )
 }
 
 // ── Agent accordion row ───────────────────────────────────────────────────────
@@ -209,10 +122,10 @@ function AgentRow(props: AgentRowProps) {
             />
           </label>
           <ModelPicker
-            agentId={props.id}
             endpoint={props.endpoint}
             apiKey={props.key}
             model={props.model}
+            onChange={(m) => updateAgent(props.id, { model: m })}
           />
           <Show when={!props.isDefault}>
             <button
@@ -234,9 +147,11 @@ export function ConfigModal(props: ConfigModalProps) {
   const [expandedId, setExpandedId] = createSignal<string | null>(null)
   const [sttCached, setSttCached] = createSignal<boolean | null>(null)
   const [sttBusy, setSttBusy] = createSignal(false)
+  const [sttProgress, setSttProgress] = createSignal<number | null>(null)
   const [sttCacheError, setSttCacheError] = createSignal<string | null>(null)
   const [ttsCached, setTtsCached] = createSignal<boolean | null>(null)
   const [ttsBusy, setTtsBusy] = createSignal(false)
+  const [ttsProgress, setTtsProgress] = createSignal<number | null>(null)
   const [ttsCacheError, setTtsCacheError] = createSignal<string | null>(null)
 
   onMount(() => {
@@ -247,13 +162,16 @@ export function ConfigModal(props: ConfigModalProps) {
   async function handleSttCache() {
     if (sttBusy()) return
     setSttBusy(true)
+    setSttProgress(null)
     setSttCacheError(null)
     try {
       if (sttCached()) {
         await deleteSttModel()
         setSttCached(false)
       } else {
-        await downloadSttModel()
+        await downloadSttModel((p) => {
+          if (p.status === 'progress' && p.progress != null) setSttProgress(p.progress)
+        })
         setSttCached(true)
       }
     } catch (e) {
@@ -266,13 +184,16 @@ export function ConfigModal(props: ConfigModalProps) {
   async function handleTtsCache() {
     if (ttsBusy()) return
     setTtsBusy(true)
+    setTtsProgress(null)
     setTtsCacheError(null)
     try {
       if (ttsCached()) {
         await deleteTtsModel()
         setTtsCached(false)
       } else {
-        await downloadTtsModel()
+        await downloadTtsModel((p) => {
+          if (p.status === 'progress' && p.progress != null) setTtsProgress(p.progress)
+        })
         setTtsCached(true)
       }
     } catch (e) {
@@ -369,36 +290,9 @@ export function ConfigModal(props: ConfigModalProps) {
           {/* Sprache (STT) — flat, always visible */}
           <section class="space-y-4">
             <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Sprache</h2>
-            <label class="block space-y-1.5">
-              <span class="text-sm text-zinc-400">Modus</span>
-              <select
-                class={selectCls}
-                value={state.stt.mode}
-                onChange={(e) =>
-                  setStt({ mode: e.currentTarget.value as 'wasm' | 'server' | 'webspeech' })
-                }
-              >
-                <option value="wasm">Lokal (Whisper, offline)</option>
-                <option value="server">Server (OpenAI-kompatibel)</option>
-                <option value="webspeech">Browser-Spracherkennung (online)</option>
-              </select>
-            </label>
+            <SttSettings />
 
             <Show when={state.stt.mode === 'wasm'}>
-              <label class="block space-y-1.5">
-                <span class="text-sm text-zinc-400">Modell</span>
-                <select
-                  class={selectCls}
-                  value={state.stt.model}
-                  onChange={(e) =>
-                    setStt({ model: e.currentTarget.value as 'tiny' | 'base' | 'small' })
-                  }
-                >
-                  <option value="tiny">tiny — ~41 MB, schnell, schwächste Erkennung</option>
-                  <option value="base">base — ~145 MB, guter Kompromiss</option>
-                  <option value="small">small — ~250 MB, beste Qualität</option>
-                </select>
-              </label>
               <div class="flex items-center gap-3 rounded-xl border border-zinc-600 bg-zinc-800 px-4 py-3">
                 <div class="min-w-0 flex-1">
                   <p class="text-sm text-zinc-300">
@@ -406,7 +300,9 @@ export function ConfigModal(props: ConfigModalProps) {
                   </p>
                   <p class="text-xs text-zinc-500 mt-0.5">
                     {sttBusy()
-                      ? 'Bitte warten …'
+                      ? sttProgress() !== null
+                        ? `Lädt … ${Math.round(sttProgress() ?? 0)} %`
+                        : 'Bitte warten …'
                       : sttCached() === null
                         ? 'Prüfe Cache …'
                         : sttCached()
@@ -430,48 +326,12 @@ export function ConfigModal(props: ConfigModalProps) {
               </p>
             </Show>
 
-            <Show when={state.stt.mode === 'server'}>
-              <label class="block space-y-1.5">
-                <span class="text-sm text-zinc-400">Endpoint (Base-URL)</span>
-                <input
-                  class={inputCls}
-                  type="url"
-                  placeholder="http://localhost:8000/v1"
-                  value={state.stt.endpoint}
-                  onInput={(e) => setStt({ endpoint: e.currentTarget.value })}
-                />
-              </label>
-              <label class="block space-y-1.5">
-                <span class="text-sm text-zinc-400">API-Key (optional)</span>
-                <input
-                  class={inputCls}
-                  type="password"
-                  placeholder="sk-…"
-                  value={state.stt.key}
-                  onInput={(e) => setStt({ key: e.currentTarget.value })}
-                />
-              </label>
-            </Show>
-
             {/* TTS */}
             <div class="space-y-4 border-t border-zinc-600 pt-4">
               <h3 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">
                 Ausgabe (TTS)
               </h3>
-              <label class="block space-y-1.5">
-                <span class="text-sm text-zinc-400">Modus</span>
-                <select
-                  class={selectCls}
-                  value={state.tts.mode}
-                  onChange={(e) =>
-                    setTts({ mode: e.currentTarget.value as 'wasm' | 'server' | 'webspeech' })
-                  }
-                >
-                  <option value="wasm">Lokal (MMS, offline)</option>
-                  <option value="server">Server (OpenAI-kompatibel)</option>
-                  <option value="webspeech">Browser-Stimme</option>
-                </select>
-              </label>
+              <TtsSettings />
 
               <Show when={state.tts.mode === 'wasm'}>
                 <div class="flex items-center gap-3 rounded-xl border border-zinc-600 bg-zinc-800 px-4 py-3">
@@ -479,7 +339,9 @@ export function ConfigModal(props: ConfigModalProps) {
                     <p class="text-sm text-zinc-300">MMS-TTS (Deutsch)</p>
                     <p class="text-xs text-zinc-500 mt-0.5">
                       {ttsBusy()
-                        ? 'Bitte warten …'
+                        ? ttsProgress() !== null
+                          ? `Lädt … ${Math.round(ttsProgress() ?? 0)} %`
+                          : 'Bitte warten …'
                         : ttsCached() === null
                           ? 'Prüfe Cache …'
                           : ttsCached()
@@ -502,38 +364,6 @@ export function ConfigModal(props: ConfigModalProps) {
                   ~80 MB. Agenten-Antworten werden automatisch vorgelesen; sprichst du, stoppt
                   die Wiedergabe.
                 </p>
-              </Show>
-
-              <Show when={state.tts.mode === 'server'}>
-                <label class="block space-y-1.5">
-                  <span class="text-sm text-zinc-400">Endpoint (Base-URL)</span>
-                  <input
-                    class={inputCls}
-                    type="url"
-                    placeholder="http://localhost:8000/v1"
-                    value={state.tts.endpoint}
-                    onInput={(e) => setTts({ endpoint: e.currentTarget.value })}
-                  />
-                </label>
-                <label class="block space-y-1.5">
-                  <span class="text-sm text-zinc-400">API-Key (optional)</span>
-                  <input
-                    class={inputCls}
-                    type="password"
-                    placeholder="sk-…"
-                    value={state.tts.key}
-                    onInput={(e) => setTts({ key: e.currentTarget.value })}
-                  />
-                </label>
-                <label class="block space-y-1.5">
-                  <span class="text-sm text-zinc-400">Stimme</span>
-                  <input
-                    class={inputCls}
-                    placeholder="alloy"
-                    value={state.tts.voice}
-                    onInput={(e) => setTts({ voice: e.currentTarget.value })}
-                  />
-                </label>
               </Show>
             </div>
           </section>

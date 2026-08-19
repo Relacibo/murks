@@ -1,5 +1,6 @@
 import { state, pushAgentMessage } from '../state/store'
 import { isModelCached, deleteModelFromCache } from './modelCache'
+import type { DownloadProgress } from './modelProgress'
 
 const TTS_MODEL = 'Xenova/mms-tts-deu'
 const ORT_WASM_PATH = `${import.meta.env.BASE_URL}ort/`
@@ -11,6 +12,7 @@ interface TtsPipeline {
 type TransformersModule = typeof import('@huggingface/transformers')
 
 let pipelinePromise: Promise<TtsPipeline> | null = null
+let progressCb: ((p: DownloadProgress) => void) | null = null
 
 function getPipeline(): Promise<TtsPipeline> {
   if (!pipelinePromise) {
@@ -32,6 +34,7 @@ function getPipeline(): Promise<TtsPipeline> {
       return (await mod.pipeline('text-to-speech', TTS_MODEL, {
         device,
         dtype: 'q8',
+        progress_callback: (p) => progressCb?.(p as DownloadProgress),
       })) as unknown as TtsPipeline
     })()
   }
@@ -156,8 +159,15 @@ export async function isTtsModelCached(): Promise<boolean> {
   return isModelCached(TTS_MODEL)
 }
 
-export async function downloadTtsModel(): Promise<void> {
-  await getPipeline()
+export async function downloadTtsModel(
+  onProgress?: (p: DownloadProgress) => void,
+): Promise<void> {
+  progressCb = onProgress ?? null
+  try {
+    await getPipeline()
+  } finally {
+    progressCb = null
+  }
 }
 
 export async function deleteTtsModel(): Promise<void> {

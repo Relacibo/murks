@@ -48,6 +48,7 @@ export interface AgentMessage {
 
 export interface AppState {
   config: Config
+  setupDone: boolean
   stt: SttConfig
   tts: TtsConfig
   agents: AgentProfile[]
@@ -64,6 +65,7 @@ const defaults: AppState = {
   config: {
     displayName: '',
   },
+  setupDone: false,
   stt: {
     mode: 'wasm',
     endpoint: '',
@@ -97,6 +99,7 @@ function load(): AppState {
     }
     return {
       config: { displayName: loadedConfig.displayName ?? '' },
+      setupDone: data.setupDone === true,
       stt: {
         mode: data.stt?.mode === 'server' || data.stt?.mode === 'webspeech' ? data.stt.mode : 'wasm',
         endpoint: data.stt?.endpoint ?? '',
@@ -130,6 +133,10 @@ createEffect(() => {
 
 export function setConfig(patch: Partial<Config>) {
   setState('config', patch)
+}
+
+export function setSetupDone(done: boolean) {
+  setState('setupDone', done)
 }
 
 export function setStt(patch: Partial<SttConfig>) {
@@ -183,8 +190,11 @@ export async function sendMessage(text: string) {
   setState('agent', 'messages', (m) => [...m, msg('user', text)])
   setState('agent', 'busy', true)
   try {
+    const system = state.config.displayName
+      ? `${DEFAULT_SYSTEM_PROMPT} Der Nutzer heißt ${state.config.displayName}.`
+      : DEFAULT_SYSTEM_PROMPT
     const chatMessages = [
-      { role: 'system', content: DEFAULT_SYSTEM_PROMPT },
+      { role: 'system', content: system },
       ...state.agent.messages.map((m) => ({
         role: m.role === 'agent' ? 'assistant' : 'user',
         content: m.text,

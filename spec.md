@@ -17,11 +17,22 @@ MURKS ist eine **PWA** (installierbar, offlinefähig), gebaut mit **Vite + Solid
 
 ## Architektur-Entscheidungen
 * **State:** `createStore` (Solid) mit automatischer Persistenz in `localStorage`. Kein Backend, keine Cloud – alles lokal im Browser.
-* **Routing:** `@solidjs/router`. Keine Navigationsleiste. Beim Laden entscheidet der Default-Agent: vorhanden → Chat, fehlend → Config. Config nur über einen kleinen ⚙-Knopf (Ecke) oder Swipe-Geste erreichbar.
+* **Routing:** `@solidjs/router`. Keine Navigationsleiste. Beim Erststart ohne fertigen Default-Agent → Setup-Wizard; danach: Default-Agent vorhanden → Chat, fehlend → Config (nicht schließbar). Config nur über einen kleinen ⚙-Knopf (Ecke) oder Swipe-Geste erreichbar.
 * **Agent:** Chat spricht ein **OpenAI-kompatibles** Endpoint an (`POST {base}/chat/completions`). Endpoint und Model werden in der Config gepflegt.
 * **Agent-Profile:** Vergangene Agenten werden als Liste gespeichert. Ein Agent ist Default, er wird im Chat verwendet. Profile sind anlegbar, editierbar, löschbar.
 * **Lokale AIs:** Netzwerk-lokale oder lokale Modelle (z.B. Ollama unter `http://localhost:11434/v1`, LM Studio unter `http://localhost:1234/v1`) funktionieren offline – Browser erlauben `localhost`-Fetches aus HTTPS-Seiten.
 * **Offline-Fähigkeit:** Statische Assets werden vom Service Worker geprecacht; Netzwerk-Features (externe Agent-Endpoints) brauchen Verbindung.
+
+## Onboarding (Setup-Wizard)
+
+Beim Erststart (kein gültiger Default-Agent, `setupDone` nicht gesetzt) erscheint ein vierstufiger Wizard statt der Config:
+
+1. **Name** — `displayName`, fließt in den System-Prompt des Agenten ein
+2. **Agent** — Endpoint, API-Key, Modell (Abrufen-Liste). Ohne Endpoint + Modell geht es nicht weiter
+3. **Stimme** — STT-Modus/-Modellgröße, TTS-Modus (Defaults: lokal)
+4. **Modelle** — Whisper + MMS-TTS herunterladen mit Fortschrittsanzeige (MB + Prozent), einzeln überspringbar
+
+Wizard gesamt überspringbar (`setupDone = true`) — dann übernimmt das Config-Modal (nicht schließbar, bis ein gültiger Agent existiert). Modell-Downloads sind auch später in der Config möglich (mit Fortschrittsanzeige). Formular-Sektionen (Agent/STT/TTS) werden als Komponenten zwischen Wizard und Config geteilt.
 
 ## Scope
 Hauptsächlich für den Eigengebrauch eines Nutzers. Kein Mehrbenutzer-Betrieb, keine Serverkomponente geplant. Der Fokus liegt auf einer agentengesteuerten Chat-View plus lokaler Config.
