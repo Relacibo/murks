@@ -28,13 +28,37 @@ export const TOOLS: ToolDef[] = [
         type: 'object',
         properties: {
           name: { type: 'string', description: 'Name, z.B. "Reis"' },
+          icon: { type: 'string', description: 'Passendes Emoji, z.B. "🍚" — identifiziert den Strang visuell' },
           steps: {
             type: 'array',
-            items: { type: 'string' },
-            description: 'Schrittfolge als kurze Anweisungen',
+            items: {
+              type: 'object',
+              properties: {
+                summary: { type: 'string', description: 'Kurzbezeichnung, max. 2 Wörter, z.B. "Teig anrühren"' },
+                description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt)' },
+              },
+              required: ['summary', 'description'],
+            },
+            description: 'Schrittfolge',
           },
         },
-        required: ['name', 'steps'],
+        required: ['name', 'icon', 'steps'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_step',
+      description: 'Schritt an einen bestehenden Strang anhängen.',
+      parameters: {
+        type: 'object',
+        properties: {
+          strang_id: { type: 'string' },
+          summary: { type: 'string', description: 'Kurzbezeichnung, max. 2 Wörter, z.B. "Abschmecken"' },
+          description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt)' },
+        },
+        required: ['strang_id', 'summary', 'description'],
       },
     },
   },
@@ -177,17 +201,53 @@ export function executeTool(name: string, args: Record<string, unknown>): string
         return JSON.stringify(state.cook)
       case 'add_strang': {
         const strangName = String(args.name ?? '').trim()
-        const steps = Array.isArray(args.steps) ? args.steps.map(String) : []
+        const icon = String(args.icon ?? '').trim()
+        const steps = Array.isArray(args.steps)
+          ? args.steps.map((st) => {
+              if (typeof st === 'string') return { summary: st, description: '' }
+              const o = (st ?? {}) as Record<string, unknown>
+              return {
+                summary: String(o.summary ?? '').trim(),
+                description: String(o.description ?? '').trim(),
+              }
+            })
+          : []
         if (!strangName) return JSON.stringify({ error: 'name fehlt' })
+        if (steps.length === 0 || steps.some((s) => s.summary === '')) {
+          return JSON.stringify({ error: 'steps brauchen mindestens eine summary' })
+        }
         const id = crypto.randomUUID()
         const color = STRANG_COLORS[state.cook.strangs.length % STRANG_COLORS.length]
         setState('cook', 'strangs', (s) => [
           ...s,
-          { id, name: strangName, color, steps, stepIndex: 0, done: false, timerEndsAt: null, timerInstruction: null, timerExpired: false },
+          {
+            id,
+            name: strangName,
+            icon: icon || null,
+            color,
+            steps: steps.map((st) => ({ ...st, description: st.description || st.summary })),
+            stepIndex: 0,
+            done: false,
+            timerEndsAt: null,
+            timerInstruction: null,
+            timerExpired: false,
+          },
         ])
         setState('cook', 'focusedStrangId', id)
         showToast(`Strang: ${strangName}`)
         return JSON.stringify({ id, name: strangName })
+      }
+      case 'add_step': {
+        const id = String(args.strang_id ?? '')
+        const summary = String(args.summary ?? '').trim()
+        const description = String(args.description ?? '').trim()
+        const strang = findStrang(id)
+        if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
+        if (!summary) return JSON.stringify({ error: 'summary fehlt' })
+        const step = { summary, description: description || summary }
+        patchStrang(id, { steps: [...strang.steps, step] })
+        showToast(`${strang.name}: + „${summary}"`)
+        return JSON.stringify({ ok: true, step_index: strang.steps.length })
       }
       case 'set_step': {
         const id = String(args.strang_id ?? '')

@@ -14,14 +14,15 @@ export interface AgentProfile {
 const DEFAULT_SYSTEM_PROMPT = [
   'Du bist MURKS, die KI einer Rezeptkochsoftware. Dein Name ist Murks — du reagierst auf diese Anrede.',
   'Du hilfst beim Kochen: Gerichte planen, Schritte koordinieren, Timer setzen, parallele Kochstränge im Blick behalten.',
-  'Schritte sind kurze, aber vollständige Anweisungen mit Zutaten, Mengen und Methode — keine bloßen Überschriften. „Teig anrühren" ist unbrauchbar; richtig: „Mehl, Eier und Milch glatt verrühren". Jeder Schritt muss eigenständig ausführbar sein.',
+  'Jeder Schritt hat eine summary (max. 2 Wörter, z.B. „Teig anrühren") und eine description (vollständige, eigenständig ausführbare Anweisung mit Zutaten, Mengen und Methode; Markdown erlaubt).',
+  'Vergib beim Anlegen eines Strangs ein passendes Emoji als icon (z.B. 🍚 für Reis) — es identifiziert den Strang visuell.',
   'Wir sprechen per Stimme: Der Nutzer diktiert seine Eingaben, deine Antworten werden vorgelesen. Sprich natürlich wie ein Gesprächspartner, nicht wie ein Textprogramm.',
   'Ton: trocken, direkt, präzise — aber hilfsbereit und zugewandt, nie abweisend oder herablassend. Keine leeren Floskeln, kein Smalltalk, keine Emojis, keine Sternchen-Gesten wie *lacht*.',
   'Weise Themen nie brüsk ab — Antworten wie „Kein Kochbezug" oder „Ende" sind verboten. Passt etwas nicht zum Kochen, überleite kurz und sachlich zu einer konkreten Kochfrage.',
   'Deine Antworten werden vorgelesen: kurze Sätze, keine Markdown-Formatierung, keine Listen.',
   'Der Nutzer spricht per Spracherkennung, die Fehler machen kann. Bei offensichtlich verrauschtem oder unsinnigem Input frage höchstens einmal kurz und freundlich nach und übergehe es danach.',
   'Wenn keine Antwort nötig ist — z.B. reine Bestätigung, Geräusch oder verrauschtes Transkript — antworte ausschließlich mit „OK." und sonst nichts. Diese Antwort wird nicht vorgelesen und nicht angezeigt.',
-  'Du hast Werkzeuge, um die Kochoberfläche zu steuern: add_strang, set_step, start_timer, cancel_timer, complete_strang, focus_strang, add_zutaten, toggle_zutaten, open_zutaten, close_zutaten, get_cook_state.',
+  'Du hast Werkzeuge, um die Kochoberfläche zu steuern: add_strang, add_step, set_step, start_timer, cancel_timer, complete_strang, focus_strang, add_zutaten, toggle_zutaten, open_zutaten, close_zutaten, get_cook_state.',
   'Rufe get_cook_state auf, wenn du den aktuellen Stand nicht kennst. Kommentiere Werkzeug-Aktionen nicht — die Oberfläche bestätigt sie selbst. Antworte nur „OK." oder sprich, wenn es inhaltlich etwas zu sagen gibt.',
   'Antworte so kurz wie möglich. Nutze verfügbare Werkzeuge, statt Dinge in Text zu beschreiben.',
 ].join(' ')
@@ -60,11 +61,17 @@ export type StrangColor = 'cyan' | 'violet' | 'amber' | 'emerald' | 'rose' | 'sk
 
 export const STRANG_COLORS: StrangColor[] = ['cyan', 'violet', 'amber', 'emerald', 'rose', 'sky']
 
+export interface Step {
+  summary: string
+  description: string
+}
+
 export interface Strang {
   id: string
   name: string
+  icon: string | null
   color: StrangColor
-  steps: string[]
+  steps: Step[]
   stepIndex: number
   done: boolean
   timerEndsAt: number | null
@@ -100,7 +107,7 @@ export interface AppState {
   }
 }
 
-const STORAGE_KEY = 'murks:state:v2'
+const STORAGE_KEY = 'murks:state:v3'
 
 const defaults: AppState = {
   config: {
@@ -164,8 +171,19 @@ function load(): AppState {
       defaultAgentId,
       cook: {
         strangs: Array.isArray(data.cook?.strangs)
-          ? data.cook.strangs.map((s: Partial<Strang>) => ({
+          ? data.cook.strangs.map((s: Partial<Strang> & { steps?: (string | Step)[] }) => ({
               ...s,
+              icon: typeof s.icon === 'string' && s.icon.trim() !== '' ? s.icon.trim() : null,
+              steps: Array.isArray(s.steps)
+                ? s.steps.map((st) =>
+                    typeof st === 'string'
+                      ? { summary: st, description: '' }
+                      : {
+                          summary: String(st?.summary ?? '').trim(),
+                          description: String(st?.description ?? '').trim(),
+                        },
+                  )
+                : [],
               color: STRANG_COLORS.includes(s.color as StrangColor)
                 ? (s.color as StrangColor)
                 : STRANG_COLORS[0],
