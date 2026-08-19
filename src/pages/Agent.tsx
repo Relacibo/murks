@@ -88,8 +88,16 @@ export function Agent(props: AgentProps) {
     showToast(`STT: ${message}`)
   }
 
+  function isNoiseTranscript(text: string): boolean {
+    const t = text.trim().toLowerCase()
+    if (!t) return true
+    if (/^\*[^*]+\*$/.test(t) || /^\([^)]+\)$/.test(t)) return true
+    const noise = ['lacht', 'lachen', 'gelächter', 'klingeln', 'musik', 'applaus', 'geräusch', 'summen']
+    return noise.includes(t)
+  }
+
   function finishUtterance(text: string) {
-    if (!text) return
+    if (!text || isNoiseTranscript(text)) return
     if (ready()) sendMessage(text)
     else setInput(text)
   }
