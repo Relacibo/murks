@@ -2,8 +2,8 @@
 
 > **M**URKS — **u**nterwürfige **R**ezept**k**och**s**oftware
 
-PWA auf Basis von Vite + SolidJS + Tailwind. Trocken, minimalistisch, direkt —
-mit einer Prise Unterwürfigkeit. Keine Höflichkeitsfloskeln.
+PWA auf Basis von Vite + SolidJS + Tailwind. Trocken, minimalistisch, direkt.
+Keine Höflichkeitsfloskeln.
 
 <!-- Alternative, rekursiv elegant: **M**inimal **u**nterwürfig, **r**echt **k**östlich, **s**elten Murks -->
 
