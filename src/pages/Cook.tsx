@@ -318,8 +318,8 @@ export function Cook() {
             </div>
           }
         >
-          {/* Desktop: so viele Stränge wie passen, Rest wrappt, Navigation snappt */}
-          <div class="hidden sm:flex flex-wrap content-start gap-4 p-4">
+          {/* Desktop: so viele Stränge wie passen, zentriert, Rest wrappt, Navigation snappt */}
+          <div class="hidden sm:flex flex-wrap content-start justify-center gap-4 p-4">
             <For each={strangs()}>
               {(s) => (
                 <div
