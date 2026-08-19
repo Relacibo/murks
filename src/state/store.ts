@@ -1,5 +1,6 @@
 import { createEffect } from 'solid-js'
 import { createStore } from 'solid-js/store'
+import { showToast } from '../lib/toast'
 
 export interface AgentProfile {
   id: string
@@ -225,10 +226,7 @@ export async function sendMessage(text: string) {
       '(leere Antwort)'
     setState('agent', 'messages', (m) => [...m, msg('agent', content)])
   } catch (e) {
-    setState('agent', 'messages', (m) => [
-      ...m,
-      msg('agent', `Fehler: ${e instanceof Error ? e.message : String(e)}`, true),
-    ])
+    showToast(`Agent: ${e instanceof Error ? e.message : String(e)}`)
   } finally {
     setState('agent', 'busy', false)
   }

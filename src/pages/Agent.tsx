@@ -1,9 +1,10 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, type Accessor, type Setter } from 'solid-js'
 import type { MicVAD } from '@ricky0123/vad-web'
-import { state, sendMessage, clearMessages, pushAgentMessage } from '../state/store'
+import { state, sendMessage, clearMessages } from '../state/store'
 import { transcribeAudio, createWebSpeechRecognition, isSttModelCached } from '../lib/stt'
 import { createVoice } from '../lib/voice'
 import { speak, stopSpeaking } from '../lib/tts'
+import { showToast } from '../lib/toast'
 
 interface AgentProps {
   configOpen: Accessor<boolean>
@@ -23,7 +24,7 @@ export function Agent(props: AgentProps) {
   let vad: MicVAD | null = null
   let recognition: ReturnType<typeof createWebSpeechRecognition> = null
   let feedRef: HTMLDivElement | undefined
-  let lastSpoken: { text: string } | undefined
+  let lastSpoken: { text: string } | undefined = state.agent.messages[state.agent.messages.length - 1]
   let sttCheckToken = 0
 
   createEffect(() => {
@@ -62,7 +63,7 @@ export function Agent(props: AgentProps) {
   })
 
   function pushError(message: string) {
-    pushAgentMessage('agent', `STT-Fehler: ${message}`, true)
+    showToast(`STT: ${message}`)
   }
 
   function finishUtterance(text: string) {

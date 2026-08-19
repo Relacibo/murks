@@ -1,5 +1,6 @@
-import { state, pushAgentMessage } from '../state/store'
+import { state } from '../state/store'
 import type { DownloadProgress } from './modelProgress'
+import { showToast } from './toast'
 
 const TTS_VOICE = 'de_DE-thorsten-high'
 const PIPER_CACHE_KEY = 'murks-piper'
@@ -12,7 +13,6 @@ interface PiperBundle {
 }
 
 let progressCb: ((p: DownloadProgress) => void) | null = null
-
 class CacheVoiceProvider {
   async fetch(url: string): Promise<unknown> {
     const cache = await caches.open(PIPER_CACHE_KEY)
@@ -26,15 +26,19 @@ class CacheVoiceProvider {
     if (!res.ok) throw new Error(`Could not fetch: ${url}`)
     const total = Number(res.headers.get('content-length') ?? 0)
     const reader = res.body?.getReader()
-    if (reader && total > 0) {
-      const chunks: BlobPart[] = []
-      let loaded = 0
-      for (;;) {
-        const { done, value } = await reader.read()
-        if (done) break
-        if (value) {
-          chunks.push(Uint8Array.from(value))
-          loaded += value.length
+    if (!reader) {
+      await cache.put(url, res.clone())
+      return url.endsWith('.json') ? res.json() : URL.createObjectURL(await res.blob())
+    }
+    const chunks: BlobPart[] = []
+    let loaded = 0
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (value) {
+        chunks.push(Uint8Array.from(value))
+        loaded += value.length
+        if (total > 0) {
           progressCb?.({
             status: 'progress',
             file: fileName,
@@ -44,13 +48,11 @@ class CacheVoiceProvider {
           })
         }
       }
-      const body = new Blob(chunks, { type: res.headers.get('content-type') ?? '' })
-      const full = new Response(body, { status: res.status, headers: res.headers })
-      await cache.put(url, full.clone())
-      return url.endsWith('.json') ? full.json() : URL.createObjectURL(await full.blob())
     }
-    await cache.put(url, res.clone())
-    return url.endsWith('.json') ? res.json() : URL.createObjectURL(await res.blob())
+    const body = new Blob(chunks, { type: res.headers.get('content-type') ?? '' })
+    const full = new Response(body, { status: res.status, headers: res.headers })
+    await cache.put(url, full.clone())
+    return url.endsWith('.json') ? full.json() : URL.createObjectURL(await full.blob())
   }
 }
 
@@ -59,15 +61,20 @@ let piperPromise: Promise<PiperBundle> | null = null
 function getPiper(): Promise<PiperBundle> {
   if (!piperPromise) {
     piperPromise = (async () => {
-      const { PiperWebEngine, OnnxWebRuntime, PhonemizeWebRuntime, RemoteVoiceProvider } =
-        await import('piper-tts-web')
+      const {
+        PiperWebWorkerEngine,
+        OnnxWebWorkerRuntime,
+        PhonemizeWebRuntime,
+        RemoteVoiceProvider,
+      } = await import('piper-tts-web')
       const provider = new RemoteVoiceProvider({
         provider: new CacheVoiceProvider(),
         baseUrl: PIPER_VOICE_BASE_URL,
       })
-      const engine = new PiperWebEngine({
-        onnxRuntime: new OnnxWebRuntime({ basePath: `${PIPER_BASE_PATH}onnx/` }),
+      const engine = new PiperWebWorkerEngine({
+        onnxRuntime: new OnnxWebWorkerRuntime({ basePath: `${PIPER_BASE_PATH}onnx/` }),
         phonemizeRuntime: new PhonemizeWebRuntime({ basePath: PIPER_BASE_PATH }),
+        expressionRuntime: { destroy() {} },
         voiceProvider: provider,
       })
       return { engine, provider }
@@ -186,11 +193,7 @@ export async function speak(text: string) {
         await speakWasm(clean, myToken)
     }
   } catch (e) {
-    pushAgentMessage(
-      'agent',
-      `TTS-Fehler: ${e instanceof Error ? e.message : String(e)}`,
-      true,
-    )
+    showToast(`TTS: ${e instanceof Error ? e.message : String(e)}`)
   }
 }
 

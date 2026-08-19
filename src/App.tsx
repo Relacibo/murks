@@ -5,6 +5,7 @@ import { Agent } from './pages/Agent'
 import { ConfigModal } from './pages/Config'
 import { CookMock } from './pages/CookMock'
 import { Setup } from './pages/Setup'
+import { Toasts } from './components/Toasts'
 import { state } from './state/store'
 
 const base =
@@ -63,6 +64,7 @@ export default function App() {
           }}
           dismissible={dismissible()}
         />
+        <Toasts />
       </div>
     </ConfigContext.Provider>
   )

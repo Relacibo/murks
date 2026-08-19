@@ -13,7 +13,18 @@ declare module 'piper-tts-web' {
     ): Promise<{ file: Blob; duration: number; phonemeData: unknown }>
     destroy(): void
   }
+  export class PiperWebWorkerEngine extends PiperWebEngine {
+    constructor(options?: {
+      onnxRuntime?: unknown
+      phonemizeRuntime?: unknown
+      expressionRuntime?: unknown
+      voiceProvider?: unknown
+    })
+  }
   export class OnnxWebRuntime {
+    constructor(options?: { basePath?: string; numThreads?: number })
+  }
+  export class OnnxWebWorkerRuntime {
     constructor(options?: { basePath?: string; numThreads?: number })
   }
   export class PhonemizeWebRuntime {

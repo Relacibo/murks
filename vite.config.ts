@@ -1,11 +1,26 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import solid from 'vite-plugin-solid'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+function fixPiperWorkerPaths(): Plugin {
+  return {
+    name: 'fix-piper-worker-paths',
+    enforce: 'pre',
+    transform(code, id) {
+      if (!id.includes('piper-tts-web')) return
+      return code.replace(
+        '"/worker/OnnxWebWorker.js"',
+        'import.meta.env.BASE_URL + "piper/worker/OnnxWebWorker.js"',
+      )
+    },
+  }
+}
+
 export default defineConfig({
   base: process.env.BASE_URL ?? '/',
   plugins: [
+    fixPiperWorkerPaths(),
     solid(),
     tailwindcss(),
     VitePWA({
