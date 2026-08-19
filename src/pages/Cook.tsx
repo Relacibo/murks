@@ -32,12 +32,20 @@ export function Cook() {
     }
   })
 
+  const showTranscript = () => {
+    const t = voice.lastTranscript()
+    return t !== null && tick() > 0 && Date.now() - t.at < 10_000
+  }
+  const showAgentText = () =>
+    lastAgent() !== null && tick() > 0 && Date.now() - lastAgent()!.at < 12_000
+
   const barVisible = () =>
     voice.listening() ||
     voice.transcribing() ||
     voice.speaking() ||
     state.agent.busy ||
-    (lastAgent() !== null && tick() > 0 && Date.now() - lastAgent()!.at < 8000)
+    showTranscript() ||
+    showAgentText()
 
   const strangs = () => state.cook.strangs
 
@@ -442,6 +450,17 @@ export function Cook() {
 
       {/* ── Voice-Overlay: erscheint bei Aktivität, sonst versteckt ───── */}
       <div class="voice-overlay" classList={{ 'is-visible': barVisible() }}>
+        {/* Erkannte Eingabe (STT-Text) */}
+        <Show when={showTranscript()}>
+          <div class="transcript-strip">
+            <p class="text-sm text-zinc-300 line-clamp-2">
+              <span class="text-zinc-500 mr-1">🗣</span>
+              {voice.lastTranscript()!.text}
+            </p>
+          </div>
+        </Show>
+
+        {/* Status / letzte Agent-Antwort */}
         <div class="transcript-strip">
           <Show
             when={voice.transcribing()}
@@ -455,8 +474,8 @@ export function Cook() {
                       <Show
                         when={state.agent.busy}
                         fallback={
-                          <Show when={lastAgent()}>
-                            {(a) => <p class="text-sm text-zinc-400 line-clamp-2">{a().text}</p>}
+                          <Show when={showAgentText()}>
+                            <p class="text-sm text-zinc-400 line-clamp-4">{lastAgent()!.text}</p>
                           </Show>
                         }
                       >

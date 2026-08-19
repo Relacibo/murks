@@ -11,6 +11,7 @@ export interface AgentVoice {
   speaking: Accessor<boolean>
   transcribing: Accessor<boolean>
   sttReady: Accessor<boolean>
+  lastTranscript: Accessor<{ text: string; at: number } | null>
   toggleMic: () => void
   stop: () => void
   micTitle: () => string
@@ -42,6 +43,7 @@ export function createAgentVoice(opts?: {
   const [speaking, setSpeaking] = createSignal(false)
   const [transcribing, setTranscribing] = createSignal(false)
   const [sttReady, setSttReady] = createSignal(false)
+  const [lastTranscript, setLastTranscript] = createSignal<{ text: string; at: number } | null>(null)
 
   let vad: MicVAD | null = null
   let recognition: ReturnType<typeof createWebSpeechRecognition> = null
@@ -76,6 +78,7 @@ export function createAgentVoice(opts?: {
 
   function finishUtterance(text: string) {
     if (isNoiseTranscript(text)) return
+    setLastTranscript({ text, at: Date.now() })
     if (opts?.onUtterance) opts.onUtterance(text)
     else sendMessage(text)
   }
@@ -175,5 +178,5 @@ export function createAgentVoice(opts?: {
     return `Hören starten (${state.stt.mode === 'wasm' ? 'lokal' : state.stt.mode})`
   }
 
-  return { listening, speaking, transcribing, sttReady, toggleMic, stop: stopVoice, micTitle }
+  return { listening, speaking, transcribing, sttReady, lastTranscript, toggleMic, stop: stopVoice, micTitle }
 }
