@@ -1,6 +1,7 @@
-import { createEffect } from 'solid-js'
+import { createEffect, createSignal } from 'solid-js'
 import { createStore } from 'solid-js/store'
 import { showToast } from '../lib/toast'
+import { dbGet, dbPut } from '../lib/db'
 import { TOOLS, executeTool } from '../lib/tools'
 
 export interface AgentProfile {
@@ -107,8 +108,6 @@ export interface AppState {
   }
 }
 
-const STORAGE_KEY = 'murks:state:v3'
-
 const defaults: AppState = {
   config: {
     displayName: '',
@@ -140,39 +139,60 @@ const defaults: AppState = {
   },
 }
 
-function load(): AppState {
+function hydrate(data: unknown): AppState {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return defaults
-    const data = JSON.parse(raw)
-    const loadedConfig = data.config ?? {}
-    const agents: AgentProfile[] = Array.isArray(data.agents) ? data.agents : []
-    let defaultAgentId: string | null = data.defaultAgentId ?? null
+    const raw = (data ?? {}) as Record<string, unknown>
+    const loadedConfig = (raw.config ?? {}) as Record<string, unknown>
+    const agents: AgentProfile[] = Array.isArray(raw.agents) ? (raw.agents as AgentProfile[]) : []
+    let defaultAgentId: string | null = (raw.defaultAgentId as string | null) ?? null
     if (!agents.some((a) => a.id === defaultAgentId)) {
       defaultAgentId = agents[0]?.id ?? null
     }
+    const cook = (raw.cook ?? {}) as Record<string, unknown>
     return {
-      config: { displayName: loadedConfig.displayName ?? '' },
-      setupDone: data.setupDone === true,
+      config: { displayName: loadedConfig.displayName ? String(loadedConfig.displayName) : '' },
+      setupDone: raw.setupDone === true,
       stt: {
-        mode: data.stt?.mode === 'server' || data.stt?.mode === 'webspeech' ? data.stt.mode : 'wasm',
-        endpoint: data.stt?.endpoint ?? '',
-        key: data.stt?.key ?? '',
+        mode:
+          (raw.stt as Record<string, unknown> | null)?.mode === 'server' ||
+          (raw.stt as Record<string, unknown> | null)?.mode === 'webspeech'
+            ? ((raw.stt as Record<string, unknown>).mode as SttMode)
+            : 'wasm',
+        endpoint: (raw.stt as Record<string, unknown> | null)?.endpoint
+          ? String((raw.stt as Record<string, unknown>).endpoint)
+          : '',
+        key: (raw.stt as Record<string, unknown> | null)?.key
+          ? String((raw.stt as Record<string, unknown>).key)
+          : '',
         model:
-          data.stt?.model === 'tiny' || data.stt?.model === 'small' ? data.stt.model : 'base',
+          (raw.stt as Record<string, unknown> | null)?.model === 'tiny' ||
+          (raw.stt as Record<string, unknown> | null)?.model === 'small'
+            ? ((raw.stt as Record<string, unknown>).model as SttModelSize)
+            : 'base',
       },
       tts: {
-        mode: data.tts?.mode === 'server' || data.tts?.mode === 'webspeech' ? data.tts.mode : 'wasm',
-        endpoint: data.tts?.endpoint ?? '',
-        key: data.tts?.key ?? '',
-        voice: data.tts?.voice ?? '',
+        mode:
+          (raw.tts as Record<string, unknown> | null)?.mode === 'server' ||
+          (raw.tts as Record<string, unknown> | null)?.mode === 'webspeech'
+            ? ((raw.tts as Record<string, unknown>).mode as TtsMode)
+            : 'wasm',
+        endpoint: (raw.tts as Record<string, unknown> | null)?.endpoint
+          ? String((raw.tts as Record<string, unknown>).endpoint)
+          : '',
+        key: (raw.tts as Record<string, unknown> | null)?.key
+          ? String((raw.tts as Record<string, unknown>).key)
+          : '',
+        voice: (raw.tts as Record<string, unknown> | null)?.voice
+          ? String((raw.tts as Record<string, unknown>).voice)
+          : '',
       },
       agents,
       defaultAgentId,
       cook: {
-        strangs: Array.isArray(data.cook?.strangs)
-          ? data.cook.strangs.map((s: Partial<Strang> & { steps?: (string | Step)[] }) => ({
-              ...s,
+        strangs: Array.isArray(cook.strangs)
+          ? (cook.strangs as (Partial<Strang> & { steps?: (string | Step)[] })[]).map((s) => ({
+              id: String(s.id ?? ''),
+              name: String(s.name ?? ''),
               icon: typeof s.icon === 'string' && s.icon.trim() !== '' ? s.icon.trim() : null,
               steps: Array.isArray(s.steps)
                 ? s.steps.map((st) =>
@@ -187,17 +207,21 @@ function load(): AppState {
               color: STRANG_COLORS.includes(s.color as StrangColor)
                 ? (s.color as StrangColor)
                 : STRANG_COLORS[0],
-              timerExpired: s.timerExpired === true,
+              stepIndex: typeof s.stepIndex === 'number' ? s.stepIndex : 0,
+              done: s.done === true,
               timerEndsAt: s.timerEndsAt ?? null,
               timerInstruction: s.timerInstruction ?? null,
+              timerExpired: s.timerExpired === true,
             }))
           : [],
-        zutaten: Array.isArray(data.cook?.zutaten) ? data.cook.zutaten : [],
-        focusedStrangId: data.cook?.focusedStrangId ?? null,
-        zutatenOpen: data.cook?.zutatenOpen === true,
+        zutaten: Array.isArray(cook.zutaten) ? (cook.zutaten as Zutat[]) : [],
+        focusedStrangId: (cook.focusedStrangId as string | null) ?? null,
+        zutatenOpen: cook.zutatenOpen === true,
       },
       agent: {
-        messages: Array.isArray(data.agent?.messages) ? data.agent.messages : [],
+        messages: Array.isArray((raw.agent as Record<string, unknown> | null)?.messages)
+          ? ((raw.agent as Record<string, unknown>).messages as AgentMessage[])
+          : [],
         busy: false,
       },
     }
@@ -206,10 +230,29 @@ function load(): AppState {
   }
 }
 
-export const [state, setState] = createStore<AppState>(load())
+export const [state, setState] = createStore<AppState>(defaults)
 
+const [ready, setReady] = createSignal(false)
+export const stateReady = ready
+
+async function init() {
+  try {
+    setState(hydrate(await dbGet<unknown>()))
+  } catch (e) {
+    console.error('IndexedDB laden fehlgeschlagen', e)
+  }
+  setReady(true)
+}
+init()
+
+let saveTimer: ReturnType<typeof setTimeout> | undefined
 createEffect(() => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  if (!ready()) return
+  const snapshot = JSON.parse(JSON.stringify(state)) as AppState
+  clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => {
+    dbPut(snapshot).catch((e) => console.error('IndexedDB speichern fehlgeschlagen', e))
+  }, 300)
 })
 
 export function setConfig(patch: Partial<Config>) {

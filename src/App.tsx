@@ -1,4 +1,4 @@
-import { createSignal, createMemo, onMount, createContext, useContext, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, onMount, createContext, useContext, Show } from 'solid-js'
 import type { Accessor, Setter } from 'solid-js'
 import { Router, Route } from '@solidjs/router'
 import { Agent } from './pages/Agent'
@@ -7,7 +7,7 @@ import { CookMock } from './pages/CookMock'
 import { Cook } from './pages/Cook'
 import { Setup } from './pages/Setup'
 import { Toasts } from './components/Toasts'
-import { state } from './state/store'
+import { state, stateReady } from './state/store'
 
 const base =
   import.meta.env.BASE_URL === '/' ? undefined : import.meta.env.BASE_URL.replace(/\/+$/, '')
@@ -52,7 +52,10 @@ export default function App() {
   const showSetup = createMemo(() => !isMock && !state.setupDone && !initialValid)
 
   onMount(() => {
-    if (!isMock && !hasValidAgent() && state.setupDone) setConfigOpen(true)
+    createEffect(() => {
+      if (!stateReady()) return
+      if (!isMock && !hasValidAgent() && state.setupDone) setConfigOpen(true)
+    })
   })
 
   const dismissible = createMemo(() => hasValidAgent())
@@ -60,11 +63,20 @@ export default function App() {
   return (
     <ConfigContext.Provider value={{ configOpen, setConfigOpen }}>
       <div class="min-h-screen bg-zinc-950 text-zinc-100">
-        <Show when={!showSetup()} fallback={<Setup />}>
-          <Router base={base}>
-            <Route path="/mock" component={CookMock} />
-            <Route path="*" component={CookingRoute} />
-          </Router>
+        <Show
+          when={stateReady()}
+          fallback={
+            <div class="min-h-screen flex items-center justify-center">
+              <span class="text-sm font-bold tracking-widest uppercase text-zinc-300">MURKS</span>
+            </div>
+          }
+        >
+          <Show when={!showSetup()} fallback={<Setup />}>
+            <Router base={base}>
+              <Route path="/mock" component={CookMock} />
+              <Route path="*" component={CookingRoute} />
+            </Router>
+          </Show>
         </Show>
         <ConfigModal
           open={configOpen()}
