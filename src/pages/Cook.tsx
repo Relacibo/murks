@@ -3,6 +3,11 @@ import { useConfig } from '../App'
 import { state, expireTimers, type Strang } from '../state/store'
 import { executeTool, fmtRemaining } from '../lib/tools'
 import { createAgentVoice } from '../lib/agentVoice'
+import {
+  FiMic, FiMicOff, FiMoreHorizontal, FiFileText, FiSettings,
+  FiArrowUp, FiArrowDown, FiChevronLeft, FiChevronRight,
+  FiRotateCcw, FiCheckCircle, FiCheck, FiBell, FiX,
+} from 'solid-icons/fi'
 
 export function Cook() {
   const { configOpen, setConfigOpen } = useConfig()
@@ -122,7 +127,7 @@ export function Cook() {
               Schritt {(previewStep() ?? s().stepIndex) + 1} / {s().steps.length}
             </span>
             <Show when={s().timerExpired}>
-              <span class="text-base leading-none">🔔</span>
+              <FiBell size={14} class="text-orange-400" />
             </Show>
           </div>
         </div>
@@ -185,7 +190,7 @@ export function Cook() {
               aria-label="Vorheriger Schritt"
               disabled={shownIdx() === 0}
             >
-              ↑
+              <FiArrowUp />
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); stepNext() }}
@@ -193,7 +198,7 @@ export function Cook() {
               aria-label="Nächster Schritt"
               disabled={shownIdx() >= s().steps.length - 1}
             >
-              ↓
+              <FiArrowDown />
             </button>
           </div>
 
@@ -210,17 +215,17 @@ export function Cook() {
                     setPreview(s().id, null)
                   }}
                 >
-                  ↩
+                  <FiRotateCcw />
                 </button>
               }
             >
               <button
-                class="done-btn-round"
+                class="icon-btn text-emerald-400 border-emerald-700 hover:border-emerald-500 hover:text-emerald-300"
                 onClick={(e) => { e.stopPropagation(); executeTool('complete_strang', { strang_id: s().id }) }}
                 title="Strang fertig"
                 aria-label="Strang fertig"
               >
-                ✓
+                <FiCheckCircle />
               </button>
             </Show>
           </Show>
@@ -249,10 +254,10 @@ export function Cook() {
           Schritt {s().stepIndex + 1}/{s().steps.length}
         </span>
         <Show when={s().done}>
-          <span class="text-emerald-400 shrink-0">✓</span>
+          <FiCheck size={14} class="text-emerald-400 shrink-0" />
         </Show>
         <Show when={!s().done && s().timerExpired}>
-          <span class="shrink-0">🔔</span>
+          <FiBell size={14} class="shrink-0 text-orange-400" />
         </Show>
         <Show when={!s().done && !s().timerExpired && s().timerEndsAt !== null}>
           <span class="font-mono text-xs font-semibold text-zinc-300 shrink-0">
@@ -271,9 +276,9 @@ export function Cook() {
           {/* Globale Strang-Navigation */}
           <Show when={strangs().length > 1}>
             <div class="flex items-center gap-1">
-              <button onClick={prev} class="nav-btn text-sm" aria-label="Vorheriger Strang">‹</button>
+              <button onClick={prev} class="nav-btn" aria-label="Vorheriger Strang"><FiChevronLeft /></button>
               <span class="text-xs text-zinc-500">{activeIdx() + 1}/{strangs().length}</span>
-              <button onClick={next} class="nav-btn text-sm" aria-label="Nächster Strang">›</button>
+              <button onClick={next} class="nav-btn" aria-label="Nächster Strang"><FiChevronRight /></button>
             </div>
           </Show>
         </div>
@@ -286,10 +291,16 @@ export function Cook() {
             title={voice.micTitle()}
             aria-label="Mikrofon umschalten"
           >
-            {voice.transcribing() ? '…' : voice.listening() ? '■' : '🎤'}
+            <Show when={voice.transcribing()} fallback={
+              <Show when={voice.listening()} fallback={<FiMicOff size={20} />}>
+                <FiMic size={20} />
+              </Show>
+            }>
+              <FiMoreHorizontal size={20} class="animate-pulse" />
+            </Show>
           </button>
-          <button class="icon-btn" onClick={() => executeTool('open_zutaten', {})} title="Zutaten">🧾</button>
-          <button class="icon-btn" onClick={() => setConfigOpen(true)} title="Konfiguration">⚙</button>
+          <button class="icon-btn" onClick={() => executeTool('open_zutaten', {})} title="Zutaten"><FiFileText size={16} /></button>
+          <button class="icon-btn" onClick={() => setConfigOpen(true)} title="Konfiguration"><FiSettings size={16} /></button>
         </div>
       </header>
 
@@ -315,7 +326,7 @@ export function Cook() {
                 class="chip is-expired"
                 data-color={s.color}
               >
-                🔔
+                <FiBell size={12} />
               </button>
             )}
           </For>
@@ -413,10 +424,10 @@ export function Cook() {
             <div class="flex items-center justify-between px-5 py-4 border-b border-zinc-600 sticky top-0 bg-zinc-950">
               <h2 class="text-base font-semibold">Zutaten</h2>
               <button
-                class="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-700 text-zinc-400 hover:text-zinc-100"
+                class="icon-btn"
                 onClick={() => executeTool('close_zutaten', {})}
               >
-                ✕
+                <FiX size={16} />
               </button>
             </div>
             <div class="px-4 py-2 pb-6 flex flex-col">
@@ -436,7 +447,7 @@ export function Cook() {
                         }`}
                       >
                         <Show when={item.checked}>
-                          <span class="text-zinc-100 text-xs leading-none">✓</span>
+                          <FiCheck size={12} class="text-zinc-100" />
                         </Show>
                       </div>
                       <span

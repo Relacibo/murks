@@ -151,10 +151,10 @@
 
   /* ── Buttons ────────────────────────────────────────────────────── */
   .icon-btn {
-    @apply w-9 h-9 flex items-center justify-center rounded-full border border-zinc-600 bg-zinc-700 text-zinc-400 hover:text-zinc-100 transition-colors;
+    @apply w-9 h-9 flex items-center justify-center rounded-full border border-zinc-600 bg-zinc-700 text-zinc-400 hover:bg-zinc-600 hover:text-zinc-100 transition-colors;
   }
   .nav-btn {
-    @apply w-10 h-10 flex items-center justify-center rounded-full border border-zinc-600 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 transition-colors text-lg;
+    @apply w-10 h-10 flex items-center justify-center rounded-full border border-zinc-600 text-zinc-400 hover:bg-zinc-700 hover:border-zinc-500 hover:text-zinc-200 transition-colors;
   }
   .done-btn-round {
     @apply w-12 h-12 rounded-full bg-emerald-700 border border-emerald-600 text-white text-xl flex items-center justify-center transition-colors hover:bg-emerald-600 active:scale-95;
