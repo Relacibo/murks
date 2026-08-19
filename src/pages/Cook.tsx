@@ -118,9 +118,6 @@ export function Cook() {
         <div class="flex items-center gap-2 mb-3">
           <span class="text-xs text-zinc-400 truncate flex-1 min-w-0">{s().name}</span>
           <div class="flex items-center gap-2 shrink-0">
-            <Show when={previewStep() !== null}>
-              <span class="text-xs text-zinc-500">Vorschau</span>
-            </Show>
             <span class="step-chip">
               Schritt {(previewStep() ?? s().stepIndex) + 1} / {s().steps.length}
             </span>
@@ -156,27 +153,17 @@ export function Cook() {
         </Show>
 
         <div class="flex-1 flex flex-col justify-center gap-5">
-          <Show
-            when={!s().done}
-            fallback={<p class="text-base text-zinc-400 leading-relaxed">✓ Fertig.</p>}
+          <p
+            class="text-base leading-relaxed transition-opacity"
+            classList={{
+              'text-zinc-200': previewStep() === null && !s().done,
+              'text-zinc-400 opacity-60': previewStep() !== null || s().done,
+            }}
           >
-            <p class="text-base text-zinc-200 leading-relaxed">{text()}</p>
-          </Show>
+            {text()}
+          </p>
 
-          <Show when={previewStep() !== null}>
-            <button
-              class="activate-step-btn"
-              onClick={(e) => {
-                e.stopPropagation()
-                executeTool('set_step', { strang_id: s().id, step_index: previewStep()! })
-                setPreview(s().id, null)
-              }}
-            >
-              Schritt {previewStep()! + 1} aktiv setzen
-            </button>
-          </Show>
-
-          <Show when={!s().done && !s().timerExpired && s().timerEndsAt !== null}>
+          <Show when={!s().done && !s().timerExpired && s().timerEndsAt !== null && previewStep() === null}>
             <div class="flex items-center">
               <div class="pill" classList={{ 'is-urgent': urgent() }}>
                 <span class="text-base leading-none">⏱</span>
@@ -189,7 +176,7 @@ export function Cook() {
           </Show>
         </div>
 
-        {/* ── In-card footer: step nav + done ─────────────────────── */}
+        {/* ── In-card footer: step nav + done/revert ──────────────── */}
         <div class="flex items-center justify-between mt-5 pt-4 border-t border-zinc-600">
           <div class="flex items-center gap-2">
             <button
@@ -214,13 +201,21 @@ export function Cook() {
             <Show
               when={previewStep() === null}
               fallback={
-                <button class="jump-btn" onClick={(e) => { e.stopPropagation(); setPreview(s().id, null) }}>
-                  Zum aktiven Schritt
+                <button
+                  class="icon-btn"
+                  title={`Schritt ${previewStep()! + 1} aktiv setzen`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    executeTool('set_step', { strang_id: s().id, step_index: previewStep()! })
+                    setPreview(s().id, null)
+                  }}
+                >
+                  ↩
                 </button>
               }
             >
               <button
-                class="done-btn-round"
+                class="icon-btn text-emerald-400 border-emerald-700 hover:border-emerald-500 hover:text-emerald-300"
                 onClick={(e) => { e.stopPropagation(); executeTool('complete_strang', { strang_id: s().id }) }}
                 title="Strang fertig"
               >
@@ -336,11 +331,11 @@ export function Cook() {
             </div>
           }
         >
-          {/* Desktop: fokussierte Karte breiter (2:1), alle in einer Reihe */}
-          <div class="hidden sm:flex gap-4 p-4 h-full overflow-x-auto">
+          {/* Desktop: Karten nebeneinander, max-Breite pro Karte */}
+          <div class="hidden sm:flex gap-4 p-4 h-full overflow-x-auto justify-start items-stretch">
             <For each={strangs()}>
               {(s) => (
-                <div class="desktop-slot" classList={{ 'is-expanded': s.id === active()?.id }}>
+                <div class="w-[340px] shrink-0 flex flex-col">
                   <StrangCard
                     s={s}
                     isFocused={s.id === active()?.id}
