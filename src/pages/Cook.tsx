@@ -30,6 +30,14 @@ export function Cook() {
     return a ? strangs().findIndex((s) => s.id === a.id) : 0
   })
 
+  const slotRefs: Record<string, HTMLDivElement> = {}
+  createEffect(() => {
+    const id = state.cook.focusedStrangId
+    if (!id) return
+    const el = slotRefs[id]
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  })
+
   createEffect(() => {
     // Reset all previews when strang list changes
     strangs()
@@ -230,9 +238,9 @@ export function Cook() {
       <header class="shrink-0 flex items-center justify-between px-4 py-3 border-b border-zinc-600">
         <div class="flex items-center gap-3">
           <span class="text-sm font-bold tracking-widest uppercase">MURKS</span>
-          {/* Mobile: global strang navigation */}
+          {/* Globale Strang-Navigation */}
           <Show when={strangs().length > 1}>
-            <div class="flex items-center gap-1 sm:hidden">
+            <div class="flex items-center gap-1">
               <button onClick={prev} class="nav-btn text-sm" aria-label="Vorheriger Strang">‹</button>
               <span class="text-xs text-zinc-500">{activeIdx() + 1}/{strangs().length}</span>
               <button onClick={next} class="nav-btn text-sm" aria-label="Nächster Strang">›</button>
@@ -301,7 +309,7 @@ export function Cook() {
       </Show>
 
       {/* ── Strang cards ────────────────────────────────────────────── */}
-      <main class="flex-1 min-h-0 overflow-y-auto">
+      <main class="flex-1 min-h-0 overflow-y-auto scroll-smooth snap-y snap-proximity">
         <Show
           when={strangs().length > 0}
           fallback={
@@ -310,11 +318,17 @@ export function Cook() {
             </div>
           }
         >
-          {/* Desktop: all strangs side by side */}
-          <div class="hidden sm:flex gap-4 p-4 h-full">
+          {/* Desktop: so viele Stränge wie passen, Rest wrappt, Navigation snappt */}
+          <div class="hidden sm:flex flex-wrap content-start gap-4 p-4">
             <For each={strangs()}>
               {(s) => (
-                <div class="flex-1 min-w-0 flex flex-col">
+                <div
+                  class="card-slot"
+                  ref={(el) => {
+                    if (el) slotRefs[s.id] = el
+                    else delete slotRefs[s.id]
+                  }}
+                >
                   <StrangCard
                     s={s}
                     isFocused={s.id === active()?.id}

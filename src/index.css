@@ -99,6 +99,9 @@
   }
 
   /* ── Strang-Karte ───────────────────────────────────────────────── */
+  .card-slot {
+    @apply w-[22.5rem] max-w-full shrink-0 snap-start;
+  }
   .card {
     @apply flex-1 flex flex-col rounded-2xl border bg-zinc-700 p-5 transition-colors border-zinc-600;
   }
@@ -135,8 +138,7 @@
   }
   .step-dot {
     @apply h-2.5 flex-1 rounded-full transition-colors bg-zinc-700;
-  }
-  .step-dot.is-done {
+  }  .step-dot.is-done {
     @apply bg-zinc-400;
   }
   .step-dot.is-active {
