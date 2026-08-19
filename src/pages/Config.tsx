@@ -413,7 +413,7 @@ export function ConfigModal(props: ConfigModalProps) {
                         setStt({ mode: e.currentTarget.value as 'wasm' | 'server' | 'webspeech' })
                       }
                     >
-                      <option value="wasm">Lokal (Whisper small, ~250 MB Download, offline)</option>
+                      <option value="wasm">Lokal (Whisper, offline)</option>
                       <option value="server">Server (OpenAI-kompatibel)</option>
                       <option value="webspeech">Browser-Spracherkennung (online)</option>
                     </select>
