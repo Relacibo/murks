@@ -88,18 +88,34 @@ export function Agent(props: AgentProps) {
     showToast(`STT: ${message}`)
   }
 
+  const NOISE_WORDS = [
+    'lacht',
+    'lachen',
+    'gelächter',
+    'klingeln',
+    'musik',
+    'applaus',
+    'geräusch',
+    'summen',
+  ]
+
+  function cleanTranscript(text: string): string {
+    return text
+      .replace(/\*[^*]+\*/g, ' ')
+      .replace(/\([^)]*\)/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+
   function isNoiseTranscript(text: string): boolean {
-    const t = text.trim().toLowerCase()
-    if (!t) return true
-    if (/^\*[^*]+\*$/.test(t) || /^\([^)]+\)$/.test(t)) return true
-    const noise = ['lacht', 'lachen', 'gelächter', 'klingeln', 'musik', 'applaus', 'geräusch', 'summen']
-    return noise.includes(t)
+    return NOISE_WORDS.includes(text.toLowerCase())
   }
 
   function finishUtterance(text: string) {
-    if (!text || isNoiseTranscript(text)) return
-    if (ready()) sendMessage(text)
-    else setInput(text)
+    const cleaned = cleanTranscript(text)
+    if (!cleaned || isNoiseTranscript(cleaned)) return
+    if (ready()) sendMessage(cleaned)
+    else setInput(cleaned)
   }
 
   function toggleMic() {
