@@ -29,7 +29,7 @@ export default defineConfig({
       manifest: {
         name: 'MURKS',
         short_name: 'MURKS',
-        description: 'Minimal unterwürfige Rezeptkoch-Software',
+        description: 'Minimal unterwürfige Rezeptkochsoftware',
         lang: 'de',
         theme_color: '#18181b',
         background_color: '#18181b',
