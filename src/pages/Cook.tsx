@@ -365,11 +365,16 @@ export function Cook(props: {
           <Show when={stateName() === 'blocked'}>
             <FiLock size={12} class="shrink-0 opacity-60" />
           </Show>
-          <Show when={stateName() === 'done'}>
-            <FiCheck size={12} class="shrink-0" />
-          </Show>
-          <Show when={st().timerExpired}>
-            <FiBell size={12} class="text-orange-400 shrink-0" />
+          {/* Timer läuft: 🔔 statt ✓ — nach Ablauf nur das ✓ */}
+          <Show
+            when={stateName() === 'done' && st().timerEndsAt !== null && !st().timerExpired}
+            fallback={
+              <Show when={stateName() === 'done'}>
+                <FiCheck size={12} class="shrink-0" />
+              </Show>
+            }
+          >
+            <FiBell size={12} class="text-amber-300 shrink-0" />
           </Show>
           <Show when={countdownEndsAt() !== null}>
             <span
@@ -516,12 +521,14 @@ export function Cook(props: {
         const now = next.get(k)
         if (now === undefined) continue
         if (prev === undefined) {
+          // Leicht verzögert, damit erst die alte Karte (Ghost) wegfliegt
+          // und das Reinkommen des Nachfolgers sichtbar wird
           el.animate(
             [
               { transform: 'translateX(48px)', opacity: 0 },
               { transform: 'translateX(0)', opacity: 1 },
             ],
-            { duration: 300, easing: 'ease-out' },
+            { duration: 320, easing: 'ease-out', delay: 140 },
           )
         } else if (Math.abs(prev - now) > 1) {
           el.animate(

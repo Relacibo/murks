@@ -311,13 +311,13 @@ Mehrere Karten stehen untereinander (Stapel).
   (sie rücken in die Vorschau).
 - Sichtbar: **Countdown im Kartenband nur auf den wartenden Karten** (die den Timer als
   Bedingung haben). Die Karte, die den Timer auslöst, zeigt keinen Countdown im Band —
-  vorher nur der ⏱-Button, danach 🔔 bei Ablauf. Topbar-Timer-Chips (nur Emoji + Zeit)
+  vorher nur der ⏱-Button. **Solange ihr Timer läuft: 🔔 statt ✓ im Band; nach Ablauf
+  nur das ✓** (kein Bell). Topbar-Timer-Chips (nur Emoji + Zeit)
   zeigen nur Timer, auf die eine offene Karte wartet — Timer ohne abhängige Karten
   erscheinen dort nicht.
 - **Klick auf einen Timer-Chip markiert alle abhängigen Karten** (kurzer Puls,
   wo immer sie gerade sichtbar sind).
-- Dringlichkeit: Orange + Pulsieren < 2 min; bei Ablauf verschwindet der Topbar-Chip sofort
-  (Bell bleibt nur auf der Schritt-Karte).
+- Dringlichkeit: Amber + Pulsieren < 30 s; bei Ablauf verschwindet der Topbar-Chip sofort.
 - Bei Ablauf: KI navigiert aktiv zum betroffenen Schritt (`show_step`).
 - `complete_flow` bricht alle Schritt-Timer des Flows ab.
 
