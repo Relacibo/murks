@@ -51,16 +51,18 @@ export function Cook(props: {
     const t = voice.lastTranscript()
     return t !== null && tick() > 0 && Date.now() - t.at < 10_000
   }
-  const showAgentText = () =>
-    lastAgent() !== null && tick() > 0 && Date.now() - lastAgent()!.at < 12_000
+  /* Letzte Agent-Antwort: solange die TTS spricht immer sichtbar,
+     danach noch 12 s */
+  const showAgentText = () => {
+    const a = lastAgent()
+    return (
+      a !== null && tick() > 0 && (voice.speaking() || Date.now() - a.at < 12_000)
+    )
+  }
 
-  const barVisible = () =>
-    voice.listening() ||
-    voice.transcribing() ||
-    voice.speaking() ||
-    state.agent.busy ||
-    showTranscript() ||
-    showAgentText()
+  /* Transiente Zustände, die einen Status-Strip brauchen */
+  const showStatus = () =>
+    voice.transcribing() || voice.listening() || state.agent.busy
 
   /* ── Globale Eingabe (Composer-Bar): Text + Mikrofon ────────────────
      Eingeklappt nur ein runder Sprechblasen-Button (sticky unten rechts);
@@ -408,13 +410,27 @@ export function Cook(props: {
     }
     prio.sort((a, b) => (a.st.activatedAt ?? 0) - (b.st.activatedAt ?? 0))
     /* Aktive Karten: effektiver Scheduling-Score absteigend (eigener Score +
-       rückwärts propagierte Scores aller transitiv abhängigen Schritte);
-       stabile Sortierung — bei Gleichstand bleibt die Flow-/Schritt-Reihenfolge */
+       rückwärts propagierte Scores aller transitiv abhängigen Schritte).
+       Tiebreaker bei gleichem Score: zuletzt aktualisierter Flow zuerst
+       (letzter abgeschlossener Schritt = max(doneAt)), dann Schritt-Reihenfolge */
     const eff = effectiveScores()
-    normal.sort(
-      (a, b) =>
-        (eff.get(`${b.s.id}:${b.st.id}`) ?? 0) - (eff.get(`${a.s.id}:${a.st.id}`) ?? 0),
-    )
+    const flowRecency = new Map<string, number>()
+    for (const s of flows()) {
+      let max = 0
+      for (const st of s.steps) {
+        if (st.doneAt !== null && st.doneAt > max) max = st.doneAt
+      }
+      flowRecency.set(s.id, max)
+    }
+    normal.sort((a, b) => {
+      const ds =
+        (eff.get(`${b.s.id}:${b.st.id}`) ?? 0) - (eff.get(`${a.s.id}:${a.st.id}`) ?? 0)
+      if (ds !== 0) return ds
+      const ra = flowRecency.get(a.s.id) ?? 0
+      const rb = flowRecency.get(b.s.id) ?? 0
+      if (ra !== rb) return rb - ra
+      return 0
+    })
     /* Wartende Karten: nach Freiwerden (Timer-Ende), Tiebreaker prio oben.
        timerEffectiveEnd liest keine Signals → jetztCards() bleibt tick-unabhängig */
     waiting.sort((a, b) => {
@@ -1193,7 +1209,7 @@ export function Cook(props: {
              Strips darüber erscheinen nur bei Aktivität. ────────────── */}
       <div class="composer">
         <div class="composer-inner">
-          {/* Erkannte Eingabe (STT-Text) */}
+          {/* Erkannte Eingabe (STT-Text) — kurze Zeit sichtbar */}
           <Show when={showTranscript()}>
             <div class="transcript-strip">
               <p class="text-sm text-zinc-300 line-clamp-2">
@@ -1203,8 +1219,16 @@ export function Cook(props: {
             </div>
           </Show>
 
-          {/* Status / letzte Agent-Antwort */}
-          <Show when={barVisible()}>
+          {/* Letzte Agent-Antwort (TTS-Text) — sichtbar, solange gesprochen wird,
+              danach noch kurz */}
+          <Show when={showAgentText()}>
+            <div class="transcript-strip">
+              <p class="text-sm text-zinc-400 line-clamp-4">{lastAgent()!.text}</p>
+            </div>
+          </Show>
+
+          {/* Status: nur während aktiver Zustände (Hören/Transkribieren/Denken) */}
+          <Show when={showStatus()}>
             <div class="transcript-strip">
               <Show
                 when={voice.transcribing()}
@@ -1212,23 +1236,7 @@ export function Cook(props: {
                   <Show
                     when={voice.listening()}
                     fallback={
-                      <Show
-                        when={voice.speaking()}
-                        fallback={
-                          <Show
-                            when={state.agent.busy}
-                            fallback={
-                              <Show when={showAgentText()}>
-                                <p class="text-sm text-zinc-400 line-clamp-4">{lastAgent()!.text}</p>
-                              </Show>
-                            }
-                          >
-                            <p class="text-xs italic text-zinc-500 animate-pulse">Denke nach …</p>
-                          </Show>
-                        }
-                      >
-                        <p class="text-xs italic text-zinc-400">Sprache erkannt</p>
-                      </Show>
+                      <p class="text-xs italic text-zinc-500 animate-pulse">Denke nach …</p>
                     }
                   >
                     <p class="text-xs italic text-zinc-400">Höre zu …</p>

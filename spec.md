@@ -324,9 +324,11 @@ Mehrere Karten stehen untereinander (Stapel).
   Bildschirmrand (Mikro + Textfeld + Senden; mobile Tastatur schiebt sie hoch,
   safe-area berücksichtigt). **Ein-/ausklappbar:** eingeklappt nur ein runder
   Sprechblasen-Button (sticky unten rechts), der die Bar aufklappt und das Textfeld
-  fokussiert; ausgeklappt zusätzlich ein Einklapp-Chevron. Darüber erscheinen bei
-  Aktivität Transkript/Status/letzte Antwort. Die Voice-Instanz teilen sich Composer
-  und Koch-Screen (eine Instanz). Die Übersichts-Spalten laufen wie die „Jetzt"-Ansicht
+  fokussiert; ausgeklappt zusätzlich ein Einklapp-Chevron. Darüber erscheinen
+  kurze Strips: das STT-Transkript für ~10 s, die letzte Agent-Antwort (TTS-Text)
+  solange gesprochen wird und danach noch ~12 s — auch wenn der Composer
+  eingeklappt ist. Ein dritter Strip zeigt nur während Hören/Transkribieren/Denken
+  den Status. Die Voice-Instanz teilen sich Composer und Koch-Screen (eine Instanz). Die Übersichts-Spalten laufen wie die „Jetzt"-Ansicht
   über die volle Länge.
 - Ohne Flows wird der Chat beim Laden automatisch geöffnet (Verlauf sichtbar — die
   ersten Flows entstehen über die Composer-Bar).
@@ -406,8 +408,9 @@ Mehrere Karten stehen untereinander (Stapel).
 
 - `score: number` am Schritt (Default 0, optional, LLM-vergeben — `add_flow`/`add_step`/
   `update_step`). **Stilles** Signal: sortiert die aktiven Karten der normalen Queue
-  (absteigend; Tiebreaker = bisherige Flow-/Schritt-Reihenfolge). Kein Puls, keine
-  Ein-Dep-Regel — das ist `priority: high` vorbehalten (echter Alarm).
+  (absteigend; bei gleichem Score: **zuletzt aktualisierter Flow zuerst** — der letzte
+  abgeschlossene Schritt zählt, `max(doneAt)` — dann Schritt-Reihenfolge). Kein Puls,
+  keine Ein-Dep-Regel — das ist `priority: high` vorbehalten (echter Alarm).
 - **Zweck:** optimale Arbeitsreihenfolge — lange Wartezeiten früh freigeben und mit
   anderer Arbeit füllen. Beispiel: „Mehl und Eier verrühren" (→ 30 min Ruhen) bekommt
   einen hohen Score, „Teig gehen lassen" keinen, „Zwiebeln schneiden" bleibt niedrig —
