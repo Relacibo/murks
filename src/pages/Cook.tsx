@@ -218,6 +218,16 @@ export function Cook() {
 
   const flowStrang = createMemo(() => strangs().find((x) => x.id === flowView()))
 
+  /* Zutaten-Modal: Esc schließt */
+  createEffect(() => {
+    if (!engine.cook.zutatenOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') engine.executeTool('close_zutaten', {})
+    }
+    window.addEventListener('keydown', onKey)
+    onCleanup(() => window.removeEventListener('keydown', onKey))
+  })
+
   /* ── Schritt-Karte (flach, klein, nie verschachtelt) ──────────────── */
   function StepCard(props: { s: Strang; i: number; onTitleClick?: () => void }) {
     const s = () => props.s
@@ -688,10 +698,10 @@ export function Cook() {
       {/* ── Zutaten Modal ─────────────────────────────────────────────── */}
       <Show when={engine.cook.zutatenOpen}>
         <div
-          class="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex flex-col justify-end"
+          class="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex flex-col justify-end sm:items-center sm:justify-center sm:p-4"
           onClick={(e) => e.target === e.currentTarget && engine.executeTool('close_zutaten', {})}
         >
-          <div class="bg-zinc-950 rounded-t-2xl max-h-[80vh] overflow-y-auto">
+          <div class="bg-zinc-950 rounded-t-2xl sm:rounded-2xl sm:border sm:border-zinc-600 sm:shadow-2xl sm:w-full sm:max-w-md max-h-[80vh] overflow-y-auto modal-pop">
             <div class="flex items-center justify-between px-5 py-4 border-b border-zinc-600 sticky top-0 bg-zinc-950">
               <h2 class="text-base font-semibold">Zutaten</h2>
               <button

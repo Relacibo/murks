@@ -266,6 +266,8 @@ Mehrere Karten stehen untereinander (Stapel).
 - Zutaten-Modal öffnet sich pro Strang.
 - `open_zutaten` / `add_zutaten` erfordern `strang_id`.
 - Globale Einkaufsliste (alle Zutaten aggregiert) bleibt als separate Ansicht möglich.
+- Modal-Darstellung: Desktop zentriertes Dialog (max-w-md, Rahmen, abgerundet),
+  Mobile Bottom-Sheet; schließt über X, Esc, Klick auf den Hintergrund.
 
 ---
 
