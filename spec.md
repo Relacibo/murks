@@ -52,7 +52,7 @@ interface Step {
 ### Abgeleitete Schritt-Zustände
 - **blocked**: mind. eine Abhängigkeit nicht `done`
 - **waiting**: alle Abhängigkeiten `done`, aber mind. ein Timer einer Abhängigkeit läuft noch
-  → wird in „Jetzt" angezeigt (gestrichelt, Countdown), ✓ = früh abschließen (Wartezeit überspringen)
+  → wird in „Jetzt" angezeigt (ausgegraut, Countdown leuchtet amber), ✓ = früh abschließen (Wartezeit überspringen)
 - **active**: alle Abhängigkeiten `done` und deren Timer abgelaufen (bzw. keiner deklariert)
 - **done**: explizit abgeschlossen
 
@@ -194,7 +194,8 @@ alles sichtbar.
   bewusst redundant zum Spalten-Header). Karten-Header: `🍚 FLOW-NAME · ⏱ Timer · x/y`.
 - **active:** hellere Outline in Flow-Farbe.
 - **done:** gedimmt, ↺-Button zum Zurücknehmen (s. Abschluss-Regeln).
-- **waiting:** gestrichelte Outline, Countdown im Band, ✓ = früh abschließen.
+- **waiting:** ausgegraut wie blocked/done (Band + Body zink-grau) — nur der Countdown
+  leuchtet amber im Band; ✓ = früh abschließen.
 - **blocked:** gedimmt + 🔒 (Abhängigkeit offen), kein ✓-Button.
 - **Mehrere Karten pro Flow können gleichzeitig Timer laufen lassen.**
 - Vertikales Scrollen pro Spalte. Kein horizontales Scrollen (bis auf die Spalten selbst).
@@ -230,7 +231,8 @@ Mehrere Karten stehen untereinander (Stapel).
 
 ### Zustände
 - **active**: hellere Outline (Flow-Farbe), Titelband heller
-- **waiting**: gestrichelte Outline, Countdown im Band, ✓ rechts neben dem Text = früh abschließen
+- **waiting**: ausgegraut wie blocked/done — nur der Countdown leuchtet amber im Band;
+  ✓ (gedämpft) rechts neben dem Text = früh abschließen
 - **blocked**: gedimmt wie done (opacity — **kein grayscale**, Farbzuordnung bleibt erhalten),
   🔒-Hinweis auf fehlende Abhängigkeit, kein ✓-Button
 - **done**: gedimmt (gleiche Art wie blocked), Description bleibt sichtbar, ↺ im Button-Slot
@@ -298,7 +300,8 @@ Mehrere Karten stehen untereinander (Stapel).
   können parallel Timer laufen lassen.
 - **Kein Timer-UI:** Neusetzen läuft über die KI — `start_timer` ersetzt den laufenden Timer
   (z.B. „das muss noch 5 Minuten"); `cancel_timer` bricht ab (Abhängige werden dann frei).
-- **Waiting-Karten** sind in „Jetzt" sichtbar (gestrichelt, Countdown) und können mit ✓
+- **Waiting-Karten** sind in „Jetzt" sichtbar (ausgegraut, Countdown leuchtet amber) und
+  können mit ✓
   **vor Ablauf abgeschlossen** werden — das cancelt die Timer anderer Schritte nicht.
 - **Revert:** `revert_step` verwirft den eigenen Timer und macht Abhängige wieder blocked
   (sie rücken in die Vorschau).

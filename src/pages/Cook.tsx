@@ -350,8 +350,8 @@ export function Cook(props: {
           </Show>
           <Show when={countdownEndsAt() !== null}>
             <span
-              class="font-mono text-sm font-semibold leading-none translate-y-[1px] shrink-0 tabular-nums"
-              classList={{ 'text-amber-300 animate-pulse': urgent() }}
+              class="font-mono text-sm font-semibold leading-none translate-y-[1px] shrink-0 tabular-nums text-amber-300"
+              classList={{ 'animate-pulse': urgent() }}
             >
               {fmtCountdown(countdownEndsAt()!)}
             </span>
@@ -408,6 +408,7 @@ export function Cook(props: {
                   fallback={
                     <button
                       class="check-btn"
+                      classList={{ 'is-muted': stateName() === 'waiting' }}
                       title={
                         stateName() === 'waiting'
                           ? 'Früh abschließen (Wartezeit überspringen)'
@@ -425,6 +426,7 @@ export function Cook(props: {
                 >
                   <button
                     class="clock-btn"
+                    classList={{ 'is-muted': stateName() === 'waiting' }}
                     title="Abschließen — Timer startet"
                     aria-label="Schritt abschließen, Timer startet"
                     onClick={(e) => {
