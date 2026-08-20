@@ -1,24 +1,26 @@
-import { For, Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js'
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, useContext } from 'solid-js'
 import { SolidMarkdown as Markdown } from 'solid-markdown'
 import { useConfig } from '../App'
-import { state, expireTimers, type Strang, type Step } from '../state/store'
-import { executeTool, fmtRemaining, stepLabel } from '../lib/tools'
+import { state, type Strang, type Step } from '../state/store'
+import { CookContext } from '../lib/cookEngine'
+import { fmtRemaining } from '../lib/tools'
 import { createAgentVoice } from '../lib/agentVoice'
 import {
   FiMic, FiMicOff, FiMoreHorizontal, FiFileText, FiSettings,
-  FiCheck, FiBell, FiX, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw,
+  FiCheck, FiBell, FiX, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw, FiClock,
 } from 'solid-icons/fi'
 
 export function Cook() {
   const { configOpen, setConfigOpen } = useConfig()
   const voice = createAgentVoice({ configOpen })
+  const engine = useContext(CookContext)!
 
   const [tick, setTick] = createSignal(Date.now())
   const [flowView, setFlowView] = createSignal<string | null>(null)
   const [lastAgent, setLastAgent] = createSignal<{ text: string; at: number } | null>(null)
   const interval = setInterval(() => {
     setTick(Date.now())
-    expireTimers()
+    engine.expireTimers()
   }, 1000)
   onCleanup(() => clearInterval(interval))
 
@@ -47,29 +49,34 @@ export function Cook() {
     showTranscript() ||
     showAgentText()
 
-  const strangs = () => state.cook.strangs
+  const strangs = () => engine.cook.strangs
 
   const active = createMemo(() => {
     const all = strangs()
     if (all.length === 0) return undefined
-    return all.find((s) => s.id === state.cook.focusedStrangId) ?? all[0]
+    return all.find((s) => s.id === engine.cook.focusedStrangId) ?? all[0]
   })
 
   function focusStrang(id: string) {
-    executeTool('focus_strang', { strang_id: id })
+    engine.executeTool('focus_strang', { strang_id: id })
   }
 
-  /* ── Schritt-Zustände ──────────────────────────────────────────────── */
+  /* ── Schritt-Zustände (Modell B: Timer läuft nach Abschluss) ──────── */
+  function depStepOf(dep: { strang_id: string; step_index: number }): Step | undefined {
+    return strangs().find((x) => x.id === dep.strang_id)?.steps[dep.step_index]
+  }
   function depDone(s: Strang, step: Step, dep: { strang_id: string; step_index: number }): boolean {
-    const ts = strangs().find((x) => x.id === dep.strang_id)
-    if (!ts) return false
-    const dstep = ts.steps[dep.step_index]
-    return dstep?.done === true
+    return depStepOf(dep)?.done === true
+  }
+  function depPending(dep: { strang_id: string; step_index: number }): boolean {
+    const d = depStepOf(dep)
+    return !!d && d.done && d.timerEndsAt !== null && !d.timerExpired
   }
 
-  function stepState(s: Strang, step: Step): 'done' | 'blocked' | 'active' {
+  function stepState(s: Strang, step: Step): 'done' | 'blocked' | 'waiting' | 'active' {
     if (step.done) return 'done'
     if (step.dependsOn.some((d) => !depDone(s, step, d))) return 'blocked'
+    if (step.dependsOn.some((d) => depPending(d))) return 'waiting'
     return 'active'
   }
 
@@ -99,6 +106,17 @@ export function Cook() {
       })
   }
 
+  /* Frühester ablaufender Timer, auf den die Karte wartet */
+  function waitingRemaining(s: Strang, step: Step): number | null {
+    let min: number | null = null
+    for (const d of step.dependsOn) {
+      if (!depPending(d)) continue
+      const t = depStepOf(d)!.timerEndsAt!
+      if (min === null || t < min) min = t
+    }
+    return min
+  }
+
   /* ── Timer ─────────────────────────────────────────────────────────── */
   const stepRemaining = (st: Step) => (st.timerEndsAt !== null ? st.timerEndsAt - Date.now() : null)
   const stepUrgent = (st: Step) => {
@@ -120,26 +138,60 @@ export function Cook() {
 
   function jumpToStep(s: Strang, i: number) {
     focusStrang(s.id)
-    executeTool('set_step', { strang_id: s.id, step_index: i })
+    engine.executeTool('set_step', { strang_id: s.id, step_index: i })
   }
 
   function completeAndAdvance(s: Strang, i: number) {
-    executeTool('complete_step', { strang_id: s.id, step_index: i })
+    engine.executeTool('complete_step', { strang_id: s.id, step_index: i })
     if (i < s.steps.length - 1) {
-      executeTool('set_step', { strang_id: s.id, step_index: i + 1 })
+      engine.executeTool('set_step', { strang_id: s.id, step_index: i + 1 })
     }
   }
 
-  /* ── Aktive Karten (Mobile „Jetzt"): Reihenfolge = Auftauchen ───── */
-  const flowsWithActive = createMemo(() =>
-    strangs()
-      .flatMap((s) =>
-        s.steps
-          .map((st, i) => ({ s, st, i }))
-          .filter((x) => !strangDone(s) && stepState(s, x.st) === 'active'),
-      )
-      .sort((a, b) => (a.st.activatedAt ?? 0) - (b.st.activatedAt ?? 0)),
+  /* ── View 1 (Mobile „Jetzt"): Prio-Queue, normale Queue, Blocked ──── */
+  /* Prio-Queue: active high-Steps in Auftauch-Reihenfolge (FIFO)       */
+  /* Normale Queue: active + waiting in Auftauch-Reihenfolge            */
+  /* Blocked: als Vorschau unten, grau, in Anlage-Reihenfolge           */
+  const jetztCards = createMemo(() => {
+    const prio: { s: Strang; st: Step; i: number }[] = []
+    const normal: { s: Strang; st: Step; i: number }[] = []
+    const blocked: { s: Strang; st: Step; i: number }[] = []
+    for (const s of strangs()) {
+      if (strangDone(s)) continue
+      s.steps.forEach((st, i) => {
+        if (st.done) return
+        const state = stepState(s, st)
+        if (state === 'active' && st.priority === 'high') prio.push({ s, st, i })
+        else if (state === 'active' || state === 'waiting') normal.push({ s, st, i })
+        else blocked.push({ s, st, i })
+      })
+    }
+    prio.sort((a, b) => (a.st.activatedAt ?? 0) - (b.st.activatedAt ?? 0))
+    normal.sort((a, b) => (a.st.activatedAt ?? 0) - (b.st.activatedAt ?? 0))
+    return { prio, normal, blocked }
+  })
+
+  /* Prio-Step wird aktiv → „Jetzt"-View öffnen + nach oben springen */
+  let jetztScroller: HTMLDivElement | undefined
+  const prioActiveIds = createMemo(() =>
+    jetztCards()
+      .prio.map((c) => `${c.s.id}:${c.i}`)
+      .join('|'),
   )
+  let prevPrioIds: string | null = null
+  createEffect(() => {
+    const cur = prioActiveIds()
+    if (prevPrioIds === null) {
+      prevPrioIds = cur
+      return
+    }
+    const prev = new Set(prevPrioIds.split('|').filter(Boolean))
+    prevPrioIds = cur
+    const added = cur.split('|').filter((id) => id && !prev.has(id))
+    if (added.length === 0) return
+    setFlowView(null)
+    requestAnimationFrame(() => jetztScroller?.scrollTo({ top: 0, behavior: 'smooth' }))
+  })
 
   const flowStrang = createMemo(() => strangs().find((x) => x.id === flowView()))
 
@@ -149,7 +201,17 @@ export function Cook() {
     const i = () => props.i
     const st = () => s().steps[i()]
     const stateName = () => stepState(s(), st())
-    const urgent = () => stepUrgent(st())
+    const countdownEndsAt = () =>
+      st().timerEndsAt !== null && !st().timerExpired
+        ? st().timerEndsAt
+        : stateName() === 'waiting'
+          ? waitingRemaining(s(), st())
+          : null
+    const urgent = () => {
+      tick()
+      const ends = countdownEndsAt()
+      return ends !== null && ends - Date.now() < 120_000
+    }
     return (
       <div
         class="step-card"
@@ -158,15 +220,22 @@ export function Cook() {
           'is-active': stateName() === 'active',
           'is-past': stateName() === 'done',
           'is-blocked': stateName() === 'blocked',
+          'is-waiting': stateName() === 'waiting',
+          'is-prio': st().priority === 'high' && stateName() === 'active',
         }}
         onClick={() => jumpToStep(s(), i())}
       >
-        <div
-          class={props.onTitleClick ? 'step-card-band' : 'step-card-head'}
-        >
+        <div class="step-card-band">
           <Show
             when={props.onTitleClick}
-            fallback={<span class="flex-1" />}
+            fallback={
+              <>
+                <Show when={s().icon}>
+                  <span class="text-base leading-none shrink-0">{s().icon}</span>
+                </Show>
+                <span class="step-card-title truncate flex-1 min-w-0">{s().name}</span>
+              </>
+            }
           >
             <button
               class="step-card-title-btn"
@@ -191,30 +260,17 @@ export function Cook() {
           <Show when={st().timerExpired}>
             <FiBell size={12} class="text-orange-400 shrink-0" />
           </Show>
-          <Show when={st().timerEndsAt !== null && !st().timerExpired}>
+          <Show when={countdownEndsAt() !== null}>
             <span
-              class="font-mono text-xs font-semibold shrink-0 tabular-nums"
+              class="font-mono text-sm font-semibold shrink-0 tabular-nums"
               classList={{ 'text-amber-300 animate-pulse': urgent() }}
             >
-              {tick() && fmtRemaining(st().timerEndsAt!)}
+              {tick() && fmtRemaining(countdownEndsAt()!)}
             </span>
           </Show>
-          <span class="text-xs opacity-60 tabular-nums shrink-0">
+          <span class="text-sm opacity-60 tabular-nums shrink-0">
             {i() + 1}/{s().steps.length}
           </span>
-          <Show when={stateName() === 'done' && canRevert(s(), i())}>
-            <button
-              class="revert-btn"
-              title="Schritt zurücknehmen"
-              aria-label="Schritt zurücknehmen"
-              onClick={(e) => {
-                e.stopPropagation()
-                executeTool('revert_step', { strang_id: s().id, step_index: i() })
-              }}
-            >
-              <FiRotateCcw size={12} />
-            </button>
-          </Show>
         </div>
 
         <div class="step-card-body">
@@ -228,18 +284,64 @@ export function Cook() {
             <p class="mt-2 text-xs opacity-70">Wartet auf: {blockedBy(s(), st()).join(', ')}</p>
           </Show>
 
-          <Show when={stateName() === 'active' && !strangDone(s())}>
+          <Show when={stateName() === 'waiting'}>
+            <p class="mt-2 text-xs opacity-70">Wartet auf ⏱ Timer</p>
+          </Show>
+
+          <Show
+            when={
+              (stateName() === 'active' || stateName() === 'waiting') &&
+              !strangDone(s())
+            }
+          >
+            <div class="flex justify-end mt-3">
+              <Show
+                when={st().timerSeconds !== null}
+                fallback={
+                  <button
+                    class="check-btn"
+                    title={
+                      stateName() === 'waiting'
+                        ? 'Früh abschließen (Wartezeit überspringen)'
+                        : 'Schritt abschließen'
+                    }
+                    aria-label="Schritt abschließen und weiter"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      completeAndAdvance(s(), i())
+                    }}
+                  >
+                    <FiCheck size={18} />
+                  </button>
+                }
+              >
+                <button
+                  class="clock-btn"
+                  title="Abschließen — Timer startet"
+                  aria-label="Schritt abschließen, Timer startet"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    completeAndAdvance(s(), i())
+                  }}
+                >
+                  <FiClock size={18} />
+                </button>
+              </Show>
+            </div>
+          </Show>
+
+          <Show when={stateName() === 'done' && canRevert(s(), i())}>
             <div class="flex justify-end mt-3">
               <button
-                class="check-btn"
-                title="Schritt abschließen"
-                aria-label="Schritt abschließen und weiter"
+                class="revert-btn"
+                title="Schritt zurücknehmen"
+                aria-label="Schritt zurücknehmen"
                 onClick={(e) => {
                   e.stopPropagation()
-                  completeAndAdvance(s(), i())
+                  engine.executeTool('revert_step', { strang_id: s().id, step_index: i() })
                 }}
               >
-                <FiCheck size={18} />
+                <FiRotateCcw size={18} />
               </button>
             </div>
           </Show>
@@ -290,7 +392,6 @@ export function Cook() {
                 <Show when={x.s.icon}>
                   <span class="text-base leading-none">{x.s.icon}</span>
                 </Show>
-                <span class="text-xs truncate max-w-24">{stepLabel(x.st.description)}</span>
                 <span class="font-mono font-semibold tabular-nums">
                   {tick() && fmtRemaining(x.st.timerEndsAt!)}
                 </span>
@@ -303,7 +404,6 @@ export function Cook() {
                 <Show when={x.s.icon}>
                   <span class="text-base leading-none">{x.s.icon}</span>
                 </Show>
-                <span class="text-xs truncate max-w-24">{stepLabel(x.st.description)}</span>
                 <FiBell size={12} />
               </button>
             )}
@@ -326,7 +426,7 @@ export function Cook() {
               <FiMoreHorizontal size={20} class="animate-pulse" />
             </Show>
           </button>
-          <button class="icon-btn" onClick={() => executeTool('open_zutaten', {})} title="Zutaten"><FiFileText size={16} /></button>
+          <button class="icon-btn" onClick={() => engine.executeTool('open_zutaten', {})} title="Zutaten"><FiFileText size={16} /></button>
           <button class="icon-btn" onClick={() => setConfigOpen(true)} title="Konfiguration"><FiSettings size={16} /></button>
         </div>
       </header>
@@ -347,12 +447,32 @@ export function Cook() {
               when={flowStrang()}
               fallback={
                 <>
-                  {/* Alle aktiven Karten — flacher Stapel, Reihenfolge = Auftauchen */}
-                  <div class="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-2">
-                    <For each={flowsWithActive()}>
+                  {/* Prio-Queue, normale Queue, Blocked-Vorschau unten */}
+                  <div
+                    ref={(el) => (jetztScroller = el)}
+                    class="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-2"
+                  >
+                    <For each={jetztCards().prio}>
                       {(c) => <StepCard s={c.s} i={c.i} onTitleClick={() => setFlowView(c.s.id)} />}
                     </For>
-                    <Show when={flowsWithActive().length === 0}>
+                    <For each={jetztCards().normal}>
+                      {(c) => <StepCard s={c.s} i={c.i} onTitleClick={() => setFlowView(c.s.id)} />}
+                    </For>
+                    <Show when={jetztCards().blocked.length > 0}>
+                      <For each={jetztCards().blocked}>
+                        {(c) => (
+                          <StepCard s={c.s} i={c.i} onTitleClick={() => setFlowView(c.s.id)} />
+                        )}
+                      </For>
+                    </Show>
+                    <Show
+                      when={
+                        jetztCards().prio.length +
+                          jetztCards().normal.length +
+                          jetztCards().blocked.length ===
+                        0
+                      }
+                    >
                       <p class="text-sm text-zinc-500 text-center py-8">Alles erledigt.</p>
                     </Show>
                   </div>
@@ -447,31 +567,31 @@ export function Cook() {
       </div>
 
       {/* ── Zutaten Modal ─────────────────────────────────────────────── */}
-      <Show when={state.cook.zutatenOpen}>
+      <Show when={engine.cook.zutatenOpen}>
         <div
           class="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex flex-col justify-end"
-          onClick={(e) => e.target === e.currentTarget && executeTool('close_zutaten', {})}
+          onClick={(e) => e.target === e.currentTarget && engine.executeTool('close_zutaten', {})}
         >
           <div class="bg-zinc-950 rounded-t-2xl max-h-[80vh] overflow-y-auto">
             <div class="flex items-center justify-between px-5 py-4 border-b border-zinc-600 sticky top-0 bg-zinc-950">
               <h2 class="text-base font-semibold">Zutaten</h2>
               <button
                 class="icon-btn"
-                onClick={() => executeTool('close_zutaten', {})}
+                onClick={() => engine.executeTool('close_zutaten', {})}
               >
                 <FiX size={16} />
               </button>
             </div>
             <div class="px-4 py-2 pb-6 flex flex-col">
               <Show
-                when={state.cook.zutaten.length > 0}
+                when={engine.cook.zutaten.length > 0}
                 fallback={<p class="text-sm text-zinc-500 py-2">Noch keine Zutaten.</p>}
               >
-                <For each={state.cook.zutaten}>
+                <For each={engine.cook.zutaten}>
                   {(item) => (
                     <button
                       class="flex items-center gap-3 py-3 px-1 border-b border-zinc-600 last:border-0 w-full text-left"
-                      onClick={() => executeTool('toggle_zutaten', { id: item.id })}
+                      onClick={() => engine.executeTool('toggle_zutaten', { id: item.id })}
                     >
                       <div
                         class={`w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors ${

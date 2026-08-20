@@ -35,36 +35,42 @@ interface StepRef {
 }
 
 interface Step {
-  description: string      // Volltext, Markdown-rendered; beginnt mit kurzer Kernaussage (Titel in Chips)
+  description: string      // Volltext, Markdown-rendered; beginnt mit kurzer Kernaussage
   done: boolean            // Schritt einzeln abschließbar (✓-Button / complete_step)
-  dependsOn: StepRef[]     // optionale Abhängigkeiten — eigener oder anderer Flow
-  timerEndsAt: number | null
-  timerInstruction: string | null
+  dependsOn: StepRef[]     // Abhängigkeiten liegen im abhängigen Step → m:n ergibt sich von selbst
+  timerSeconds: number | null  // deklarierte Dauer: läuft NACH Abschluss des Schritts
+  timerEndsAt: number | null   // Laufzeit-Endzeit (von Abschluss oder start_timer)
   timerExpired: boolean
-  activatedAt: number | null // Zeitpunkt des Aktiv-Werdens (Reihenfolge „Jetzt": neu → unten)
+  activatedAt: number | null // Zeitpunkt des Eintritts in „Jetzt" (innerhalb seiner Queue: neu → hinten)
+  priority: 'normal' | 'high' // high: bei active in der Prio-Queue oben (FIFO) + pulsierend
 }
 ```
 
 ### Abgeleitete Schritt-Zustände
 - **blocked**: mind. eine Abhängigkeit nicht `done`
-- **active**: alle Abhängigkeiten `done`, selbst nicht `done` → wird auf Mobile in „Jetzt" angezeigt
+- **waiting**: alle Abhängigkeiten `done`, aber mind. ein Timer einer Abhängigkeit läuft noch
+  → wird in „Jetzt" angezeigt (gestrichelt, Countdown), ✓ = früh abschließen (Wartezeit überspringen)
+- **active**: alle Abhängigkeiten `done` und deren Timer abgelaufen (bzw. keiner deklariert)
 - **done**: explizit abgeschlossen
 
 ### Abschluss-Regeln
 - **Navigation allein schließt nie ab** (◀▶, Dots, Klick auf Desktop-Karte, `set_step`).
-- **✓ (runder Button, nur Häkchen)** = expliziter Abschluss: `complete_step` (aktueller Schritt) + Navigation zum nächsten.
+- **⏱-Button (Schritt mit `timerSeconds`) bzw. ✓** = expliziter Abschluss: `complete_step`
+  + Navigation zum nächsten. Bei `timerSeconds` startet damit der Timer — abhängige
+  Schritte bleiben waiting, bis er abgelaufen ist.
 - **↺ Zurücknehmen** (`revert_step`) = abgeschlossenen Schritt wieder auf nicht-erledigt setzen —
   **nur möglich, wenn keine Karte, die diesen Schritt als Abhängigkeit hat, selbst abgeschlossen ist**
-  (sonst ↺ ausgeblendet bzw. Tool-Fehler). Der revertierte Schritt erscheint wieder unten in
-  „Jetzt" (`activatedAt` neu); ein gesetzter `Strang.done` wird dabei gelöscht.
+  (sonst ↺ ausgeblendet bzw. Tool-Fehler). Der revertierte Schritt erscheint wieder hinten in
+  seiner „Jetzt"-Queue (`activatedAt` neu); sein eigener Timer wird verworfen, ein gesetzter
+  `Strang.done` gelöscht; Abhängige werden wieder blocked (rücken in die Vorschau).
 - `complete_strang` = alle Schritte `done` + Strang `done` + alle Schritt-Timer abbrechen.
 - `Strang.done` gilt zusätzlich als abgeleitet, wenn alle Schritte `done` sind.
 
 > **Migration:** `steps: string[]` → `steps: Step[]`. Alte Daten: `string` wird `description`;
 > altes `summary` wird übernommen, falls `description` leer ist.
 > Alte Strang-Timer → Timer des aktiven Schritts.
-> Neue Felder defaulten: `done: false`, `dependsOn: []`, `activatedAt: null`
-> (Altdaten: Reihenfolge wie bisher, neue Karten anhängen).
+> Neue Felder defaulten: `done: false`, `dependsOn: []`, `activatedAt: null`,
+> `priority: 'normal'`.
 > Offen: `dependsOn` referenziert per Index — Indizes verschieben sich bei `add_step`
 > (für v1 akzeptiert; später stabile Step-IDs).
 
@@ -75,10 +81,11 @@ interface Step {
 ### Prinzip (Konzept C)
 Zwei Views:
 
-1. **„Jetzt"** (Standard, mobile-only): **alle aktiven Karten über alle Flows** —
-   die Dinge, die gerade dran sind. Blocked/done-Karten sind ausgeblendet.
+1. **„Jetzt"** (Standard, mobile-only): eine **Queue** aller aktiven Karten über alle Flows —
+   die Dinge, die gerade dran sind. Ganz oben die Prio-Queue, darunter die normale Queue,
+   unten als **Vorschau** die blocked-Karten (ausgegraut). Done-Karten sind ausgeblendet.
 2. **„Flow"**: die Karten **eines** Flows — optisch identisch mit einer Desktop-Spalte
-   (vertikaler Kartenstapel mit allen Zuständen: done/active/blocked).
+   (vertikaler Kartenstapel mit allen Zuständen: done/active/waiting/blocked).
 
 Wechsel: Tap auf den Karten-Titel einer „Jetzt"-Karte → „Flow"-View dieses Flows;
 Zurück-Button → „Jetzt". Es gibt keine Flow-Chips-Leiste mehr.
@@ -101,18 +108,31 @@ Zurück-Button → „Jetzt". Es gibt keine Flow-Chips-Leiste mehr.
 │ ├──────────────────────────────┤   │
 │ │ Quellen lassen …       3/5   │   │
 │ └──────────────────────────────┘   │
+│ ┌──────────────────────────────┐   │
+│ │ 🍝 TOMATENSAUCE 🔒     4/5   │   │  ← Blocked-Vorschau (ausgegraut)
+│ │ Abschmecken …                │   │
+│ └──────────────────────────────┘   │
 └────────────────────────────────────┘
 ```
 
-- **Reihenfolge = Reihenfolge des Auftauchens.** Karten erscheinen in der Reihenfolge,
-  in der sie aktiv wurden. Neu aktive Karten (KI legt Schritt an oder Abhängigkeit
-  erfüllt) werden **unten angehängt**. Die KI kann nicht umsortieren (append-only,
+- **Drei Zonen, von oben nach unten:**
+  1. **Prio-Queue**: aktive `high`-Karten, FIFO (Auftauch-Reihenfolge — eine neue Prio
+     kommt hinten dran, verdrängt keine ältere), pulsierend.
+  2. **Normale Queue**: active + waiting in Auftauch-Reihenfolge.
+  3. **Blocked-Vorschau**: blocked-Karten, ausgegraut (keine gestrichelte Outline, kein
+     Label — das Grau sagt es), in Anlage-Reihenfolge (Flow 1 Schritt n, n+1, … Flow 2 Schritt m, …).
+- **Prio-Aktivierung:** Wird eine `high`-Karte aktiv (ihre einzige Bedingung ist erfüllt),
+  wechselt die UI automatisch in die „Jetzt"-View (falls nicht schon dort) und scrollt
+  nach oben — die Karte steht in der Prio-Queue und pulsiert.
+- Neu eintretende Karten (KI legt Schritt an, Abhängigkeit erfüllt, Timer abgelaufen)
+  werden in ihrer Queue **unten angehängt**. Die KI kann nicht umsortieren (append-only,
   kein Reorder-Werkzeug).
 - Karten voll ausgeklappt: **farbiges Titelband** (Emoji + Flow-Name, caps, klickbar)
   + ⏱ Timer + x/y; darunter neutraler Body (zinc) mit der Description (Markdown).
   Der Body-Stil ist überall identisch — nur das Band unterscheidet pro Flow.
-- ✓ (rund) = `complete_step` + Navigation (Navigation allein schließt nie ab).
-- Blocked-Karte im Flow: ✓ deaktiviert + Hinweis auf fehlende Abhängigkeit.
+- ⏱ (grün, bei `timerSeconds`) bzw. ✓ (rund) = `complete_step` + Navigation;
+  auf waiting-Karten = früh abschließen. Navigation allein schließt nie ab.
+- Blocked-Karte: 🔒 + Hinweis auf fehlende Abhängigkeit, kein ✓-Button.
 
 ### Aufbau „Flow" (≈ Desktop-Spalte)
 
@@ -151,11 +171,12 @@ Keine Browsing-Navigation nötig — alles sichtbar.
 
 - **Spaltenreihenfolge:** fix = Anlegereihenfolge.
 - **Spalte ist keine Karte** — nur Header (Emoji + Name, Klick = fokussieren) + Kartenstapel.
-- **Alle Schritt-Karten ausgeklappt** (Description sichtbar), **ohne eigenen Titel** —
-  der Flow-Name steht im Spalten-Header. Karten-Header: `⏱ Timer (nur wenn läuft) · x/y`.
-- **active:** hellere Outline in Strang-Farbe (Desktop: Spalten-Header farbig).
+- **Alle Schritt-Karten ausgeklappt** und **identisch zur mobilen Karte** (gleiches Titelband —
+  bewusst redundant zum Spalten-Header). Karten-Header: `🍚 FLOW-NAME · ⏱ Timer · x/y`.
+- **active:** hellere Outline in Strang-Farbe.
 - **done:** gedimmt, ↺-Button zum Zurücknehmen (s. Abschluss-Regeln).
-- **blocked:** dezenter + 🔒 (Abhängigkeit offen), ✓-Button deaktiviert.
+- **waiting:** gestrichelte Outline, Countdown im Band, ✓ = früh abschließen.
+- **blocked:** ausgegraut + 🔒 (Abhängigkeit offen), kein ✓-Button.
 - **Mehrere Karten pro Strang können gleichzeitig Timer laufen lassen.**
 - Vertikales Scrollen pro Spalte. Kein horizontales Scrollen (bis auf die Spalten selbst).
 
@@ -167,7 +188,7 @@ Keine Browsing-Navigation nötig — alles sichtbar.
 Spalten- und Flow-Header sind reine Gliederung. Die Schritt-Karten bilden einen
 **flachen Stapel kleiner Karten**.
 
-**Karten klein halten:** Header (`⏱ Timer · x/y`) + Description + ggf. ✓-Button.
+**Karten klein halten:** Titelband (`🍚 FLOW-NAME · ⏱ Timer · x/y`) + Description + ggf. ✓/↺.
 Mehrere Karten stehen untereinander (Stapel).
 
 > Fehlerhafte Vorgänger-Umsetzung: verschachtelte Karten (Spalte als Karte mit
@@ -179,33 +200,38 @@ Mehrere Karten stehen untereinander (Stapel).
 - Karte = **farbiges Titelband oben** (Strang-Farbe, Farbe endet vertikal am Band-Ende)
   + **neutraler Body** (zinc, monoton) + **farbige Outline** (Strang-Farbe).
 - Emoji bleibt farbig (visuelle Identität); der Body-Text trägt keine Strang-Farbe.
-- Desktop-Spalten: Der Spalten-Header ist das farbige Titelband, Karten darunter neutral.
+- **Karten sehen in Desktop und Mobile identisch aus** (eine `StepCard`-Komponente);
+  Desktop-Spalten-Header bleibt zusätzlich als Gliederung.
 
 ### Karten-Header
-- Mobile „Jetzt": `🍚 FLOW-NAME ▸ · ⏱ Timer (nur wenn läuft) · x/y` — Titelband in
-  Strang-Farbe, Flow-Name caps + klein; Titel-Tap → Flow-View.
-- Desktop / Flow-View: `⏱ Timer (nur wenn läuft) · x/y` (Flow-Name steht im Spalten-/Flow-Header)
+- Überall identisch: `🍚 FLOW-NAME · ⏱ Timer (nur wenn läuft) · x/y` — Titelband in
+  Strang-Farbe, Flow-Name caps + klein. Nur mobile „Jetzt": `▸` + Titel-Tap → Flow-View.
 
 ### Zustände
 - **active**: hellere Outline (Strang-Farbe), Titelband heller
-- **blocked**: dezenter, 🔒-Hinweis auf fehlende Abhängigkeit, ✓-Button deaktiviert
-- **done**: gedimmt, Description bleibt sichtbar, ↺-Button zum Zurücknehmen
-  (ausgeblendet, wenn eine abhängige Karte bereits abgeschlossen ist)
+- **waiting**: gestrichelte Outline, Countdown im Band, ✓ unten rechts = früh abschließen
+- **blocked**: ausgegraut (gedimmt + grayscale, keine gestrichelte Outline), 🔒-Hinweis
+  auf fehlende Abhängigkeit, kein ✓-Button
+- **done**: gedimmt, Description bleibt sichtbar, ↺-Button unten rechts (gleicher Slot wie ✓;
+  ausgeblendet, wenn eine abhängige Karte bereits abgeschlossen ist)
+- **prio (high, active)**: pulsiert (Outline) und steht in „Jetzt" oben — greift beim
+  Aktiv-Werden; blocked/waiting verhalten sich wie immer
 
 ### Karte (allgemein)
 ```
 ┌──────────────────────────────────┐
-│ 🍝 TOMATENSAUCE ▸ ⏱ 07:41  2/4  │  ← farbiges Titelband (nur mobile „Jetzt")
+│ 🍝 TOMATENSAUCE ▸ ⏱ 07:41  2/4  │  ← farbiges Titelband (▸ nur mobile „Jetzt")
 ├──────────────────────────────────┤
 │ Hitze mittel, ~10 min köcheln.  │  ← neutraler Body (zinc, Markdown)
 │                                  │
-│                         [ ✓ ]    │  ← runder Häkchen-Button (Abschluss + Navigation)
+│                         [ ⏱ ]    │  ← ⏱ (grün, bei timerSeconds) / ✓ / ↺ unten rechts
 └──────────────────────────────────┘
 ```
 
 - Klick auf Karte (Desktop/Flow-View) = `set_step` — Navigation, kein Abschluss,
   keine Toast-Bestätigung.
-- ✓ (rund, nur Häkchen) = `complete_step` + Navigation zum nächsten Schritt.
+- ⏱ (grün, Schritt mit `timerSeconds`) oder ✓ (rund, nur Häkchen) = `complete_step`
+  + Navigation zum nächsten Schritt; auf waiting-Karten überspringt ✓ die Wartezeit.
 - Mobile „Jetzt"-View: Karten einzeln untereinander, kein Klick-Navigation nötig;
   Tap auf das Titelband öffnet die Flow-View.
 
@@ -222,12 +248,45 @@ Mehrere Karten stehen untereinander (Stapel).
 
 ## Timer
 
-- Gehören zum **Schritt** (Karte), nicht zum Strang.
-- **Mehrere Schritte eines Strangs können gleichzeitig Timer laufen lassen** (parallele aktive Karten).
-- Sichtbar: in der Schritt-Karte (Header), Topbar-Timer-Chips (mit Zeit + Emoji + Beschreibungsanfang).
+- Gehören zum **Schritt** (Karte), nicht zum Strang. Deklariert als `timerSeconds` (Dauer)
+  beim Anlegen (`add_strang`/`add_step`).
+- **Läuft NACH dem Abschließen** des Schritts: `complete_step` startet den Timer;
+  abhängige Schritte sind waiting, bis er abgelaufen ist. Mehrere Schritte eines Strangs
+  können parallel Timer laufen lassen.
+- **Kein Timer-UI:** Neusetzen läuft über die KI — `start_timer` ersetzt den laufenden Timer
+  (z.B. „das muss noch 5 Minuten"); `cancel_timer` bricht ab (Abhängige werden dann frei).
+- **Waiting-Karten** sind in „Jetzt" sichtbar (gestrichelt, Countdown) und können mit ✓
+  **vor Ablauf abgeschlossen** werden — das cancelt die Timer anderer Schritte nicht.
+- **Revert:** `revert_step` verwirft den eigenen Timer und macht Abhängige wieder blocked
+  (sie rücken in die Vorschau).
+- Sichtbar: in der Schritt-Karte (Header), Topbar-Timer-Chips (nur Emoji + Zeit bzw. 🔔).
 - Dringlichkeit: Orange + Pulsieren < 2 min, Bell-Icon + Rot bei Ablauf.
 - Bei Ablauf: KI navigiert aktiv zum betroffenen Schritt (`focus_strang` + `set_step`).
-- `complete_strang` / `complete_step` brechen den laufenden Timer des Schritts ab.
+- `complete_strang` bricht alle Schritt-Timer des Strangs ab.
+
+---
+
+## Priorität
+
+- `priority: 'normal' | 'high'` am Schritt (LLM-vergeben beim Anlegen; `set_step_priority`
+  zum Nachziehen). `high` sparsam — nur wenn sofortiges Handeln nötig ist (z.B. Ofen).
+- **high-Karten** stehen bei `active` in der **Prio-Queue ganz oben** (FIFO) und
+  **pulsieren** (Outline); als waiting/blocked verhalten sie sich wie jede andere Karte.
+- **Ein-Dep-Regel (im Engine erzwungen):** Ein `high`-Schritt darf höchstens **eine**
+  Abhängigkeit haben — den Schritt, dessen Timer die Wartezeit bestimmt. Das zwingt dazu,
+  zeitkritische Aktionen als eigene Karte zu modellieren („Aus dem Ofen holen" hängt nur
+  von „In den Ofen" ab). Verstöße → Tool-Fehler.
+- **Blocked = ganz normal blocked** — kein Puls, kein ✓; erscheint in „Jetzt" nur in der
+  Blocked-Vorschau unten (ausgegraut).
+- **Prio-Queue:** Mehrere `high`-Karten bilden eine eigene FIFO-Queue ganz oben —
+  eine neu aktivierte Prio verdrängt keine ältere, sie kommt hinten dran.
+- **Beim Aktiv-Werden** (Bedingung erfüllt — bei `high` gibt es nur eine) wechselt die
+  UI automatisch in die „Jetzt"-View (falls nicht schon dort), scrollt nach oben, und die
+  Karte **pulsiert** in der Prio-Queue. Abschließen ist dann ganz normal möglich (keine
+  Ausnahme). Vorher (waiting) verhält sie sich wie jede waiting-Karte (Countdown,
+  ✓ = überspringen).
+- Prio hängt nicht vom Timer ab und unterbricht nichts — Hervorhebung **plus** Aufmerksamkeits-
+  Trigger beim Aktiv-Werden (Auto-Wechsel in „Jetzt" + Scroll nach oben).
 
 ---
 
@@ -235,7 +294,7 @@ Mehrere Karten stehen untereinander (Stapel).
 
 - **Eine einzige Leiste** — keine zweite Timer-Leiste darunter.
 - Kein Logo/Schriftzug „MURKS".
-- Links: Timer-Chips (⏱ Emoji + Beschreibungsanfang + Zeit), scrollbar; rechts: 🎤 📄 ⚙.
+- Links: Timer-Chips (Emoji + Zeit bzw. 🔔 — keine Beschreibung), scrollbar; rechts: 🎤 📄 ⚙.
 - Chip-Dringlichkeit: gelb pulsierend < 2 min, rot (Bell) bei Ablauf. Klick = zu Schritt springen.
 
 ---
@@ -253,14 +312,15 @@ Mehrere Karten stehen untereinander (Stapel).
 
 | Tool | Änderung |
 |---|---|
-| `add_strang` | `steps: Step[]` statt `steps: string[]`; zusätzlich `icon` (Emoji, LLM vergibt); Steps optional mit `depends_on` |
-| `add_step` | `description` statt `text`; optional `depends_on` |
+| `add_strang` | `steps: Step[]` statt `steps: string[]`; zusätzlich `icon` (Emoji, LLM vergibt); Steps optional mit `depends_on`, `timer_seconds` (läuft nach Abschluss), `priority` |
+| `add_step` | `description` statt `text`; optional `depends_on`, `timer_seconds`, `priority` |
 | `set_step` | unverändert (reine Navigation, schließt nie ab) |
-| `complete_step` | **neu**: Schritt abschließen (`done`), Timer des Schritts abbrechen |
-| `revert_step` | **neu**: Schritt auf nicht-erledigt setzen — nur wenn keine abhängige Karte abgeschlossen ist |
+| `complete_step` | **neu**: Schritt abschließen (`done`); startet bei `timerSeconds` den Timer; nimmt Abhängige in „Jetzt" auf (waiting/active) |
+| `revert_step` | **neu**: Schritt auf nicht-erledigt setzen — nur wenn keine abhängige Karte abgeschlossen ist; verwirft eigenen Timer, Abhängige werden wieder blocked |
+| `set_step_priority` | **neu**: `priority` eines Schritts setzen (`high` → sobald aktiv: Prio-Queue oben + pulsierend); `high` nur mit höchstens einer Abhängigkeit |
 | `focus_strang` | unverändert |
-| `start_timer` | `strang_id` + `step_index` (Timer gehört zum Schritt) |
-| `cancel_timer` | `strang_id` + `step_index` |
+| `start_timer` | `strang_id` + `step_index` + `seconds` — Timer (neu) setzen, ersetzt laufenden (KI-Override, z.B. „noch 5 Minuten") |
+| `cancel_timer` | `strang_id` + `step_index` — Timer abbrechen (Abhängige werden frei) |
 | `complete_strang` | alle Schritte `done` + Strang `done` + alle Schritt-Timer abbrechen |
 | `add_zutaten` | `strang_id` required |
 | `open_zutaten` | `strang_id` required |

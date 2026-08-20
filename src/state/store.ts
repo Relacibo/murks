@@ -2,7 +2,8 @@ import { createEffect, createSignal } from 'solid-js'
 import { createStore } from 'solid-js/store'
 import { showToast } from '../lib/toast'
 import { dbGet, dbPut } from '../lib/db'
-import { TOOLS, executeTool, stepLabel } from '../lib/tools'
+import { TOOLS } from '../lib/tools'
+import { createCookEngine, STRANG_COLORS } from '../lib/cookEngine'
 
 export interface AgentProfile {
   id: string
@@ -17,6 +18,8 @@ const DEFAULT_SYSTEM_PROMPT = [
   'Du hilfst beim Kochen: Gerichte planen, Schritte koordinieren, Timer setzen, parallele Kochstränge im Blick behalten.',
   'Jeder Schritt hat eine description (vollständige, eigenständig ausführbare Anweisung mit Zutaten, Mengen und Methode; Markdown erlaubt). Beginne mit einer kurzen Kernaussage — sie erscheint als Titel in Timer-Chips.',
   'Schritte können optional Abhängigkeiten haben (depends_on): Verweise auf andere Schritte (eigener oder anderer Strang), die zuerst erledigt sein müssen. Ein Schritt ist erst aktiv, wenn alle Abhängigkeiten erledigt sind.',
+  'Schritte können optional timer_seconds haben (Dauer in Sekunden). Der Timer läuft NACH dem Abschließen des Schritts: Erst wenn er abgelaufen ist, werden abhängige Schritte frei. Will der Nutzer eine andere Zeit (z.B. „das muss noch 5 Minuten"), setze den Timer mit start_timer neu.',
+  'Schritte können optional priority "high" haben (zeitkritisch, z.B. etwas im Ofen): Solche Karten stehen in der „Jetzt“-Ansicht oben und pulsieren. Ein "high"-Schritt darf höchstens EINE Abhängigkeit haben — den Schritt, dessen Timer die Wartezeit bestimmt (z.B. „Aus dem Ofen holen" hängt nur von „In den Ofen" ab). Modelliere zeitkritische Aktionen deshalb immer als eigene Karte. Vergib "high" sparsam.',
   'Vergib beim Anlegen eines Strangs ein passendes Emoji als icon (z.B. 🍚 für Reis) — es identifiziert den Strang visuell.',
   'Wir sprechen per Stimme: Der Nutzer diktiert seine Eingaben, deine Antworten werden vorgelesen. Sprich natürlich wie ein Gesprächspartner, nicht wie ein Textprogramm.',
   'Ton: trocken, direkt, präzise — aber hilfsbereit und zugewandt, nie abweisend oder herablassend. Keine leeren Floskeln, kein Smalltalk, keine Emojis, keine Sternchen-Gesten wie *lacht*.',
@@ -24,7 +27,7 @@ const DEFAULT_SYSTEM_PROMPT = [
   'Deine Antworten werden vorgelesen: kurze Sätze, keine Markdown-Formatierung, keine Listen.',
   'Der Nutzer spricht per Spracherkennung, die Fehler machen kann. Bei offensichtlich verrauschtem oder unsinnigem Input frage höchstens einmal kurz und freundlich nach und übergehe es danach.',
   'Wenn keine Antwort nötig ist — z.B. reine Bestätigung, Geräusch oder verrauschtes Transkript — antworte ausschließlich mit „OK." und sonst nichts. Diese Antwort wird nicht vorgelesen und nicht angezeigt.',
-  'Du hast Werkzeuge, um die Kochoberfläche zu steuern: add_strang, add_step, set_step, complete_step, revert_step, start_timer, cancel_timer, complete_strang, focus_strang, add_zutaten, toggle_zutaten, open_zutaten, close_zutaten, get_cook_state.',
+  'Du hast Werkzeuge, um die Kochoberfläche zu steuern: add_strang, add_step, set_step, complete_step, revert_step, set_step_priority, start_timer, cancel_timer, complete_strang, focus_strang, add_zutaten, toggle_zutaten, open_zutaten, close_zutaten, get_cook_state.',
   'Rufe get_cook_state auf, wenn du den aktuellen Stand nicht kennst. Kommentiere Werkzeug-Aktionen nicht — die Oberfläche bestätigt sie selbst. Antworte nur „OK." oder sprich, wenn es inhaltlich etwas zu sagen gibt.',
   'Antworte so kurz wie möglich. Nutze verfügbare Werkzeuge, statt Dinge in Text zu beschreiben.',
 ].join(' ')
@@ -61,8 +64,6 @@ export interface AgentMessage {
 
 export type StrangColor = 'cyan' | 'violet' | 'amber' | 'emerald' | 'rose' | 'sky'
 
-export const STRANG_COLORS: StrangColor[] = ['cyan', 'violet', 'amber', 'emerald', 'rose', 'sky']
-
 export interface StepRef {
   strang_id: string
   step_index: number
@@ -72,10 +73,11 @@ export interface Step {
   description: string
   done: boolean
   dependsOn: StepRef[]
+  timerSeconds: number | null
   timerEndsAt: number | null
-  timerInstruction: string | null
   timerExpired: boolean
   activatedAt: number | null
+  priority: 'normal' | 'high'
 }
 
 export interface Strang {
@@ -213,14 +215,14 @@ function hydrate(data: unknown): AppState {
                       summary?: string
                       done?: boolean
                       dependsOn?: StepRef[]
+                      timerSeconds?: number | null
                       timerEndsAt?: number | null
-                      timerInstruction?: string | null
                       timerExpired?: boolean
                       activatedAt?: number | null
+                      priority?: 'normal' | 'high'
                     }
                 )[]
                 timerEndsAt?: number | null
-                timerInstruction?: string | null
                 timerExpired?: boolean
               }[]
             ).map((s) => {
@@ -241,9 +243,13 @@ function hydrate(data: unknown): AppState {
                               step_index: Number(d?.step_index ?? 0),
                             }))
                           : [],
+                    timerSeconds:
+                      typeof st === 'string'
+                        ? null
+                        : typeof st?.timerSeconds === 'number' && st.timerSeconds > 0
+                          ? st.timerSeconds
+                          : null,
                     timerEndsAt: typeof st === 'string' ? null : (st?.timerEndsAt ?? null),
-                    timerInstruction:
-                      typeof st === 'string' ? null : (st?.timerInstruction ?? null),
                     timerExpired: typeof st === 'string' ? false : st?.timerExpired === true,
                     activatedAt:
                       typeof st === 'string'
@@ -251,6 +257,8 @@ function hydrate(data: unknown): AppState {
                         : typeof st?.activatedAt === 'number'
                           ? st.activatedAt
                           : null,
+                    priority:
+                      typeof st === 'string' || st?.priority !== 'high' ? 'normal' : 'high',
                   }))
                 : []
               const stepIndex = typeof s.stepIndex === 'number' ? s.stepIndex : 0
@@ -263,7 +271,6 @@ function hydrate(data: unknown): AppState {
                 steps[stepIndex] = {
                   ...steps[stepIndex],
                   timerEndsAt: s.timerEndsAt,
-                  timerInstruction: s.timerInstruction ?? null,
                   timerExpired: s.timerExpired === true,
                 }
               }
@@ -297,6 +304,12 @@ function hydrate(data: unknown): AppState {
 }
 
 export const [state, setState] = createStore<AppState>(defaults)
+
+// Kochlogik gegen den echten CookState (Mock-Seite nutzt eine eigene Engine)
+export const cookEngine = createCookEngine(
+  () => state.cook,
+  (fn) => setState('cook', fn),
+)
 
 const [ready, setReady] = createSignal(false)
 export const stateReady = ready
@@ -374,30 +387,6 @@ function msg(role: AgentMessage['role'], text: string, silent = false): AgentMes
   return { role, text, silent }
 }
 
-export function expireTimers() {
-  const now = Date.now()
-  for (const s of state.cook.strangs) {
-    s.steps.forEach((step, idx) => {
-      if (step.timerExpired || step.timerEndsAt === null || step.timerEndsAt > now) return
-      setState('cook', 'strangs', (str) =>
-        str.map((x) =>
-          x.id === s.id
-            ? {
-                ...x,
-                steps: x.steps.map((st, i) =>
-                  i === idx ? { ...st, timerEndsAt: null, timerExpired: true } : st,
-                ),
-              }
-            : x,
-        ),
-      )
-      showToast(
-        `⏰ Timer abgelaufen: ${s.name} — ${stepLabel(step.description)}${step.timerInstruction ? ` (${step.timerInstruction})` : ''}`,
-      )
-    })
-  }
-}
-
 interface RawToolCall {
   id: string
   type: 'function'
@@ -466,7 +455,7 @@ export async function sendMessage(text: string) {
           } catch {
             // unbrauchbare Argumente → Fehler an den Agenten zurückmelden
           }
-          const result = executeTool(tc.function.name, args)
+          const result = cookEngine.executeTool(tc.function.name, args)
           convo.push({ role: 'tool', tool_call_id: tc.id, content: result })
         }
         continue

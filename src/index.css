@@ -7,6 +7,27 @@
   }
 }
 
+/* ── Keyframes ─────────────────────────────────────────────────────── */
+@keyframes pulse-border {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(var(--pulse-color, 245 158 11) / 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgb(var(--pulse-color, 245 158 11) / 0.15);
+  }
+}
+
+@keyframes prio-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--strang-border-active);
+  }
+  50% {
+    box-shadow: 0 0 0 3px var(--strang-border-active);
+  }
+}
+
 @layer components {
   /* ── Strang-Farben (CSS-Variablen per data-color) ─────────────── */
   [data-color='cyan'] {
@@ -111,14 +132,16 @@
     @apply opacity-55;
   }
   .step-card.is-blocked {
-    @apply opacity-70;
+    /* Vorschau in „Jetzt" / Flow-View: ausgegraut, keine gestrichelte Outline */
+    @apply opacity-60 grayscale;
+  }
+  .step-card.is-waiting {
     border-style: dashed;
   }
-  /* Kopfzeile: Desktop/Flow-View (meta rechts, neutral) */
-  .step-card-head {
-    @apply flex items-center gap-2 px-3 pt-2;
+  .step-card.is-prio {
+    animation: prio-pulse 1.4s ease-in-out infinite;
   }
-  /* Titelband: Mobile „Jetzt" — Farbe endet hier vertikal */
+  /* Titelband: auf jeder Karte (Desktop + Flow-View + Mobile „Jetzt") */
   .step-card-band {
     @apply flex items-center gap-2 px-3 py-1.5 border-b;
     background-color: var(--strang-bg);
@@ -141,13 +164,13 @@
   }
   /* Titel = Flow-Name im Band: caps, klein */
   .step-card-title {
-    @apply text-xs uppercase tracking-widest;
+    @apply text-sm uppercase tracking-widest;
   }
 
   /* ── Markdown (Step-Description) ───────────────────────────────── */
   /* Body ist monoton zinc — Akzente neutral, nicht strang-farbig */
   .step-description {
-    @apply text-sm leading-relaxed;
+    @apply text-base leading-relaxed;
     color: theme('colors.zinc.300');
   }
   .step-description p {
@@ -187,7 +210,16 @@
     @apply brightness-125;
   }
   .revert-btn {
-    @apply w-6 h-6 flex items-center justify-center rounded-full border border-zinc-600 bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors shrink-0;
+    @apply w-11 h-11 flex items-center justify-center rounded-full border border-zinc-600 bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors shrink-0;
+  }
+  .clock-btn {
+    @apply w-11 h-11 flex items-center justify-center rounded-full border transition-colors shrink-0;
+    border-color: theme('colors.emerald.700');
+    background-color: theme('colors.emerald.900');
+    color: theme('colors.emerald.300');
+  }
+  .clock-btn:hover {
+    @apply brightness-125;
   }
   .mic-btn {
     @apply relative w-9 h-9 rounded-full flex items-center justify-center text-base transition-all disabled:opacity-40;

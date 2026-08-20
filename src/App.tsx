@@ -7,7 +7,8 @@ import { CookMock } from './pages/CookMock'
 import { Cook } from './pages/Cook'
 import { Setup } from './pages/Setup'
 import { Toasts } from './components/Toasts'
-import { state, stateReady } from './state/store'
+import { state, stateReady, cookEngine } from './state/store'
+import { CookContext } from './lib/cookEngine'
 
 const base =
   import.meta.env.BASE_URL === '/' ? undefined : import.meta.env.BASE_URL.replace(/\/+$/, '')
@@ -72,10 +73,12 @@ export default function App() {
           }
         >
           <Show when={!showSetup()} fallback={<Setup />}>
-            <Router base={base}>
-              <Route path="/mock" component={CookMock} />
-              <Route path="*" component={CookingRoute} />
-            </Router>
+            <CookContext.Provider value={cookEngine}>
+              <Router base={base}>
+                <Route path="/mock" component={CookMock} />
+                <Route path="*" component={CookingRoute} />
+              </Router>
+            </CookContext.Provider>
           </Show>
         </Show>
         <ConfigModal

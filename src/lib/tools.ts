@@ -1,6 +1,3 @@
-import { state, setState, STRANG_COLORS } from '../state/store'
-import { showToast } from './toast'
-
 export interface ToolDef {
   type: 'function'
   function: {
@@ -34,7 +31,16 @@ export const TOOLS: ToolDef[] = [
             items: {
               type: 'object',
               properties: {
-                description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt); beginne mit einer kurzen Kernaussage — sie erscheint als Titel in Timer-Chips' },
+                description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt); beginne mit einer kurzen Kernaussage' },
+                timer_seconds: {
+                  type: 'number',
+                  description: 'Optionale Dauer in Sekunden. Der Timer läuft NACH dem Abschließen dieses Schritts; abhängige Schritte werden erst frei, wenn er abgelaufen ist.',
+                },
+                priority: {
+                  type: 'string',
+                  enum: ['normal', 'high'],
+                  description: '"high" für zeitkritische Schritte (z.B. etwas im Ofen): Karte steht in „Jetzt" oben und pulsiert. Ein "high"-Schritt darf höchstens EINE Abhängigkeit haben (den Schritt mit dem Timer). Sparsam verwenden.',
+                },
                 depends_on: {
                   type: 'array',
                   items: {
@@ -66,7 +72,16 @@ export const TOOLS: ToolDef[] = [
         type: 'object',
         properties: {
           strang_id: { type: 'string' },
-          description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt); beginne mit einer kurzen Kernaussage — sie erscheint als Titel in Timer-Chips' },
+          description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt); beginne mit einer kurzen Kernaussage' },
+          timer_seconds: {
+            type: 'number',
+            description: 'Optionale Dauer in Sekunden. Der Timer läuft NACH dem Abschließen dieses Schritts; abhängige Schritte werden erst frei, wenn er abgelaufen ist.',
+          },
+          priority: {
+            type: 'string',
+            enum: ['normal', 'high'],
+            description: '"high" für zeitkritische Schritte (z.B. etwas im Ofen): Karte steht in „Jetzt" oben und pulsiert. Ein "high"-Schritt darf höchstens EINE Abhängigkeit haben (den Schritt mit dem Timer). Sparsam verwenden.',
+          },
           depends_on: {
             type: 'array',
             items: {
@@ -132,18 +147,30 @@ export const TOOLS: ToolDef[] = [
   {
     type: 'function',
     function: {
+      name: 'set_step_priority',
+      description: 'Priorität eines Schritts setzen: "high" für zeitkritische Schritte — Karte steht in „Jetzt" oben und pulsiert.',
+      parameters: {
+        type: 'object',
+        properties: {
+          strang_id: { type: 'string' },
+          step_index: { type: 'number', description: '0-basiert' },
+          priority: { type: 'string', enum: ['normal', 'high'] },
+        },
+        required: ['strang_id', 'step_index', 'priority'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'start_timer',
-      description: 'Timer für einen SCHRITT starten (mehrere Schritte eines Strangs können parallel Timer laufen lassen).',
+      description: 'Timer eines Schritts (neu) setzen — z.B. wenn der Nutzer eine andere Zeit will („das muss noch 5 Minuten"). Ersetzt einen laufenden Timer.',
       parameters: {
         type: 'object',
         properties: {
           strang_id: { type: 'string' },
           step_index: { type: 'number', description: '0-basiert' },
           seconds: { type: 'number' },
-          on_expire_instruction: {
-            type: 'string',
-            description: 'Anweisung, die beim Ablaufen gilt, z.B. "Nudeln abgießen"',
-          },
         },
         required: ['strang_id', 'step_index', 'seconds'],
       },
@@ -233,24 +260,6 @@ export const TOOLS: ToolDef[] = [
   },
 ]
 
-function findStrang(id: string) {
-  return state.cook.strangs.find((s) => s.id === id)
-}
-
-function patchStrang(id: string, patch: Record<string, unknown>) {
-  setState('cook', 'strangs', (str) => str.map((s) => (s.id === id ? { ...s, ...patch } : s)))
-}
-
-function patchStep(strangId: string, stepIndex: number, patch: Record<string, unknown>) {
-  setState('cook', 'strangs', (str) =>
-    str.map((s) =>
-      s.id === strangId
-        ? { ...s, steps: s.steps.map((st, i) => (i === stepIndex ? { ...st, ...patch } : st)) }
-        : s,
-    ),
-  )
-}
-
 function fmtRemaining(endsAt: number): string {
   const s = Math.max(0, Math.round((endsAt - Date.now()) / 1000))
   const mm = Math.floor(s / 60)
@@ -268,262 +277,4 @@ export function stepLabel(description: string, max = 40): string {
       .find((l) => l !== '') ?? ''
   const text = first.replace(/\s+/g, ' ')
   return text.length > max ? `${text.slice(0, max - 1)}…` : text
-}
-
-// Monoton wachsende Sequenz (Basis Date.now, damit Werte nach Reload > gespeicherte sind).
-let actSeq = Date.now()
-function nextAct(): number {
-  return ++actSeq
-}
-
-function depsDone(deps: { strang_id: string; step_index: number }[]): boolean {
-  return deps.every(
-    (d) => state.cook.strangs.find((x) => x.id === d.strang_id)?.steps[d.step_index]?.done === true,
-  )
-}
-
-function hasDoneDependents(strangId: string, stepIndex: number): boolean {
-  return state.cook.strangs.some((s) =>
-    s.steps.some(
-      (st) =>
-        st.done &&
-        st.dependsOn.some((d) => d.strang_id === strangId && d.step_index === stepIndex),
-    ),
-  )
-}
-
-export function executeTool(name: string, args: Record<string, unknown>): string {
-  try {
-    switch (name) {
-      case 'get_cook_state':
-        return JSON.stringify(state.cook)
-      case 'add_strang': {
-        const strangName = String(args.name ?? '').trim()
-        const icon = String(args.icon ?? '').trim()
-        const steps = Array.isArray(args.steps)
-          ? args.steps.map((st) => {
-              if (typeof st === 'string') return { description: st, dependsOn: [] }
-              const o = (st ?? {}) as Record<string, unknown>
-              return {
-                description: String(o.description ?? '').trim(),
-                dependsOn: Array.isArray(o.depends_on)
-                  ? (o.depends_on as Record<string, unknown>[]).map((d) => ({
-                      strang_id: String(d?.strang_id ?? '').trim(),
-                      step_index: Number(d?.step_index ?? 0),
-                    }))
-                  : [],
-              }
-            })
-          : []
-        if (!strangName) return JSON.stringify({ error: 'name fehlt' })
-        if (steps.length === 0 || steps.some((s) => s.description === '')) {
-          return JSON.stringify({ error: 'steps brauchen mindestens eine description' })
-        }
-        const id = crypto.randomUUID()
-        const color = STRANG_COLORS[state.cook.strangs.length % STRANG_COLORS.length]
-        setState('cook', 'strangs', (s) => [
-          ...s,
-          {
-            id,
-            name: strangName,
-            icon: icon || null,
-            color,
-            steps: steps.map((st) => ({
-              description: st.description,
-              done: false,
-              dependsOn: st.dependsOn,
-              timerEndsAt: null,
-              timerInstruction: null,
-              timerExpired: false,
-              activatedAt: depsDone(st.dependsOn) ? nextAct() : null,
-            })),
-            stepIndex: 0,
-            done: false,
-          },
-        ])
-        setState('cook', 'focusedStrangId', id)
-        showToast(`Strang: ${strangName}`)
-        return JSON.stringify({ id, name: strangName })
-      }
-      case 'add_step': {
-        const id = String(args.strang_id ?? '')
-        const description = String(args.description ?? '').trim()
-        const strang = findStrang(id)
-        if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
-        if (!description) return JSON.stringify({ error: 'description fehlt' })
-        const dependsOn = Array.isArray(args.depends_on)
-          ? (args.depends_on as Record<string, unknown>[]).map((d) => ({
-              strang_id: String(d?.strang_id ?? '').trim(),
-              step_index: Number(d?.step_index ?? 0),
-            }))
-          : []
-        const step = {
-          description,
-          done: false,
-          dependsOn,
-          timerEndsAt: null,
-          timerInstruction: null,
-          timerExpired: false,
-          activatedAt: depsDone(dependsOn) ? nextAct() : null,
-        }
-        patchStrang(id, { steps: [...strang.steps, step] })
-        showToast(`${strang.name}: + „${stepLabel(description)}"`)
-        return JSON.stringify({ ok: true, step_index: strang.steps.length })
-      }
-      case 'complete_step': {
-        const id = String(args.strang_id ?? '')
-        const stepIdx = Number(args.step_index)
-        const strang = findStrang(id)
-        if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
-        if (!Number.isInteger(stepIdx) || stepIdx < 0 || stepIdx >= strang.steps.length) {
-          return JSON.stringify({ error: `step_index muss 0..${strang.steps.length - 1} sein` })
-        }
-        const steps = strang.steps.map((st, i) =>
-          i === stepIdx
-            ? { ...st, done: true, timerEndsAt: null, timerInstruction: null, timerExpired: false }
-            : st,
-        )
-        const allDone = steps.every((st) => st.done)
-        patchStrang(id, { steps, done: allDone ? true : strang.done })
-        // Abhängigkeiten prüfen: blockierte Schritte, die jetzt frei werden, tauchen
-        // unten in der „Jetzt“-View auf (Reihenfolge = Reihenfolge des Auftauchens).
-        for (const s2 of state.cook.strangs) {
-          s2.steps.forEach((st2, j) => {
-            if (st2.done || st2.activatedAt !== null) return
-            if (!st2.dependsOn.some((d) => d.strang_id === id && d.step_index === stepIdx)) return
-            if (!depsDone(st2.dependsOn)) return
-            patchStep(s2.id, j, { activatedAt: nextAct() })
-          })
-        }
-        showToast(`${strang.name}: „${stepLabel(strang.steps[stepIdx].description)}" fertig`)
-        return JSON.stringify({ ok: true })
-      }
-      case 'revert_step': {
-        const id = String(args.strang_id ?? '')
-        const stepIdx = Number(args.step_index)
-        const strang = findStrang(id)
-        if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
-        if (!Number.isInteger(stepIdx) || stepIdx < 0 || stepIdx >= strang.steps.length) {
-          return JSON.stringify({ error: `step_index muss 0..${strang.steps.length - 1} sein` })
-        }
-        if (!strang.steps[stepIdx].done) {
-          return JSON.stringify({ error: 'Schritt ist nicht abgeschlossen' })
-        }
-        if (hasDoneDependents(id, stepIdx)) {
-          return JSON.stringify({
-            error: 'Abhängige Karte ist bereits abgeschlossen — Schritt kann nicht zurückgenommen werden',
-          })
-        }
-        patchStep(id, stepIdx, { done: false, activatedAt: nextAct() })
-        patchStrang(id, { done: false })
-        showToast(`${strang.name}: „${stepLabel(strang.steps[stepIdx].description)}" zurückgenommen`)
-        return JSON.stringify({ ok: true })
-      }
-      case 'set_step': {
-        const id = String(args.strang_id ?? '')
-        const idx = Number(args.step_index)
-        const strang = findStrang(id)
-        if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
-        if (!Number.isInteger(idx) || idx < 0 || idx >= strang.steps.length) {
-          return JSON.stringify({ error: `step_index muss 0..${strang.steps.length - 1} sein` })
-        }
-        patchStrang(id, { stepIndex: idx })
-        return JSON.stringify({ ok: true })
-      }
-      case 'start_timer': {
-        const id = String(args.strang_id ?? '')
-        const stepIdx = Number(args.step_index)
-        const seconds = Number(args.seconds)
-        const strang = findStrang(id)
-        if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
-        if (!Number.isInteger(stepIdx) || stepIdx < 0 || stepIdx >= strang.steps.length) {
-          return JSON.stringify({ error: `step_index muss 0..${strang.steps.length - 1} sein` })
-        }
-        if (!Number.isFinite(seconds) || seconds <= 0) {
-          return JSON.stringify({ error: 'seconds muss positiv sein' })
-        }
-        const endsAt = Date.now() + seconds * 1000
-        patchStep(id, stepIdx, {
-          timerEndsAt: endsAt,
-          timerExpired: false,
-          timerInstruction: args.on_expire_instruction ? String(args.on_expire_instruction) : null,
-        })
-        showToast(`⏱ Timer: ${fmtRemaining(endsAt)} (${strang.name}: ${stepLabel(strang.steps[stepIdx].description)})`)
-        return JSON.stringify({ ok: true, endsAt })
-      }
-      case 'cancel_timer': {
-        const id = String(args.strang_id ?? '')
-        const stepIdx = Number(args.step_index)
-        const strang = findStrang(id)
-        if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
-        if (!Number.isInteger(stepIdx) || stepIdx < 0 || stepIdx >= strang.steps.length) {
-          return JSON.stringify({ error: `step_index muss 0..${strang.steps.length - 1} sein` })
-        }
-        patchStep(id, stepIdx, { timerEndsAt: null, timerInstruction: null, timerExpired: false })
-        showToast('⏱ Timer abgebrochen')
-        return JSON.stringify({ ok: true })
-      }
-      case 'complete_strang': {
-        const id = String(args.strang_id ?? '')
-        const strang = findStrang(id)
-        if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
-        patchStrang(id, {
-          done: true,
-          steps: strang.steps.map((st) => ({
-            ...st,
-            done: true,
-            timerEndsAt: null,
-            timerInstruction: null,
-            timerExpired: false,
-          })),
-        })
-        showToast(`Fertig: ${strang.name}`)
-        const idx = state.cook.strangs.findIndex((s) => s.id === id)
-        const rest = state.cook.strangs.slice(idx + 1).concat(state.cook.strangs.slice(0, idx))
-        const next = rest.find((s) => !s.done)
-        if (next) setState('cook', 'focusedStrangId', next.id)
-        return JSON.stringify({ ok: true })
-      }
-      case 'focus_strang': {
-        const id = String(args.strang_id ?? '')
-        if (!findStrang(id)) return JSON.stringify({ error: 'Unbekannter Strang' })
-        setState('cook', 'focusedStrangId', id)
-        return JSON.stringify({ ok: true })
-      }
-      case 'add_zutaten': {
-        const zName = String(args.name ?? '').trim()
-        if (!zName) return JSON.stringify({ error: 'name fehlt' })
-        const id = crypto.randomUUID()
-        setState('cook', 'zutaten', (z) => [
-          ...z,
-          { id, name: zName, amount: args.amount ? String(args.amount) : '', checked: false },
-        ])
-        showToast(`Zutat: ${zName}`)
-        return JSON.stringify({ id, name: zName })
-      }
-      case 'toggle_zutaten': {
-        const id = String(args.id ?? '')
-        let found = false
-        setState('cook', 'zutaten', (z) =>
-          z.map((x) => {
-            if (x.id !== id) return x
-            found = true
-            return { ...x, checked: !x.checked }
-          }),
-        )
-        if (!found) return JSON.stringify({ error: 'Unbekannte Zutat' })
-        return JSON.stringify({ ok: true })
-      }
-      case 'open_zutaten':
-        setState('cook', 'zutatenOpen', true)
-        return JSON.stringify({ ok: true })
-      case 'close_zutaten':
-        setState('cook', 'zutatenOpen', false)
-        return JSON.stringify({ ok: true })
-      default:
-        return JSON.stringify({ error: `Unbekanntes Tool: ${name}` })
-    }
-  } catch (e) {
-    return JSON.stringify({ error: e instanceof Error ? e.message : String(e) })
-  }
 }
