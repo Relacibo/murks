@@ -96,10 +96,6 @@
     color: #fcd34d;
     animation: pulse-border 1.2s ease-in-out infinite;
   }
-  .chip.is-expired {
-    border-color: #ef4444;
-    color: #fca5a5;
-  }
   .chip.is-done {
     text-decoration: line-through;
     opacity: 0.6;
@@ -108,6 +104,10 @@
   /* ── Strang-Spalte (Desktop + Mobile-Flow-View): nur Gliederung ── */
   .column {
     @apply w-[320px] shrink-0 flex flex-col min-h-0 max-h-full;
+  }
+  /* Übersicht geschlossen → Spalten zentriert, Karten breiter */
+  .columns-area.is-wide .column {
+    @apply w-[400px];
   }
   .column-header {
     @apply flex items-center gap-2 w-full text-left px-1 py-2 text-sm font-semibold text-zinc-300 transition-colors hover:text-zinc-100;

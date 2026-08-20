@@ -7,7 +7,7 @@ import { fmtRemaining } from '../lib/tools'
 import { createAgentVoice } from '../lib/agentVoice'
 import {
   FiMic, FiMicOff, FiMoreHorizontal, FiFileText, FiSettings,
-  FiCheck, FiBell, FiX, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw, FiClock,
+  FiCheck, FiBell, FiX, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw, FiClock, FiSidebar,
 } from 'solid-icons/fi'
 
 export function Cook() {
@@ -17,6 +17,7 @@ export function Cook() {
 
   const [tick, setTick] = createSignal(Date.now())
   const [flowView, setFlowView] = createSignal<string | null>(null)
+  const [overviewOpen, setOverviewOpen] = createSignal(true)
   const [lastAgent, setLastAgent] = createSignal<{ text: string; at: number } | null>(null)
   const interval = setInterval(() => {
     setTick(Date.now())
@@ -141,9 +142,6 @@ export function Cook() {
         .map((st, i) => ({ s, st, i }))
         .filter((x) => x.st.timerEndsAt !== null && !x.st.timerExpired),
     ),
-  )
-  const expiredTimers = createMemo(() =>
-    strangs().flatMap((s) => s.steps.map((st, i) => ({ s, st, i })).filter((x) => x.st.timerExpired)),
   )
 
   function jumpToStep(s: Strang, i: number) {
@@ -367,11 +365,13 @@ export function Cook() {
   function JetztQueue(props: {
     onTitleClick: (id: string) => void
     scrollerRef?: (el: HTMLDivElement) => void
+    showBlocked?: boolean
   }) {
+    const showBlocked = () => props.showBlocked !== false
     const empty = () =>
       jetztCards().prio.length === 0 &&
       jetztCards().normal.length === 0 &&
-      jetztCards().blocked.length === 0
+      (!showBlocked() || jetztCards().blocked.length === 0)
     return (
       <div ref={props.scrollerRef} class="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-2">
         <For each={jetztCards().prio}>
@@ -380,9 +380,11 @@ export function Cook() {
         <For each={jetztCards().normal}>
           {(c) => <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(c.s.id)} />}
         </For>
-        <For each={jetztCards().blocked}>
-          {(c) => <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(c.s.id)} />}
-        </For>
+        <Show when={showBlocked()}>
+          <For each={jetztCards().blocked}>
+            {(c) => <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(c.s.id)} />}
+          </For>
+        </Show>
         <Show when={empty()}>
           <p class="text-sm text-zinc-500 text-center py-8">Alles erledigt.</p>
         </Show>
@@ -443,16 +445,6 @@ export function Cook() {
               </button>
             )}
           </For>
-          <For each={expiredTimers()}>
-            {(x) => (
-              <button class="chip is-expired" data-color={x.s.color} onClick={() => jumpToStep(x.s, x.i)}>
-                <Show when={x.s.icon}>
-                  <span class="text-base leading-none">{x.s.icon}</span>
-                </Show>
-                <FiBell size={12} />
-              </button>
-            )}
-          </For>
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <button
@@ -472,6 +464,14 @@ export function Cook() {
             </Show>
           </button>
           <button class="icon-btn" onClick={() => engine.executeTool('open_zutaten', {})} title="Zutaten"><FiFileText size={16} /></button>
+          <button
+            class="icon-btn hidden sm:flex"
+            onClick={() => setOverviewOpen((v) => !v)}
+            title={overviewOpen() ? 'Übersicht ausblenden' : 'Übersicht einblenden'}
+            aria-label="Übersicht ein-/ausblenden"
+          >
+            <FiSidebar size={16} />
+          </button>
           <button class="icon-btn" onClick={() => setConfigOpen(true)} title="Konfiguration"><FiSettings size={16} /></button>
         </div>
       </header>
@@ -521,19 +521,25 @@ export function Cook() {
             </Show>
           </div>
 
-          {/* Desktop: „Jetzt"-Spalte links (fix) + eine Spalte pro Strang */}
+          {/* Desktop: „Jetzt"-Spalte links (ein-/ausblendbar) + eine Spalte pro Strang */}
           {/* Horizontales Scrollen nur im Strang-Bereich — „Jetzt" bleibt stehen */}
           <div class="hidden sm:flex flex-1 min-h-0">
-            <div class="w-72 shrink-0 flex flex-col min-h-0 border-r border-zinc-700 bg-zinc-900/50">
-              <div class="shrink-0 px-3 py-2 border-b border-zinc-700 text-xs uppercase tracking-widest text-zinc-500">
-                Jetzt
+            <Show when={overviewOpen()}>
+              <div class="w-72 shrink-0 flex flex-col min-h-0 bg-zinc-900/50">
+                <div class="shrink-0 px-3 py-2 border-b border-zinc-700 text-xs uppercase tracking-widest text-zinc-500">
+                  Jetzt
+                </div>
+                <JetztQueue
+                  onTitleClick={(id) => focusColumn(id)}
+                  scrollerRef={(el) => (jetztScrollerDesktop = el)}
+                  showBlocked={false}
+                />
               </div>
-              <JetztQueue
-                onTitleClick={(id) => focusColumn(id)}
-                scrollerRef={(el) => (jetztScrollerDesktop = el)}
-              />
-            </div>
-            <div class="flex flex-1 min-h-0 gap-3 p-3 overflow-x-auto items-stretch">
+            </Show>
+            <div
+              class="columns-area flex flex-1 min-h-0 gap-3 p-3 overflow-x-auto items-stretch"
+              classList={{ 'is-wide justify-center': !overviewOpen() }}
+            >
               <For each={strangs()}>
                 {(s) => (
                   <StrangColumn

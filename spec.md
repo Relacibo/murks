@@ -155,25 +155,25 @@ alles sichtbar.
 ├─────────────┬───────────────────────┬────────────────────────────────┤
 │ JETZT       │ 🍚 REIS              │ 🍝 SAUCE        │ 🥗 SALAT     │  ← Header
 │ (getönt,    │                       │                 │              │    „Jetzt" = kleines
-│  vertikaler │┌───────────────────┐  │ ┌─────────────┐  │ ┌──────────┐ │    Label, nicht
-│  Strich)    ││ ✓ Quellen lassen  │  │ │ Einreduzieren│  │ │ Dressing │ │    klickbar
-│┌───────────┐││   ⏱ 04:00  3/5    │  │ │ ⏱ 07:41 2/4 │  │ │ ⏱ 01:12  │ │
-││ Prio ═══╗ ││└───────────────────┘  │ │ …           │  │ │ …        │ │
-│└───────────┘│┌───────────────────┐  │ └─────────────┘  │ └──────────┘ │
-│┌───────────┐││ Auflockern …  4/5 │  │ ┌─────────────┐  │ ┌──────────┐ │
-││ aktiv …   ││└───────────────────┘  │ │ Abschmecken🔒│  │ │ …        │ │
-│└───────────┘│                       │ └─────────────┘  │ └──────────┘ │
-│┌───────────┐│                       │                 │              │
-││ blocked…  ││ ← eigene Scrollbars   │ ← eigene Scrollbars              │
-│└───────────┘│                       │                 │              │
+│  kein Strich)│┌───────────────────┐  │ ┌─────────────┐  │ ┌──────────┐ │    Label, nicht
+│┌───────────┐││ ✓ Quellen lassen  │  │ │ Einreduzieren│  │ │ Dressing │ │    klickbar
+││ Prio ═══╗ │││   ⏱ 04:00  3/5    │  │ │ ⏱ 07:41 2/4 │  │ │ ⏱ 01:12  │ │
+│└───────────┘│└───────────────────┘  │ │ …           │  │ │ …        │ │
+│┌───────────┐│┌───────────────────┐  │ └─────────────┘  │ └──────────┘ │
+││ aktiv …   │││ Auflockern …  4/5 │  │ ┌─────────────┐  │ ┌──────────┐ │
+│└───────────┘│└───────────────────┘  │ │ Abschmecken🔒│  │ │ …        │ │
+│             │                       │ └─────────────┘  │ └──────────┘ │
+│ ← eigene    │ ← eigene Scrollbars   │ ← eigene Scrollbars              │
 └─────────────┴───────────────────────┴─────────────────┴──────────────┘
 ```
 
-- **„Jetzt"-Spalte ganz links, fix:** identisch zur mobilen View 1 (Prio-Queue, normale
-  Queue, Blocked-Vorschau). Visuell abgetrennt: vertikaler Strich + leicht getönter
-  Hintergrund. Kleines „Jetzt"-Label als Header (nicht klickbar, keine Flow-Chips).
+- **„Jetzt"-Spalte ganz links, fix:** wie die mobile View 1 — aber **ohne Blocked-Vorschau**
+  (blocked erscheint nur mobil). Nur leicht getönter Hintergrund (kein vertikaler Strich).
+  Kleines „Jetzt"-Label als Header (nicht klickbar, keine Flow-Chips).
+- **Ein-/ausblendbar:** Topbar-Toggle (nur Desktop) klappt die Übersicht komplett
+  ein/aus. Geschlossen → Strang-Spalten zentriert und Karten breiter (Spalten wachsen).
 - **Rechts daneben die Strang-Spalten** (= mobile „Flow"-Views): jede Spalte hat ihre
-  **eigene vertikale Scrollbar** (nur wenn nötig).
+  **eigene vertikale Scrollbar** (nur wenn nötig). **Die Seite selbst scrollt nie.**
 - **Horizontales Scrollen nur im Strang-Bereich** — die „Jetzt"-Spalte bleibt stehen.
 - Titel-Tap in der „Jetzt"-Spalte = Strang fokussieren + Spalte horizontal ins Bild
   scrollen (falls nicht sichtbar).
@@ -269,7 +269,8 @@ Mehrere Karten stehen untereinander (Stapel).
 - **Revert:** `revert_step` verwirft den eigenen Timer und macht Abhängige wieder blocked
   (sie rücken in die Vorschau).
 - Sichtbar: in der Schritt-Karte (Header), Topbar-Timer-Chips (nur Emoji + Zeit bzw. 🔔).
-- Dringlichkeit: Orange + Pulsieren < 2 min, Bell-Icon + Rot bei Ablauf.
+- Dringlichkeit: Orange + Pulsieren < 2 min; bei Ablauf verschwindet der Topbar-Chip sofort
+  (Bell bleibt nur auf der Schritt-Karte).
 - Bei Ablauf: KI navigiert aktiv zum betroffenen Schritt (`focus_strang` + `set_step`).
 - `complete_strang` bricht alle Schritt-Timer des Strangs ab.
 
@@ -303,8 +304,10 @@ Mehrere Karten stehen untereinander (Stapel).
 
 - **Eine einzige Leiste** — keine zweite Timer-Leiste darunter.
 - Kein Logo/Schriftzug „MURKS".
-- Links: Timer-Chips (Emoji + Zeit bzw. 🔔 — keine Beschreibung), scrollbar; rechts: 🎤 📄 ⚙.
-- Chip-Dringlichkeit: gelb pulsierend < 2 min, rot (Bell) bei Ablauf. Klick = zu Schritt springen.
+- Links: Timer-Chips (Emoji + Zeit — keine Beschreibung), scrollbar; rechts: 🎤 📄 ⚙ (+ Toggle
+  für die Desktop-Übersicht).
+- Chip-Dringlichkeit: gelb pulsierend < 2 min. **Bei Ablauf verschwindet der Chip sofort**
+  (kein Bell-Chip). Klick = zu Schritt springen.
 
 ---
 
