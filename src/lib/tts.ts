@@ -136,6 +136,9 @@ export function clearPregen(id: string): void {
 
 
 
+let currentSource: AudioBufferSourceNode | null = null
+let token = 0
+
 export function stopSpeaking() {
   token++
   try {

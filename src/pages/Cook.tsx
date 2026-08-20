@@ -808,7 +808,16 @@ export function Cook(props: {
                     completeStep(s(), i())
                   }}
                 >
-                  <FiClock size={18} />
+                  <span class="relative inline-flex">
+                    <FiClock size={18} />
+                    {/* kleines Play-Icon unten rechts: dieser Abschluss startet den Timer */}
+                    <FiPlay
+                      size={7}
+                      class="absolute -bottom-[3px] -right-[5px]"
+                      fill="currentColor"
+                      stroke-width={1}
+                    />
+                  </span>
                 </button>
               </Show>
             </Show>
