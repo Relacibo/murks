@@ -573,10 +573,10 @@ export function Cook(props: {
           // erst fliegt der Ghost raus, dann kommt die neue Karte rein
           el.animate(
             [
-              { transform: 'translateX(48px)', opacity: 0 },
-              { transform: 'translateX(0)', opacity: 1 },
+              { transform: 'translateY(32px)', opacity: 0 },
+              { transform: 'translateY(0)', opacity: 1 },
             ],
-            { duration: 320, easing: 'ease-out', delay: 120, fill: 'backwards' },
+            { duration: 300, easing: 'ease-out', delay: 120, fill: 'backwards' },
           )
         } else if (Math.abs(prev - now) > 1) {
           el.animate(
@@ -613,16 +613,12 @@ export function Cook(props: {
                 // Frame, wenn das Element sicher verbunden ist
                 requestAnimationFrame(() => {
                   if (!el.isConnected) return
-                  const desktop = window.matchMedia('(min-width: 640px)').matches
                   const anim = el.animate(
                     [
-                      { transform: 'translateX(0)', opacity: 1 },
-                      {
-                        transform: desktop ? 'translateX(-64px)' : 'translateY(-32px)',
-                        opacity: 0,
-                      },
+                      { transform: 'translateY(0)', opacity: 1 },
+                      { transform: 'translateY(-40px)', opacity: 0 },
                     ],
-                    { duration: 200, easing: 'ease-in' },
+                    { duration: 220, easing: 'ease-in' },
                   )
                   anim.onfinish = () => setLeaving((l) => l.filter((x) => x !== g))
                   setTimeout(() => setLeaving((l) => l.filter((x) => x !== g)), 600)
