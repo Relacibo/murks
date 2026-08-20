@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, type Accessor, type Setter } from 'solid-js'
+import { For, Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js'
 import { FiX } from 'solid-icons/fi'
 import { state, sendMessage, clearMessages } from '../state/store'
 import { createAgentVoice } from '../lib/agentVoice'
@@ -8,8 +8,6 @@ interface AgentModalProps {
   open: boolean
   onClose: () => void
   voice: ReturnType<typeof createAgentVoice>
-  configOpen: Accessor<boolean>
-  setConfigOpen: Setter<boolean>
 }
 
 /** Chat-Verlauf als Modal — Sichtbarkeit steuert die URL (?modal=…), KI über open/close_chat */
@@ -63,13 +61,6 @@ export function AgentModal(props: AgentModalProps) {
             >
               Verlauf löschen
             </button>
-            <button
-              class="icon-btn"
-              onClick={() => props.setConfigOpen(true)}
-              title="Konfiguration"
-            >
-              ⚙
-            </button>
             <button class="icon-btn" onClick={() => props.onClose()} title="Schließen" aria-label="Schließen">
               <FiX size={16} />
             </button>
@@ -79,8 +70,8 @@ export function AgentModal(props: AgentModalProps) {
           <div ref={feedRef} class="flex-1 space-y-3 overflow-y-auto p-4">
             <Show when={!ready()}>
               <p class="rounded-lg border border-amber-800 bg-amber-950/40 p-3 text-sm text-amber-400">
-                Kein Agent konfiguriert. Über <b>⚙</b> oben rechts einen Agenten mit Endpoint und
-                Modell anlegen.
+                Kein Agent konfiguriert. Über <b>⚙</b> in der Topbar (Hauptscreen) einen Agenten
+                mit Endpoint und Modell anlegen.
               </p>
             </Show>
             <Show when={state.agent.messages.length === 0 && ready()}>

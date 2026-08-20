@@ -34,14 +34,11 @@ export function useConfig() {
   return useContext(ConfigContext)
 }
 
-type ModalName = 'chat' | 'ingredients'
+type ModalName = 'chat' | 'ingredients' | 'config'
 
-/** Hauptscreen = Cook. Chat und Ingredients sind immer nur Modals — ihr Zustand steht in der URL (?modal=chat,ingredients). */
+/** Hauptscreen = Cook. Chat, Ingredients und Konfiguration sind immer nur Modals — ihr Zustand steht in der URL (?modal=chat,ingredients). */
 function CookingRoute() {
-  const ctx = useConfig()
   const [params, setParams] = useSearchParams<{ modal?: string; overview?: string }>()
-  // Eine gemeinsame Voice-Instanz für Koch-Screen (Overlay) + Chat-Modal
-  const voice = createAgentVoice({ configOpen: ctx.configOpen })
 
   const modals = () =>
     (typeof params.modal === 'string' ? params.modal.split(',').filter(Boolean) : []) as ModalName[]
@@ -58,6 +55,14 @@ function CookingRoute() {
     setParams(val ? { modal: val } : { modal: undefined })
   }
 
+  // Konfiguration ist auch nur ein URL-Modal — über den Context zugänglich
+  const configOpen = () => modals().includes('config')
+  const setConfigOpen: Setter<boolean> = (v) =>
+    setModal('config', typeof v === 'function' ? v(configOpen()) : v)
+
+  // Eine gemeinsame Voice-Instanz für Koch-Screen (Overlay) + Chat-Modal
+  const voice = createAgentVoice({ configOpen })
+
   // KI öffnet/schließt Modals (open_chat / open_ingredients …) → URL spiegeln
   createEffect(() => {
     const r = cookEngine.modalRequest
@@ -69,8 +74,14 @@ function CookingRoute() {
     if (state.cook.flows.length === 0 && !modals().includes('chat')) setModal('chat', true)
   })
 
+  // Kein gültiger Agent → Konfiguration aufpoppen
+  createEffect(() => {
+    if (!stateReady()) return
+    if (!hasValidAgent() && state.setupDone && !modals().includes('config')) setModal('config', true)
+  })
+
   return (
-    <>
+    <ConfigContext.Provider value={{ configOpen, setConfigOpen }}>
       <Cook
         voice={voice}
         onOpenIngredients={() => setModal('ingredients', true)}
@@ -86,58 +97,44 @@ function CookingRoute() {
         open={modals().includes('chat')}
         onClose={() => setModal('chat', false)}
         voice={voice}
-        configOpen={ctx.configOpen}
-        setConfigOpen={ctx.setConfigOpen}
       />
-    </>
+      <ConfigModal
+        open={configOpen()}
+        onClose={() => {
+          if (hasValidAgent()) setModal('config', false)
+        }}
+        dismissible={hasValidAgent()}
+      />
+    </ConfigContext.Provider>
   )
 }
 
 export default function App() {
-  const [configOpen, setConfigOpen] = createSignal(false)
   const isMock = window.location.pathname.endsWith('/mock')
   const initialValid = hasValidAgent()
 
   const showSetup = createMemo(() => !isMock && !state.setupDone && !initialValid)
 
-  onMount(() => {
-    createEffect(() => {
-      if (!stateReady()) return
-      if (!isMock && !hasValidAgent() && state.setupDone) setConfigOpen(true)
-    })
-  })
-
-  const dismissible = createMemo(() => hasValidAgent())
-
   return (
-    <ConfigContext.Provider value={{ configOpen, setConfigOpen }}>
-      <div class="min-h-screen bg-zinc-950 text-zinc-100">
-        <Show
-          when={stateReady()}
-          fallback={
-            <div class="min-h-screen flex items-center justify-center">
-              <span class="text-sm font-bold tracking-widest uppercase text-zinc-300">MURKS</span>
-            </div>
-          }
-        >
-          <Show when={!showSetup()} fallback={<Setup />}>
-            <CookContext.Provider value={cookEngine}>
-              <Router base={base}>
-                <Route path="/mock" component={CookMock} />
-                <Route path="*" component={CookingRoute} />
-              </Router>
-            </CookContext.Provider>
-          </Show>
+    <div class="min-h-screen bg-zinc-950 text-zinc-100">
+      <Show
+        when={stateReady()}
+        fallback={
+          <div class="min-h-screen flex items-center justify-center">
+            <span class="text-sm font-bold tracking-widest uppercase text-zinc-300">MURKS</span>
+          </div>
+        }
+      >
+        <Show when={!showSetup()} fallback={<Setup />}>
+          <CookContext.Provider value={cookEngine}>
+            <Router base={base}>
+              <Route path="/mock" component={CookMock} />
+              <Route path="*" component={CookingRoute} />
+            </Router>
+          </CookContext.Provider>
         </Show>
-        <ConfigModal
-          open={configOpen()}
-          onClose={() => {
-            if (dismissible()) setConfigOpen(false)
-          }}
-          dismissible={dismissible()}
-        />
-        <Toasts />
-      </div>
-    </ConfigContext.Provider>
+      </Show>
+      <Toasts />
+    </div>
   )
 }
