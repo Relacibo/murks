@@ -116,11 +116,17 @@ export function Cook(props: {
     else setFlowView(null)                        // 'jetzt' → Queue bleibt sichtbar
     const key = `${flowId}:${stepId}`
     pulseCards([key])
+    /* Ziel-Karte in den sichtbaren Bereich scrollen — nur im Flow-Kontext
+       (Desktop-Spalte bzw. mobile Flow-View), nicht in der „Jetzt"-Liste */
     requestAnimationFrame(() => {
-      const el = Array.from(
-        document.querySelectorAll<HTMLElement>(`[data-card-key="${CSS.escape(key)}"]`),
-      ).find((n) => n.offsetParent !== null)
-      el?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+      const scope =
+        view === 'jetzt'
+          ? `[data-card-list] [data-card-key="${CSS.escape(key)}"]`
+          : `[data-flow-id="${CSS.escape(flowId)}"] [data-card-key="${CSS.escape(key)}"]`
+      const el = Array.from(document.querySelectorAll<HTMLElement>(scope)).find(
+        (n) => n.offsetParent !== null,
+      )
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     })
   }
 
@@ -1048,7 +1054,7 @@ export function Cook(props: {
   }
 
   return (
-    <div class="h-[100dvh] bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
+    <div class="fixed inset-0 bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
       {/* ── Topbar: Timer-Chips + Buttons (eine Leiste, kein Logo) ────── */}
       <header class="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-zinc-600">
         <div
@@ -1095,6 +1101,31 @@ export function Cook(props: {
         <div class="flex items-center gap-2 shrink-0">
           <button
             class="mic-btn"
+            classList={{
+              'is-listening': voice.listening() && !voice.transcribing(),
+              'is-speaking': voice.speaking(),
+              /* Mobile: verschwindet, wenn der Composer (mit eigenem Mic) offen ist;
+                 Desktop: immer sichtbar */
+              'max-sm:hidden': composerOpen(),
+            }}
+            onClick={() => voice.toggleMic()}
+            disabled={state.agent.busy || (!voice.sttReady() && !voice.listening())}
+            title={voice.micTitle()}
+            aria-label="Mikrofon umschalten"
+          >
+            <Show
+              when={voice.transcribing()}
+              fallback={
+                <Show when={voice.listening()} fallback={<FiMicOff size={20} />}>
+                  <FiMic size={20} />
+                </Show>
+              }
+            >
+              <FiMoreHorizontal size={20} class="animate-pulse" />
+            </Show>
+          </button>
+          <button
+            class="mic-btn"
             classList={{ 'is-on': !state.tts.muted, 'is-off': state.tts.muted }}
             onClick={() => toggleMuted()}
             title={
@@ -1109,37 +1140,14 @@ export function Cook(props: {
             </Show>
           </button>
           <button
-            class="icon-btn hidden sm:flex"
+            class="mic-btn hidden sm:flex"
+            classList={{ 'is-on': overviewOpen(), 'is-off': !overviewOpen() }}
             onClick={toggleOverview}
             title={overviewOpen() ? 'Übersicht ausblenden' : 'Übersicht einblenden'}
             aria-label="Übersicht ein-/ausblenden"
           >
             <FiSidebar size={16} />
           </button>
-          <Show when={!composerOpen()}>
-            <button
-              class="mic-btn sm:hidden"
-              classList={{
-                'is-listening': voice.listening() && !voice.transcribing(),
-                'is-speaking': voice.speaking(),
-              }}
-              onClick={() => voice.toggleMic()}
-              disabled={state.agent.busy || (!voice.sttReady() && !voice.listening())}
-              title={voice.micTitle()}
-              aria-label="Mikrofon umschalten"
-            >
-              <Show
-                when={voice.transcribing()}
-                fallback={
-                  <Show when={voice.listening()} fallback={<FiMicOff size={20} />}>
-                    <FiMic size={20} />
-                  </Show>
-                }
-              >
-                <FiMoreHorizontal size={20} class="animate-pulse" />
-              </Show>
-            </button>
-          </Show>
           <div class="flex items-center rounded-lg border border-zinc-600 overflow-hidden divide-x divide-zinc-600 shrink-0">
             <button class="grouped-btn" onClick={() => props.onOpenIngredients()} title="Zutaten"><FiFileText size={16} /></button>
             <button class="grouped-btn" onClick={() => props.onOpenChat()} title="Chat"><FiMessageSquare size={16} /></button>
@@ -1170,7 +1178,7 @@ export function Cook(props: {
               }
             >
               {(s) => (
-                <div class="flex-1 min-h-0 flex flex-col">
+                <div class="flex-1 min-h-0 flex flex-col" data-flow-id={s().id}>
                   <div class="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-zinc-600">
                     <button
                       class="icon-btn"

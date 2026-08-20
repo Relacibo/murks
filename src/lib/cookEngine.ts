@@ -142,7 +142,13 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
     const now = Date.now()
     for (const s of getCook().flows) {
       s.steps.forEach((step) => {
-        if (step.done || !depsDone(step.dependsOn)) return
+        if (step.done) return
+        if (!depsDone(step.dependsOn)) {
+          // Karte ist (wieder) blocked — ihr Warte-Timer ist verwaist,
+          // z.B. nach revert_step der auslösenden Karte → entfernen
+          if (step.timer?.gatesSelf) patchStep(s.id, step.id, { timer: null })
+          return
+        }
         const end = derivedWaitEnd(step)
         if (end === null) {
           if (step.timer?.gatesSelf) patchStep(s.id, step.id, { timer: null })

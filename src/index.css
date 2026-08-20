@@ -5,6 +5,12 @@
   select:not(:disabled) {
     cursor: pointer;
   }
+  /* App-Shell: das Dokument selbst scrollt nie — Scrollen passiert nur
+     in den internen Listen (Topbar kann so nie „weggescrollt" werden) */
+  html,
+  body {
+    @apply h-full overflow-hidden overscroll-none;
+  }
 }
 
 /* ── Keyframes ─────────────────────────────────────────────────────── */
