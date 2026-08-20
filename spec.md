@@ -286,6 +286,9 @@ Mehrere Karten stehen untereinander (Stapel).
 - **Karten sind nicht klickbar** und haben **keine Hover-Effekte** (kein Aufhellen,
   kein Cursor-Pointer). Nur der **Titel** ist klickbar: springt gezielt zu diesem Schritt
   (Fokus + Flow-View/Scroll + kurzer Puls) — dasselbe wie das KI-Tool `show_step`.
+- **Ausnahme: blockierte Karten** sind klickbar (Cursor-Pointer, Tooltip „Zeigt, worauf
+  diese Karte wartet"): der Klick pulsiert die Karten, auf die sie wartet (dieselbe
+  Puls-Mechanik wie der Timer-Chip-Klick), wo immer sie gerade sichtbar sind.
 - ⏱ (Kartenfarbe, Schritt mit getimter Kante auf ihn) oder ✓ (rund, nur Häkchen) = `complete_step`;
   auf waiting-Karten überspringt ✓ die Wartezeit. Keine Navigations-Sprünge mehr.
 - Mobile „Jetzt"-View: Karten einzeln untereinander, nicht klickbar;
