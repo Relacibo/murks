@@ -343,6 +343,45 @@ export function Cook(props: {
   /*                Tiebreaker Flow-/Schritt-Reihenfolge                */
   /* Waiting: nach Freiwerden (Timer-Ende), Tiebreaker prio             */
   /* Blocked: als Vorschau unten, grau, in Anlage-Reihenfolge           */
+  /* Effektiver Score: hohe Scores propagieren rückwärts durch die      */
+  /* Dependency-Kette — jeder Schritt erbt den höchsten Score aller     */
+  /* Schritte, die transitiv von ihm abhängen (rekursiv, auch über      */
+  /* Wartezeiten hinweg). So wandern alle Vorgänger eines dringenden    */
+  /* Schritts automatisch mit nach oben.                                */
+  function effectiveScores(): Map<string, number> {
+    const all: { key: string; score: number; deps: StepRef[] }[] = []
+    for (const s of flows()) {
+      for (const st of s.steps) {
+        all.push({ key: `${s.id}:${st.id}`, score: st.score, deps: st.dependsOn })
+      }
+    }
+    const byKey = new Map(all.map((x) => [x.key, x]))
+    const downstream = new Map<string, string[]>()
+    for (const x of all) {
+      for (const d of x.deps) {
+        const k = `${d.flow_id}:${d.step_id}`
+        if (!downstream.has(k)) downstream.set(k, [])
+        downstream.get(k)!.push(x.key)
+      }
+    }
+    const eff = new Map<string, number>()
+    const visiting = new Set<string>()
+    const visit = (key: string): number => {
+      const cached = eff.get(key)
+      if (cached !== undefined) return cached
+      if (visiting.has(key)) return byKey.get(key)?.score ?? 0 // Zyklus-Schutz
+      visiting.add(key)
+      let best = byKey.get(key)?.score ?? 0
+      for (const depKey of downstream.get(key) ?? []) {
+        best = Math.max(best, visit(depKey))
+      }
+      visiting.delete(key)
+      eff.set(key, best)
+      return best
+    }
+    for (const x of all) visit(x.key)
+    return eff
+  }
   const jetztCards = createMemo(() => {
     const prio: { s: Flow; st: Step; i: number }[] = []
     const normal: { s: Flow; st: Step; i: number }[] = []
@@ -360,9 +399,14 @@ export function Cook(props: {
       })
     }
     prio.sort((a, b) => (a.st.activatedAt ?? 0) - (b.st.activatedAt ?? 0))
-    /* Aktive Karten: Scheduling-Score absteigend; stabile Sortierung —
-       bei Gleichstand bleibt die Flow-/Schritt-Reihenfolge */
-    normal.sort((a, b) => b.st.score - a.st.score)
+    /* Aktive Karten: effektiver Scheduling-Score absteigend (eigener Score +
+       rückwärts propagierte Scores aller transitiv abhängigen Schritte);
+       stabile Sortierung — bei Gleichstand bleibt die Flow-/Schritt-Reihenfolge */
+    const eff = effectiveScores()
+    normal.sort(
+      (a, b) =>
+        (eff.get(`${b.s.id}:${b.st.id}`) ?? 0) - (eff.get(`${a.s.id}:${a.st.id}`) ?? 0),
+    )
     /* Wartende Karten: nach Freiwerden (Timer-Ende), Tiebreaker prio oben.
        timerEffectiveEnd liest keine Signals → jetztCards() bleibt tick-unabhängig */
     waiting.sort((a, b) => {
