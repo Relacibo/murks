@@ -14,6 +14,7 @@ und die aktuelle Session.
 - Offene Frage: Session = Rezept? Oder Session = Kochvorgang eines Rezepts?
 
 ## Tasks
+- [x] Deeplink `?prompt=…` — startet Anfrage an den Agenten (Chat öffnet sich); `?reset=1` verwirft Flows + Chat-Verlauf (frische Session)
 - [ ] Session-Datenmodell
 - [ ] Router auf Multi-Session umstellen
 - [ ] Sessions-Übersicht-Seite

@@ -9,7 +9,7 @@ import { Setup } from './pages/Setup'
 import { Toasts } from './components/Toasts'
 import { IngredientsModal } from './components/IngredientsModal'
 import { createAgentVoice } from './lib/agentVoice'
-import { state, stateReady, cookEngine } from './state/store'
+import { state, stateReady, cookEngine, sendMessage, clearMessages } from './state/store'
 import { CookContext } from './lib/cookEngine'
 
 const base =
@@ -38,7 +38,12 @@ type ModalName = 'chat' | 'ingredients' | 'config'
 
 /** Hauptscreen = Cook. Chat, Ingredients und Konfiguration sind immer nur Modals — ihr Zustand steht in der URL (?modal=chat,ingredients). */
 function CookingRoute() {
-  const [params, setParams] = useSearchParams<{ modal?: string; overview?: string }>()
+  const [params, setParams] = useSearchParams<{
+    modal?: string
+    overview?: string
+    prompt?: string
+    reset?: string
+  }>()
 
   const modals = () =>
     (typeof params.modal === 'string' ? params.modal.split(',').filter(Boolean) : []) as ModalName[]
@@ -67,6 +72,25 @@ function CookingRoute() {
   createEffect(() => {
     const r = cookEngine.modalRequest
     if (r) setModal(r.modal, r.open)
+  })
+
+  // Deeplink: ?prompt=… startet eine Anfrage an den Agenten (z.B. Link aus
+  // einem Gemini-Chat: „…/murks/?prompt=Nutzer will Pfannkuchen machen").
+  // ?reset=1 verwirft zuvor alle Flows + Chat-Verlauf (frische Session).
+  let promptConsumed: string | null = null
+  createEffect(() => {
+    const p = typeof params.prompt === 'string' ? params.prompt.trim() : ''
+    if (!p || p === promptConsumed) return
+    if (!stateReady() || !state.setupDone) return
+    promptConsumed = p
+    setParams({ prompt: undefined, reset: undefined })
+    if (params.reset === '1') {
+      cookEngine.executeTool('reset_cook', {}, { silent: true })
+      clearMessages()
+    }
+    if (!hasValidAgent()) return
+    setModal('chat', true)
+    void sendMessage(p)
   })
 
   // Kein gültiger Agent → Konfiguration aufpoppen

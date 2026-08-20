@@ -1055,8 +1055,12 @@ export function Cook(props: {
 
   return (
     <div class="fixed inset-0 bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
-      {/* ── Topbar: Timer-Chips + Buttons (eine Leiste, kein Logo) ────── */}
+      {/* ── Topbar: Timer-Chips + Buttons (eine Leiste) ────── */}
       <header class="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-zinc-600">
+        {/* Wortmarke nur auf dem Desktop — mobile verzichtet zugunsten der Chips */}
+        <span class="hidden sm:block shrink-0 text-sm font-bold tracking-widest uppercase text-zinc-300 select-none">
+          MURKS
+        </span>
         <div
           ref={(el) => (chipsRow = el)}
           class="chip-row flex-1 min-w-0 flex items-center gap-2 overflow-x-auto"
@@ -1102,8 +1106,10 @@ export function Cook(props: {
           <button
             class="mic-btn"
             classList={{
-              'is-listening': voice.listening() && !voice.transcribing(),
-              'is-speaking': voice.speaking(),
+              'is-on':
+                voice.listening() || voice.transcribing() || voice.speaking(),
+              'is-off':
+                !voice.listening() && !voice.transcribing() && !voice.speaking(),
               /* Mobile: verschwindet, wenn der Composer (mit eigenem Mic) offen ist;
                  Desktop: immer sichtbar */
               'max-sm:hidden': composerOpen(),
@@ -1290,7 +1296,7 @@ export function Cook(props: {
               type="button"
               class="composer-mic"
               classList={{
-                'is-listening': voice.listening() && !voice.transcribing(),
+                'is-listening': voice.listening() || voice.transcribing(),
                 'is-speaking': voice.speaking(),
               }}
               onClick={() => voice.toggleMic()}

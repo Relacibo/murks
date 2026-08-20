@@ -432,7 +432,7 @@ Mehrere Karten stehen untereinander (Stapel).
 ## Topbar
 
 - **Eine einzige Leiste** — keine zweite Timer-Leiste darunter.
-- Kein Logo/Schriftzug „MURKS".
+- Wortmarke „MURKS" nur auf dem Desktop (≥ 640px), links vor den Chips; mobile verzichtet darauf.
 - Links: Timer-Chips (Emoji + Zeit — keine Beschreibung), scrollbar; rechts: 🔇 **Mute**
   (schaltet nur die Sprachausgabe stumm — Timer-Alarmtöne bleiben an; das Mikrofon sitzt
   in der Composer-Bar unten) + eine
