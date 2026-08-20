@@ -9,16 +9,15 @@ const step = (
   description: string,
   done = false,
   dependsOn: StepRef[] = [],
-  timerSeconds: number | null = null,
-  timerEndsAt: number | null = null,
+  doneAt: number | null = null,
   priority: 'normal' | 'high' = 'normal',
 ) => ({
   id: crypto.randomUUID(),
   description,
   done,
+  doneAt,
   dependsOn,
-  timerSeconds,
-  timerEndsAt,
+  timerEndsAt: null,
   timerExpired: false,
   activatedAt: Date.now(),
   priority,
@@ -28,15 +27,15 @@ const s1_0 = step('Mehl und Eier in eine Schüssel geben.', true)
 const s1_1 = step('Milch nach und nach einrühren, bis der Teig glatt ist.', true, [
   { flow_id: 's1', step_id: s1_0.id },
 ])
+// Vor 11 Minuten abgeschlossen — Kanten-Timer 15 min läuft noch ~4 Minuten
 const s1_2 = step(
   'Teig 15 Minuten gehen lassen.',
   true,
   [{ flow_id: 's1', step_id: s1_1.id }],
-  900,
-  Date.now() + 240_000,
+  Date.now() - 660_000,
 )
 const s1_3 = step('Pfanne mit etwas Öl erhitzen.', false, [
-  { flow_id: 's1', step_id: s1_2.id },
+  { flow_id: 's1', step_id: s1_2.id, timer_seconds: 900 },
 ])
 const s1_4 = step('Teig portionsweise von beiden Seiten goldbraun backen.', false, [
   { flow_id: 's1', step_id: s1_3.id },
@@ -45,8 +44,7 @@ const s2_0 = step('Zwiebeln fein würfeln und glasig andünsten.')
 const s2_1 = step(
   'Passierte Tomaten und Gewürze zugeben.',
   false,
-  [{ flow_id: 's1', step_id: s1_2.id }],
-  null,
+  [{ flow_id: 's1', step_id: s1_2.id, timer_seconds: 900 }],
   null,
   'high',
 )
@@ -136,7 +134,19 @@ export function CookMock() {
         </button>
         <button
           class={mockBtn}
-          onClick={() => engine.executeTool('cancel_timer', { flow_id: 's1', step_id: s1_2.id })}
+          onClick={() => {
+            // Kanten-Timer überspringen: Abschlusszeitpunkt weit in die Vergangenheit
+            setCook((c) => ({
+              ...c,
+              flows: c.flows.map((s) => ({
+                ...s,
+                steps: s.steps.map((st) =>
+                  st.id === s1_2.id ? { ...st, doneAt: Date.now() - 901_000 } : st,
+                ),
+              })),
+            }))
+            engine.expireTimers()
+          }}
         >
           ⏭ Timer S1 überspringen
         </button>
@@ -148,9 +158,7 @@ export function CookMock() {
               flows: c.flows.map((s) => ({
                 ...s,
                 steps: s.steps.map((st) =>
-                  st.timerEndsAt !== null && !st.timerExpired
-                    ? { ...st, timerEndsAt: Date.now() - 1000 }
-                    : st,
+                  st.id === s1_2.id ? { ...st, doneAt: Date.now() - 901_000 } : st,
                 ),
               })),
             }))

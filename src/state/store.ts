@@ -18,8 +18,8 @@ const DEFAULT_SYSTEM_PROMPT = [
   'Du hilfst beim Kochen: Gerichte planen, Schritte koordinieren, Timer setzen, parallele Kochstränge im Blick behalten.',
   'Jeder Schritt hat eine description (vollständige, eigenständig ausführbare Anweisung mit Zutaten, Mengen und Methode; Markdown erlaubt). Beginne mit einer kurzen Kernaussage — sie erscheint als Titel in Timer-Chips.',
   'Schritte können optional Abhängigkeiten haben (depends_on): Verweise auf andere Schritte (eigener oder anderer Flow), die zuerst erledigt sein müssen. Ein Schritt ist erst aktiv, wenn alle Abhängigkeiten erledigt sind.',
-  'Schritte können optional timer_seconds haben (Dauer in Sekunden). Der Timer läuft NACH dem Abschließen des Schritts: Erst wenn er abgelaufen ist, werden abhängige Schritte frei. Will der Nutzer eine andere Zeit (z.B. „das muss noch 5 Minuten"), setze den Timer mit start_timer neu.',
-  'Schritte können optional priority "high" haben (zeitkritisch, z.B. etwas im Ofen): Solche Karten stehen in der „Jetzt“-Ansicht oben und pulsieren. Ein "high"-Schritt darf höchstens EINE Abhängigkeit haben — den Schritt, dessen Timer die Wartezeit bestimmt (z.B. „Aus dem Ofen holen" hängt nur von „In den Ofen" ab). Modelliere zeitkritische Aktionen deshalb immer als eigene Karte. Vergib "high" sparsam.',
+  'Ein Abhängigkeits-Eintrag kann optional timer_seconds haben (Verzögerung in Sekunden): Die Karte wird erst X Sekunden NACH dem Abschluss der abhängigen Karte frei — die Karte sagt also „ich komme X Minuten nach dieser Karte". Beispiel: „Nudeln abgießen" hängt mit timer_seconds 600 von „Nudeln ins Wasser" ab. Bei mehreren getimten Abhängigkeiten bestimmt der zuletzt ablaufende Timer, wann die Karte frei wird. Will der Nutzer eine andere Zeit (z.B. „das muss noch 5 Minuten"), setze den Timer mit start_timer neu.',
+  'Schritte können optional priority "high" haben (zeitkritisch, z.B. etwas im Ofen): Solche Karten stehen in der „Jetzt“-Ansicht oben und pulsieren. Ein "high"-Schritt darf höchstens EINE Abhängigkeit haben — den Schritt, dessen Abschluss (ggf. plus Verzögerung) die Wartezeit bestimmt (z.B. „Aus dem Ofen holen" hängt nur von „In den Ofen" ab). Modelliere zeitkritische Aktionen deshalb immer als eigene Karte. Vergib "high" sparsam.',
   'Vergib beim Anlegen eines Flows ein passendes Emoji als icon (z.B. 🍚 für Reis) — es identifiziert den Flow visuell.',
   'Wir sprechen per Stimme: Der Nutzer diktiert seine Eingaben, deine Antworten werden vorgelesen. Sprich natürlich wie ein Gesprächspartner, nicht wie ein Textprogramm.',
   'Ton: trocken, direkt, präzise — aber hilfsbereit und zugewandt, nie abweisend oder herablassend. Keine leeren Floskeln, kein Smalltalk, keine Emojis, keine Sternchen-Gesten wie *lacht*.',
@@ -69,14 +69,16 @@ export type FlowColor = 'cyan' | 'violet' | 'amber' | 'emerald' | 'rose' | 'sky'
 export interface StepRef {
   flow_id: string
   step_id: string
+  /** Verzögerung: Karte wird erst X Sekunden nach Abschluss der Abhängigkeit frei */
+  timer_seconds?: number | null
 }
 
 export interface Step {
   id: string // stabil — bleibt bei Einfügen/Löschen/Splitten gleich
   description: string
   done: boolean
+  doneAt: number | null
   dependsOn: StepRef[]
-  timerSeconds: number | null
   timerEndsAt: number | null
   timerExpired: boolean
   activatedAt: number | null
@@ -214,6 +216,7 @@ function hydrate(data: unknown): AppState {
                   description?: string
                   summary?: string
                   done?: boolean
+                  doneAt?: number | null
                   dependsOn?: (StepRef | { flow_id?: string; step_index?: number })[]
                   timerSeconds?: number | null
                   timerEndsAt?: number | null
@@ -228,6 +231,8 @@ function hydrate(data: unknown): AppState {
           // Pass 1: Steps mit stabilen IDs versehen (alte Index-Refs sammeln)
           const idxToId = new Map<string, Map<number, string>>()
           const rawDepsByStep = new Map<string, (StepRef | { flow_id?: string; step_index?: number })[]>()
+          // Migration: alte timerSeconds am Step → timer_seconds an den Kanten der Dependents
+          const rawTimerSeconds = new Map<string, number>()
           const flows: Flow[] = rawFlows.map((s) => {
             const sid = String(s.id ?? '')
             const map = new Map<number, string>()
@@ -240,6 +245,24 @@ function hydrate(data: unknown): AppState {
               if (o && Array.isArray(o.dependsOn)) {
                 rawDepsByStep.set(id, o.dependsOn as (StepRef | { flow_id?: string; step_index?: number })[])
               }
+              const done = typeof st === 'string' ? false : st?.done === true
+              const timerSeconds =
+                o && typeof o.timerSeconds === 'number' && o.timerSeconds > 0 ? o.timerSeconds : null
+              if (done && timerSeconds !== null) rawTimerSeconds.set(id, timerSeconds)
+              const timerEndsAt = typeof st === 'string' ? null : (st?.timerEndsAt ?? null)
+              // doneAt ableiten: alter Timer-Endzeit minus deklarierter Dauer; sonst 0 (≈ längst abgelaufen)
+              let doneAt: number | null =
+                typeof st === 'string'
+                  ? null
+                  : typeof st?.doneAt === 'number'
+                    ? st.doneAt
+                    : null
+              if (done && doneAt === null) {
+                doneAt =
+                  timerEndsAt !== null && timerSeconds !== null
+                    ? timerEndsAt - timerSeconds * 1000
+                    : 0
+              }
               return {
                 id,
                 description:
@@ -247,15 +270,10 @@ function hydrate(data: unknown): AppState {
                     ? st
                     : String(st?.description ?? '').trim() ||
                       (typeof st?.summary === 'string' ? String(st.summary).trim() : ''),
-                done: typeof st === 'string' ? false : st?.done === true,
+                done,
+                doneAt,
                 dependsOn: [],
-                timerSeconds:
-                  typeof st === 'string'
-                    ? null
-                    : typeof st?.timerSeconds === 'number' && st.timerSeconds > 0
-                      ? st.timerSeconds
-                      : null,
-                timerEndsAt: typeof st === 'string' ? null : (st?.timerEndsAt ?? null),
+                timerEndsAt,
                 timerExpired: typeof st === 'string' ? false : st?.timerExpired === true,
                 activatedAt:
                   typeof st === 'string'
@@ -292,17 +310,42 @@ function hydrate(data: unknown): AppState {
               const rawDeps = rawDepsByStep.get(st.id)
               if (!rawDeps) continue
               st.dependsOn = rawDeps
-                .map((d) => {
+                .map((d): StepRef | null => {
                   const sid = String(d?.flow_id ?? '')
+                  const ts = (d as StepRef).timer_seconds
+                  const timer_seconds = typeof ts === 'number' && ts > 0 ? ts : null
                   if (typeof (d as StepRef).step_id === 'string' && (d as StepRef).step_id !== '') {
-                    return { flow_id: sid, step_id: (d as StepRef).step_id }
+                    return {
+                      flow_id: sid,
+                      step_id: (d as StepRef).step_id,
+                      timer_seconds,
+                    }
                   }
                   const mapped = idxToId
                     .get(sid)
                     ?.get(Number((d as { step_index?: number }).step_index ?? 0))
-                  return mapped ? { flow_id: sid, step_id: mapped } : null
+                  return mapped
+                    ? { flow_id: sid, step_id: mapped, timer_seconds }
+                    : null
                 })
                 .filter((d): d is StepRef => d !== null)
+            }
+          }
+          // Pass 3 (Migration): alte timerSeconds am Step → Verzögerung an allen
+          // Kanten, die auf diesen Schritt zeigen (altes Verhalten: alle Dependents warten)
+          for (const s of flows) {
+            for (const st of s.steps) {
+              const ts = rawTimerSeconds.get(st.id)
+              if (ts === undefined) continue
+              for (const other of flows) {
+                for (const dep of other.steps) {
+                  dep.dependsOn = dep.dependsOn.map((d) =>
+                    d.flow_id === s.id && d.step_id === st.id && !d.timer_seconds
+                      ? { ...d, timer_seconds: ts }
+                      : d,
+                  )
+                }
+              }
             }
           }
           return flows

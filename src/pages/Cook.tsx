@@ -7,7 +7,7 @@ import { fmtRemaining } from '../lib/tools'
 import { createAgentVoice } from '../lib/agentVoice'
 import {
   FiMic, FiMicOff, FiMoreHorizontal, FiFileText, FiSettings, FiMessageSquare,
-  FiCheck, FiBell, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw, FiClock, FiSidebar,
+  FiCheck, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw, FiClock, FiSidebar,
 } from 'solid-icons/fi'
 
 export function Cook(props: {
@@ -96,8 +96,8 @@ export function Cook(props: {
     })
   }
 
-  /* Alle (noch offenen) Karten markieren, die auf einen Timer warten */
-  function pulseDependents(s: Flow, st: Step) {
+  /* Alle (noch offenen) Karten markieren, die auf einen Timer dieser Karte warten */
+  function pulseTimedDependents(s: Flow, st: Step) {
     const keys: string[] = []
     for (const x of flows()) {
       for (const d of x.steps) {
@@ -135,16 +135,25 @@ export function Cook(props: {
     if (t) revealStep(t.flowId, t.stepId)
   })
 
-  /* ── Schritt-Zustände (Modell B: Timer läuft nach Abschluss) ──────── */
+  /* ── Schritt-Zustände (implizite Kanten-Timer: Karte sagt „ich komme X nach Y") ── */
   function depStepOf(dep: StepRef): Step | undefined {
     return flows().find((x) => x.id === dep.flow_id)?.steps.find((st) => st.id === dep.step_id)
   }
   function depDone(s: Flow, step: Step, dep: StepRef): boolean {
     return depStepOf(dep)?.done === true
   }
+  /* Läuft das Gate dieser Kante noch? Ad-hoc-Timer der Abhängigkeit oder
+     Kanten-Verzögerung (doneAt + timer_seconds). tick()-Read, damit ablaufende
+     Gates die abgeleiteten Zustände pro Sekunde aktualisieren. */
   function depPending(dep: StepRef): boolean {
+    tick()
     const d = depStepOf(dep)
-    return !!d && d.done && d.timerEndsAt !== null && !d.timerExpired
+    if (!d || !d.done) return false
+    if (d.timerEndsAt !== null && !d.timerExpired) return true
+    if (dep.timer_seconds && d.doneAt !== null) {
+      return d.doneAt + dep.timer_seconds * 1000 > Date.now()
+    }
+    return false
   }
 
   function stepState(s: Flow, step: Step): 'done' | 'blocked' | 'waiting' | 'active' {
@@ -156,6 +165,19 @@ export function Cook(props: {
 
   function flowDone(s: Flow): boolean {
     return s.done || s.steps.every((st) => st.done)
+  }
+
+  /* Offene Karte mit getimter Kante auf diesen Schritt? → Uhr-Button beim Abschließen */
+  function hasTimedDependent(s: Flow, step: Step): boolean {
+    return flows().some((f) =>
+      f.steps.some(
+        (c) =>
+          !c.done &&
+          c.dependsOn.some(
+            (d) => d.flow_id === s.id && d.step_id === step.id && !!d.timer_seconds,
+          ),
+      ),
+    )
   }
 
   /* Zurücknehmen nur, wenn keine abhängige Karte selbst abgeschlossen ist */
@@ -182,25 +204,26 @@ export function Cook(props: {
       })
   }
 
-  /* Frühester ablaufender Timer, auf den die Karte wartet */
-  function waitingRemaining(s: Flow, step: Step): number | null {
-    let min: number | null = null
+  /* Wann wird die Karte frei? Maximaler Gate-Endzeitpunkt über alle
+     abgeschlossenen Abhängigkeiten (der zuletzt ablaufende Timer entscheidet) */
+  function pendingUntil(s: Flow, step: Step): number | null {
+    tick()
+    let max: number | null = null
     for (const d of step.dependsOn) {
-      if (!depPending(d)) continue
-      const t = depStepOf(d)!.timerEndsAt!
-      if (min === null || t < min) min = t
+      const dep = depStepOf(d)
+      if (!dep?.done) continue
+      let end: number | null = null
+      if (dep.timerEndsAt !== null && !dep.timerExpired) end = dep.timerEndsAt
+      if (d.timer_seconds && dep.doneAt !== null) {
+        const e = dep.doneAt + d.timer_seconds * 1000
+        if (end === null || e > end) end = e
+      }
+      if (end !== null && (max === null || end > max)) max = end
     }
-    return min
+    return max
   }
 
   /* ── Timer ─────────────────────────────────────────────────────────── */
-  const stepRemaining = (st: Step) => (st.timerEndsAt !== null ? st.timerEndsAt - Date.now() : null)
-  const stepUrgent = (st: Step) => {
-    tick()
-    const r = stepRemaining(st)
-    return r !== null && r < 30_000
-  }
-
   /* Tick lesen + formatieren als Funktionsaufruf, nicht als {tick() && fmt…}
      in JSX: der Compiler memo-isiert die &&-Bedingung und würde die
      Countdown-Anzeige einfrieren. */
@@ -209,25 +232,41 @@ export function Cook(props: {
     return fmtRemaining(endsAt)
   }
 
-  const runningTimers = createMemo(() =>
-    flows().flatMap((s) =>
-      s.steps
-        .map((st, i) => ({ s, st, i }))
-        .filter((x) => x.st.timerEndsAt !== null && !x.st.timerExpired),
-    ),
-  )
-  /* Topbar-Chips nur für Timer, auf die eine Karte wartet (abhängige Karte offen) */
-  const chipTimers = createMemo(() =>
-    runningTimers().filter((x) =>
-      flows().some((s) =>
-        s.steps.some(
-          (st) =>
-            !st.done &&
-            st.dependsOn.some((d) => d.flow_id === x.s.id && d.step_id === x.st.id),
-        ),
-      ),
-    ),
-  )
+  /* Topbar-Chips: ein Chip pro Trigger-Karte, auf die mindestens eine offene
+     Karte wartet. Endzeit = spätester Gate (Ad-hoc-Timer und/oder Kanten-Delays). */
+  const chipTimers = createMemo(() => {
+    tick()
+    const now = Date.now()
+    const out: { s: Flow; st: Step; endsAt: number }[] = []
+    for (const s of flows()) {
+      for (const st of s.steps) {
+        const ends: number[] = []
+        if (st.timerEndsAt !== null && !st.timerExpired) ends.push(st.timerEndsAt)
+        if (st.done && st.doneAt !== null) {
+          for (const f of flows()) {
+            for (const card of f.steps) {
+              if (card.done) continue
+              for (const d of card.dependsOn) {
+                if (d.flow_id !== s.id || d.step_id !== st.id || !d.timer_seconds) continue
+                ends.push(st.doneAt + d.timer_seconds * 1000)
+              }
+            }
+          }
+        }
+        const hasDependent = flows().some((f) =>
+          f.steps.some(
+            (c) => !c.done && c.dependsOn.some((d) => d.flow_id === s.id && d.step_id === st.id),
+          ),
+        )
+        if (!hasDependent) continue
+        const running = ends.filter((e) => e > now)
+        if (running.length === 0) continue
+        out.push({ s, st, endsAt: Math.max(...running) })
+      }
+    }
+    out.sort((a, b) => a.endsAt - b.endsAt)
+    return out
+  })
 
   /* Exit-Animation: abgeschlossene Karte fliegt weg (Desktop: links, mobil: oben) + Fade */
   const [leaving, setLeaving] = createSignal<
@@ -266,6 +305,7 @@ export function Cook(props: {
   const jetztCards = createMemo(() => {
     const prio: { s: Flow; st: Step; i: number }[] = []
     const normal: { s: Flow; st: Step; i: number }[] = []
+    const waiting: { s: Flow; st: Step; i: number }[] = []
     const blocked: { s: Flow; st: Step; i: number }[] = []
     for (const s of flows()) {
       if (flowDone(s)) continue
@@ -273,12 +313,21 @@ export function Cook(props: {
         if (st.done) return
         const state = stepState(s, st)
         if (state === 'active' && st.priority === 'high') prio.push({ s, st, i })
-        else if (state === 'active' || state === 'waiting') normal.push({ s, st, i })
+        else if (state === 'active') normal.push({ s, st, i })
+        else if (state === 'waiting') waiting.push({ s, st, i })
         else blocked.push({ s, st, i })
       })
     }
     prio.sort((a, b) => (a.st.activatedAt ?? 0) - (b.st.activatedAt ?? 0))
-    return { prio, normal, blocked }
+    /* Wartende Karten: nach Freiwerden (Timer-Ende), Tiebreaker prio oben */
+    waiting.sort((a, b) => {
+      const ta = pendingUntil(a.s, a.st) ?? Infinity
+      const tb = pendingUntil(b.s, b.st) ?? Infinity
+      if (ta !== tb) return ta - tb
+      if (a.st.priority !== b.st.priority) return a.st.priority === 'high' ? -1 : 1
+      return 0
+    })
+    return { prio, normal, waiting, blocked }
   })
 
   /* Prio-Step wird aktiv → „Jetzt"-View öffnen + nach oben springen */
@@ -318,7 +367,7 @@ export function Cook(props: {
     /* Countdown im Band nur auf wartenden Karten (die den Timer als Bedingung haben) —
        nicht auf der Karte, die den Timer auslöst */
     const countdownEndsAt = () =>
-      stateName() === 'waiting' ? waitingRemaining(s(), st()) : null
+      stateName() === 'waiting' ? pendingUntil(s(), st()) : null
     const urgent = () => {
       tick()
       const ends = countdownEndsAt()
@@ -367,16 +416,8 @@ export function Cook(props: {
           <Show when={stateName() === 'blocked'}>
             <FiLock size={12} class="shrink-0 opacity-60" />
           </Show>
-          {/* Timer läuft: 🔔 statt ✓ — nach Ablauf nur das ✓ */}
-          <Show
-            when={stateName() === 'done' && st().timerEndsAt !== null && !st().timerExpired}
-            fallback={
-              <Show when={stateName() === 'done'}>
-                <FiCheck size={12} class="shrink-0" />
-              </Show>
-            }
-          >
-            <FiBell size={12} class="text-amber-300 shrink-0" />
+          <Show when={stateName() === 'done'}>
+            <FiCheck size={12} class="shrink-0" />
           </Show>
           <Show when={countdownEndsAt() !== null}>
             <span
@@ -434,7 +475,7 @@ export function Cook(props: {
                 }
               >
                 <Show
-                  when={st().timerSeconds !== null}
+                  when={hasTimedDependent(s(), st())}
                   fallback={
                     <button
                       class="check-btn"
@@ -486,6 +527,7 @@ export function Cook(props: {
     const empty = () =>
       jetztCards().prio.length === 0 &&
       jetztCards().normal.length === 0 &&
+      jetztCards().waiting.length === 0 &&
       (!showBlocked() || jetztCards().blocked.length === 0)
 
     /* Queue-Animation (FLIP + Ersatz von rechts + Exit-Ghost):
@@ -496,7 +538,7 @@ export function Cook(props: {
     let prevRects = new Map<string, number>()
     let firstRun = true
     const visibleKeys = () => {
-      const list = [...jetztCards().prio, ...jetztCards().normal]
+      const list = [...jetztCards().prio, ...jetztCards().normal, ...jetztCards().waiting]
       if (showBlocked()) list.push(...jetztCards().blocked)
       return list.map((c) => `${c.s.id}:${c.st.id}`).join('|')
     }
@@ -595,6 +637,11 @@ export function Cook(props: {
             <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(c.s.id, c.st.id)} />
           )}
         </For>
+        <For each={jetztCards().waiting}>
+          {(c) => (
+            <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(c.s.id, c.st.id)} />
+          )}
+        </For>
         <Show when={showBlocked()}>
           <For each={jetztCards().blocked}>
             {(c) => (
@@ -648,17 +695,17 @@ export function Cook(props: {
                 class="chip"
                 data-color={x.s.color}
                 classList={{
-                  'is-urgent': stepUrgent(x.st),
+                  'is-urgent': tick() > 0 && x.endsAt - Date.now() < 30_000,
                   'is-active': x.s.id === active()?.id,
                 }}
-                onClick={() => pulseDependents(x.s, x.st)}
+                onClick={() => pulseTimedDependents(x.s, x.st)}
                 title="Abhängige Karten markieren"
               >
                 <Show when={x.s.icon}>
                   <span class="text-base leading-none">{x.s.icon}</span>
                 </Show>
                 <span class="font-mono font-semibold tabular-nums">
-                  {fmtCountdown(x.st.timerEndsAt!)}
+                  {fmtCountdown(x.endsAt)}
                 </span>
               </button>
             )}

@@ -14,21 +14,21 @@ const depRefSchema = {
     properties: {
       flow_id: { type: 'string' },
       step_id: { type: 'string', description: 'Stabile Schritt-ID (aus get_cook_state)' },
+      timer_seconds: {
+        type: 'number',
+        description:
+          'Optionale Verzögerung in Sekunden: Die Karte wird erst X Sekunden NACH dem Abschluss dieser Abhängigkeit frei („ich komme X nach dieser Karte").',
+      },
     },
     required: ['flow_id', 'step_id'],
   },
   description: 'Optionale Abhängigkeiten (Schritte, die zuerst erledigt sein müssen)',
 }
 
-const timerSecondsSchema = {
-  type: 'number',
-  description: 'Optionale Dauer in Sekunden. Der Timer läuft NACH dem Abschließen dieses Schritts; abhängige Schritte werden erst frei, wenn er abgelaufen ist.',
-}
-
 const prioritySchema = {
   type: 'string',
   enum: ['normal', 'high'],
-  description: '"high" für zeitkritische Schritte (z.B. etwas im Ofen): Karte steht in „Jetzt" oben und pulsiert. Ein "high"-Schritt darf höchstens EINE Abhängigkeit haben (den Schritt mit dem Timer). Sparsam verwenden.',
+  description: '"high" für zeitkritische Schritte (z.B. etwas im Ofen): Karte steht in „Jetzt" oben und pulsiert. Ein "high"-Schritt darf höchstens EINE Abhängigkeit haben (den Schritt, dessen Abschluss — ggf. plus Verzögerung — die Wartezeit bestimmt). Sparsam verwenden.',
 }
 
 const stepIdSchema = (description: string) => ({
@@ -61,7 +61,6 @@ export const TOOLS: ToolDef[] = [
               type: 'object',
               properties: {
                 description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt); beginne mit einer kurzen Kernaussage' },
-                timer_seconds: timerSecondsSchema,
                 priority: prioritySchema,
                 depends_on: depRefSchema,
               },
@@ -85,7 +84,6 @@ export const TOOLS: ToolDef[] = [
           flow_id: { type: 'string' },
           description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt); beginne mit einer kurzen Kernaussage' },
           after_step_id: { type: 'string', description: 'Optional: stabile ID des Schritts, hinter dem eingefügt wird (sonst ans Ende)' },
-          timer_seconds: timerSecondsSchema,
           priority: prioritySchema,
           depends_on: depRefSchema,
         },
@@ -97,7 +95,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'update_step',
-      description: 'Schritt bearbeiten: Beschreibung, Abhängigkeiten, Timer-Dauer oder Priorität ändern (nur angegebene Felder).',
+      description: 'Schritt bearbeiten: Beschreibung, Abhängigkeiten (inkl. Verzögerung an den Kanten) oder Priorität ändern (nur angegebene Felder).',
       parameters: {
         type: 'object',
         properties: {
@@ -105,7 +103,6 @@ export const TOOLS: ToolDef[] = [
           step_id: stepIdSchema('Der Schritt'),
           description: { type: 'string', description: 'Neue Anweisung (Markdown erlaubt)' },
           depends_on: depRefSchema,
-          timer_seconds: timerSecondsSchema,
           priority: prioritySchema,
         },
         required: ['flow_id', 'step_id'],
@@ -131,7 +128,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'split_step',
-      description: 'Schritt in zwei aufteilen: Teil 1 bleibt an seiner Stelle (z.B. mit Timer), Teil 2 wird dahinter eingefügt, hängt von Teil 1 ab. Schritte, die auf den Original-Schritt zeigten, zeigen danach auf Teil 2. Nur für nicht-abgeschlossene Schritte.',
+      description: 'Schritt in zwei aufteilen: Teil 1 bleibt an seiner Stelle, Teil 2 wird dahinter eingefügt, hängt von Teil 1 ab. Schritte, die auf den Original-Schritt zeigten, zeigen danach auf Teil 2. Nur für nicht-abgeschlossene Schritte.',
       parameters: {
         type: 'object',
         properties: {
@@ -148,7 +145,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'complete_step',
-      description: 'Schritt abschließen (done). Bei timer_seconds startet damit der Timer; abhängige Schritte warten bis Ablauf.',
+      description: 'Schritt abschließen (done). Abhängige Karten mit Verzögerung an der Kante (timer_seconds am depends_on-Eintrag) werden erst nach Ablauf frei.',
       parameters: {
         type: 'object',
         properties: {
@@ -178,7 +175,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'start_timer',
-      description: 'Timer eines Schritts (neu) setzen oder verlängern — z.B. wenn der Nutzer eine andere Zeit will („das muss noch 5 Minuten"). Ersetzt einen laufenden Timer.',
+      description: 'Ad-hoc-Timer eines Schritts (neu) setzen oder verlängern — z.B. wenn der Nutzer eine andere Zeit will („das muss noch 5 Minuten"). Wartende Karten bleiben blockiert bis zum späteren Ende (Ad-hoc-Timer oder Kanten-Verzögerung). Ersetzt einen laufenden Timer.',
       parameters: {
         type: 'object',
         properties: {
@@ -194,7 +191,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'cancel_timer',
-      description: 'Laufenden Timer eines Schritts abbrechen (abhängige Schritte werden frei).',
+      description: 'Laufenden Ad-hoc-Timer eines Schritts abbrechen (abhängige Karten werden frei, sofern keine Kanten-Verzögerung mehr läuft).',
       parameters: {
         type: 'object',
         properties: {

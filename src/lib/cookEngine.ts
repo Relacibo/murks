@@ -69,11 +69,6 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
     return ++actSeq
   }
 
-  // Auto-Timer: Endzeit aus deklarierter Dauer (null = kein Timer)
-  function timerEndsFor(timerSeconds: number | null): number | null {
-    return timerSeconds !== null ? Date.now() + timerSeconds * 1000 : null
-  }
-
   function depsDone(deps: StepRef[]): boolean {
     return deps.every((d) => depStep(d)?.done === true)
   }
@@ -84,10 +79,28 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
       ?.steps.find((st) => st.id === ref.step_id)
   }
 
-  // Timer läuft gerade (Schritt done, Timer noch nicht abgelaufen)
-  function depPending(ref: StepRef): boolean {
-    const d = depStep(ref)
-    return !!d && d.done && d.timerEndsAt !== null && !d.timerExpired
+  // Endzeit eines einzelnen Gates: Ad-hoc-Timer der Abhängigkeit oder Kanten-Verzögerung
+  // (doneAt + timer_seconds). Null, wenn keines von beiden (noch) läuft.
+  function gateEndsAt(d: StepRef): number | null {
+    const dep = depStep(d)
+    if (!dep?.done) return null
+    let end: number | null = null
+    if (dep.timerEndsAt !== null && !dep.timerExpired) end = dep.timerEndsAt
+    if (d.timer_seconds && dep.doneAt !== null) {
+      const e = dep.doneAt + d.timer_seconds * 1000
+      if (end === null || e > end) end = e
+    }
+    return end
+  }
+
+  // Karte wird frei, wenn der letzte ihrer Gates abläuft (maximaler Timer)
+  function pendingUntilOf(step: Step): number | null {
+    let max: number | null = null
+    for (const d of step.dependsOn) {
+      const end = gateEndsAt(d)
+      if (end !== null && (max === null || end > max)) max = end
+    }
+    return max
   }
 
   // Abhängige neu in View 1 aufnehmen (alle Bedingungen done → active oder waiting)
@@ -150,14 +163,15 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
 
   function parseDepRefs(raw: unknown): StepRef[] {
     if (!Array.isArray(raw)) return []
-    return (raw as Record<string, unknown>[]).map((d) => ({
-      flow_id: String(d?.flow_id ?? '').trim(),
-      step_id: String(d?.step_id ?? '').trim(),
-    }))
-  }
-
-  function parseTimerSeconds(raw: unknown): number | null {
-    return typeof raw === 'number' && Number.isFinite(raw) && raw > 0 ? Math.round(raw) : null
+    return (raw as Record<string, unknown>[]).map((d) => {
+      const ts = d?.timer_seconds
+      return {
+        flow_id: String(d?.flow_id ?? '').trim(),
+        step_id: String(d?.step_id ?? '').trim(),
+        timer_seconds:
+          typeof ts === 'number' && Number.isFinite(ts) && ts > 0 ? Math.round(ts) : null,
+      }
+    })
   }
 
   function parsePriority(raw: unknown): 'normal' | 'high' {
@@ -188,7 +202,6 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             return {
               description: typeof st === 'string' ? st : String(o.description ?? '').trim(),
               dependsOn: typeof st === 'string' ? [] : parseDepRefs(o.depends_on),
-              timerSeconds: typeof st === 'string' ? null : parseTimerSeconds(o.timer_seconds),
               priority: typeof st === 'string' ? 'normal' as const : parsePriority(o.priority),
             }
           })
@@ -221,8 +234,8 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
                   id: crypto.randomUUID(),
                   description: st.description,
                   done: false,
+                  doneAt: null,
                   dependsOn: st.dependsOn,
-                  timerSeconds: st.timerSeconds,
                   timerEndsAt: null,
                   timerExpired: false,
                   activatedAt: depsDone(st.dependsOn) ? nextAct() : null,
@@ -246,7 +259,6 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           if (dependsOn.some((d) => !depStep(d))) {
             return JSON.stringify({ error: 'Unbekannte Abhängigkeit' })
           }
-          const timerSeconds = parseTimerSeconds(args.timer_seconds)
           const priority = parsePriority(args.priority)
           if (priority === 'high' && dependsOn.length > 1) {
             return JSON.stringify({
@@ -257,8 +269,8 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             id: crypto.randomUUID(),
             description,
             done: false,
+            doneAt: null,
             dependsOn,
-            timerSeconds,
             timerEndsAt: null,
             timerExpired: false,
             activatedAt: depsDone(dependsOn) ? nextAct() : null,
@@ -296,9 +308,6 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               return JSON.stringify({ error: 'Ungültige Abhängigkeit' })
             }
             patch.dependsOn = deps
-          }
-          if (typeof args.timer_seconds === 'number') {
-            patch.timerSeconds = parseTimerSeconds(args.timer_seconds)
           }
           if (args.priority === 'high' || args.priority === 'normal') {
             patch.priority = args.priority
@@ -351,8 +360,8 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             id: crypto.randomUUID(),
             description: second,
             done: false,
+            doneAt: null,
             dependsOn: [{ flow_id: id, step_id: orig.id }],
-            timerSeconds: null,
             timerEndsAt: null,
             timerExpired: false,
             activatedAt: null,
@@ -394,9 +403,8 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               ? {
                   ...st,
                   done: true,
-                  // Timer läuft NACH dem Abschließen; Abhängige warten bis Ablauf
-                  timerEndsAt: timerEndsFor(st.timerSeconds),
-                  timerExpired: false,
+                  // Kanten-Timer der Dependents laufen ab diesem Zeitpunkt (implizit)
+                  doneAt: Date.now(),
                 }
               : st,
           )
@@ -422,9 +430,10 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               error: 'Abhängige Karte ist bereits abgeschlossen — Schritt kann nicht zurückgenommen werden',
             })
           }
-          // Eigener Timer entfällt; Abhängige werden wieder blocked
+          // Eigener Ad-hoc-Timer entfällt; Abhängige werden wieder blocked
           patchStep(id, stepId, {
             done: false,
+            doneAt: null,
             activatedAt: nextAct(),
             timerEndsAt: null,
             timerExpired: false,
@@ -472,6 +481,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             steps: flow.steps.map((st) => ({
               ...st,
               done: true,
+              doneAt: st.done ? st.doneAt : Date.now(),
               timerEndsAt: null,
               timerExpired: false,
             })),
@@ -594,13 +604,36 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
     }
   }
 
+  // Kanten-Gates, die in dieser Session bereits liefen — damit der Ablauf-Toast
+  // genau einmal pro Gate kommt (nach Reload kein Toast-Sturm für alte Timer).
+  const pendingGates = new Set<string>()
+
   function expireTimers(): void {
     const now = Date.now()
     for (const s of getCook().flows) {
+      // Ad-hoc-Timer (start_timer) — wie bisher persistiert
       s.steps.forEach((step) => {
         if (step.timerExpired || step.timerEndsAt === null || step.timerEndsAt > now) return
         patchStep(s.id, step.id, { timerEndsAt: null, timerExpired: true })
         showToast(`⏰ Timer abgelaufen: ${s.name} — ${stepLabel(step.description)}`)
+      })
+      // Implizite Kanten-Timer: Karte wird frei, wenn ihr letzter Gate abläuft
+      s.steps.forEach((step) => {
+        if (step.done || !depsDone(step.dependsOn)) return
+        const end = pendingUntilOf(step)
+        const key = `${s.id}:${step.id}`
+        if (end === null) {
+          pendingGates.delete(key)
+          return
+        }
+        if (end <= now) {
+          if (pendingGates.has(key)) {
+            pendingGates.delete(key)
+            showToast(`⏰ Timer abgelaufen: ${s.name} — ${stepLabel(step.description)}`)
+          }
+        } else {
+          pendingGates.add(key)
+        }
       })
     }
   }
