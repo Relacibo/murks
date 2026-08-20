@@ -252,4 +252,20 @@
   .transcript-strip {
     @apply mb-3 min-h-[36px] flex items-center px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-xl;
   }
+
+  /* ── Zutaten-Modal ──────────────────────────────────────────────── */
+  .modal-pop {
+    animation: modal-pop 180ms ease-out;
+  }
+}
+
+@keyframes modal-pop {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
