@@ -1,4 +1,4 @@
-import { createContext, createSignal } from 'solid-js'
+import { batch, createContext, createSignal } from 'solid-js'
 import type { CookState, Step, StepRef, StepTimer, Flow, FlowColor } from '../state/store'
 import { showToast } from './toast'
 import { fmtRemaining, stepLabel } from './tools'
@@ -563,8 +563,10 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               gatesSelf: keepSelf,
             }
           }
-          patchStep(id, stepId, { timer: newTimer })
-          syncWaitTimers()
+          batch(() => {
+            patchStep(id, stepId, { timer: newTimer })
+            syncWaitTimers()
+          })
           toast(
             `⏱ Timer: ${fmtRemaining(timerEffectiveEnd(newTimer))} (${flow.name}: ${stepLabel(step.description)})`,
           )
@@ -631,9 +633,11 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           const flow = findFlow(id)
           if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
           if (stepIndexOf(id, stepId) < 0) return JSON.stringify({ error: 'Unbekannter Schritt' })
-          patchStep(id, stepId, { timer: null })
-          syncWaitTimers()
-          toast('⏱ Timer abgebrochen')
+          batch(() => {
+            patchStep(id, stepId, { timer: null })
+            syncWaitTimers()
+          })
+          toast('⏱ Timer zurückgesetzt')
           return JSON.stringify({ ok: true })
         }
         case 'complete_flow': {
