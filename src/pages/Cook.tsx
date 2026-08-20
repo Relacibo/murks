@@ -350,8 +350,8 @@ export function Cook(props: {
           </Show>
           <Show when={countdownEndsAt() !== null}>
             <span
-              class="font-mono text-sm font-semibold leading-none translate-y-[1px] shrink-0 tabular-nums text-amber-300"
-              classList={{ 'animate-pulse': urgent() }}
+              class="step-countdown font-mono text-sm font-semibold leading-none translate-y-[1px] shrink-0 tabular-nums"
+              classList={{ 'text-amber-300 animate-pulse': urgent() }}
             >
               {fmtCountdown(countdownEndsAt()!)}
             </span>

@@ -136,6 +136,11 @@
     /* Timer läuft noch → gedimmt wie blocked/done (Farbzuordnung bleibt) */
     @apply opacity-55;
   }
+  /* Countdown im Kartenband: heller Ton der Flow-Farbe (wie Topbar-Chip),
+     ab < 30 s amber + Puls */
+  .step-countdown {
+    color: var(--flow-text);
+  }
   /* ✓/⏱ auf waiting-Karten: grau wie der ↺-Button */
   .check-btn.is-muted,
   .clock-btn.is-muted {
