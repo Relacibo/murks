@@ -175,6 +175,14 @@ export function Cook(props: {
     return r !== null && r < 120_000
   }
 
+  /* Tick lesen + formatieren als Funktionsaufruf, nicht als {tick() && fmt…}
+     in JSX: der Compiler memo-isiert die &&-Bedingung und würde die
+     Countdown-Anzeige einfrieren. */
+  const fmtCountdown = (endsAt: number) => {
+    tick()
+    return fmtRemaining(endsAt)
+  }
+
   const runningTimers = createMemo(() =>
     flows().flatMap((s) =>
       s.steps
@@ -294,6 +302,9 @@ export function Cook(props: {
               </>
             }
           >
+            <Show when={s().icon}>
+              <span class="text-base leading-none shrink-0">{s().icon}</span>
+            </Show>
             <button
               class="step-card-title-btn"
               onClick={(e) => {
@@ -301,9 +312,6 @@ export function Cook(props: {
                 props.onTitleClick?.()
               }}
             >
-              <Show when={s().icon}>
-                <span class="text-base leading-none shrink-0">{s().icon}</span>
-              </Show>
               <span class="step-card-title truncate">{s().name}</span>
               <FiChevronRight size={12} class="shrink-0 opacity-60" />
             </button>
@@ -319,10 +327,10 @@ export function Cook(props: {
           </Show>
           <Show when={countdownEndsAt() !== null}>
             <span
-              class="font-mono text-sm font-semibold shrink-0 tabular-nums"
+              class="font-mono text-sm font-semibold leading-none translate-y-[1px] shrink-0 tabular-nums"
               classList={{ 'text-amber-300 animate-pulse': urgent() }}
             >
-              {tick() && fmtRemaining(countdownEndsAt()!)}
+              {fmtCountdown(countdownEndsAt()!)}
             </span>
           </Show>
           <span class="text-sm opacity-60 tabular-nums shrink-0">
@@ -555,7 +563,7 @@ export function Cook(props: {
                   <span class="text-base leading-none">{x.s.icon}</span>
                 </Show>
                 <span class="font-mono font-semibold tabular-nums">
-                  {tick() && fmtRemaining(x.st.timerEndsAt!)}
+                  {fmtCountdown(x.st.timerEndsAt!)}
                 </span>
               </button>
             )}
