@@ -229,13 +229,37 @@ export function Cook(props: {
     ),
   )
 
+  /* Exit-Animation: abgeschlossene Karte fliegt weg (Desktop: links, mobil: oben) + Fade */
+  const [leaving, setLeaving] = createSignal<
+    { id: string; html: string; top: number; container: HTMLElement }[]
+  >([])
+
   function completeStep(s: Flow, i: number) {
+    const key = `${s.id}:${s.steps[i].id}`
+    const el = Array.from(
+      document.querySelectorAll<HTMLElement>(`[data-card-key="${CSS.escape(key)}"]`),
+    ).find((n) => n.offsetParent !== null)
+    if (el) {
+      const cont = el.closest<HTMLElement>('[data-card-list]')
+      if (cont) {
+        const rect = el.getBoundingClientRect()
+        const contRect = cont.getBoundingClientRect()
+        const ghost = {
+          id: `${key}-${Date.now()}`,
+          html: el.outerHTML,
+          top: rect.top - contRect.top + cont.scrollTop,
+          container: cont,
+        }
+        setLeaving((l) => [...l, ghost])
+      }
+    }
     engine.executeTool('complete_step', { flow_id: s.id, step_id: s.steps[i].id }, { silent: true })
   }
 
   /* ── View 1 (Mobile „Jetzt"): Prio-Queue, normale Queue, Blocked ──── */
   /* Prio-Queue: active high-Steps in Auftauch-Reihenfolge (FIFO)       */
-  /* Normale Queue: active + waiting in Auftauch-Reihenfolge            */
+  /* Normale Queue: gruppiert nach Flow (Anlegereihenfolge),            */
+  /*                innerhalb des Flows nach Schrittnummer              */
   /* Blocked: als Vorschau unten, grau, in Anlage-Reihenfolge           */
   const jetztCards = createMemo(() => {
     const prio: { s: Flow; st: Step; i: number }[] = []
@@ -252,7 +276,6 @@ export function Cook(props: {
       })
     }
     prio.sort((a, b) => (a.st.activatedAt ?? 0) - (b.st.activatedAt ?? 0))
-    normal.sort((a, b) => (a.st.activatedAt ?? 0) - (b.st.activatedAt ?? 0))
     return { prio, normal, blocked }
   })
 
@@ -458,9 +481,9 @@ export function Cook(props: {
       jetztCards().normal.length === 0 &&
       (!showBlocked() || jetztCards().blocked.length === 0)
 
-    /* Queue-Animation (FLIP + Eintritt von rechts mit Fade):
-       Abschließen entfernt die Karte, die Karten darunter wandern nach oben,
-       nur frisch aktivierte/neue Karten schießen von rechts rein.
+    /* Queue-Animation (FLIP + Ersatz von rechts + Exit-Ghost):
+       Abschließen: Karte fliegt weg (Ghost), die Karten darunter wandern nach oben,
+       der nächste Schritt desselben Flows fliegt von rechts an die Stelle.
        Erster Render (Seiten-Load, Flow-Wechsel zurück) = statisch. */
     let listRef: HTMLDivElement | undefined
     let prevRects = new Map<string, number>()
@@ -474,7 +497,9 @@ export function Cook(props: {
       visibleKeys()
       const cont = listRef
       if (!cont) return
-      const nodes = Array.from(cont.querySelectorAll<HTMLElement>('[data-card-key]'))
+      const nodes = Array.from(
+        cont.querySelectorAll<HTMLElement>('[data-card-key]:not([data-ghost])'),
+      )
       const next = new Map(nodes.map((el) => [el.dataset.cardKey!, el.getBoundingClientRect().top]))
       const skip = firstRun
       firstRun = false
@@ -493,7 +518,7 @@ export function Cook(props: {
         if (prev === undefined) {
           el.animate(
             [
-              { transform: 'translateX(24px)', opacity: 0 },
+              { transform: 'translateX(48px)', opacity: 0 },
               { transform: 'translateX(0)', opacity: 1 },
             ],
             { duration: 300, easing: 'ease-out' },
@@ -514,8 +539,34 @@ export function Cook(props: {
           listRef = el
           props.scrollerRef?.(el)
         }}
-        class={`flex-1 min-h-0 overflow-y-auto flex flex-col gap-2 ${props.dense ? 'p-1' : 'p-3'}`}
+        data-card-list
+        class={`relative flex-1 min-h-0 overflow-y-auto flex flex-col gap-2 ${props.dense ? 'p-1' : 'p-3'}`}
       >
+        <For each={leaving().filter((g) => g.container === listRef)}>
+          {(g) => (
+            <div
+              data-ghost
+              innerHTML={g.html}
+              class="absolute left-0 right-0 pointer-events-none z-40"
+              style={{ top: `${g.top}px` }}
+              ref={(el) => {
+                const desktop = window.matchMedia('(min-width: 640px)').matches
+                const anim = el.animate(
+                  [
+                    { transform: 'translateX(0)', opacity: 1 },
+                    {
+                      transform: desktop ? 'translateX(-64px)' : 'translateY(-32px)',
+                      opacity: 0,
+                    },
+                  ],
+                  { duration: 260, easing: 'ease-in' },
+                )
+                anim.onfinish = () => setLeaving((l) => l.filter((x) => x !== g))
+                setTimeout(() => setLeaving((l) => l.filter((x) => x !== g)), 1000)
+              }}
+            />
+          )}
+        </For>
         <For each={jetztCards().prio}>
           {(c) => (
             <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(c.s.id, c.st.id)} />

@@ -133,7 +133,17 @@
     @apply opacity-55;
   }
   .step-card.is-waiting {
-    /* Timer läuft noch → gedimmt wie blocked/done (Farbzuordnung bleibt) */
+    /* Timer läuft noch → alles gedimmt — nur der Countdown bleibt hell (nicht extra leuchtend) */
+    border-color: color-mix(in srgb, var(--flow-border) 55%, transparent);
+  }
+  .step-card.is-waiting .step-card-band {
+    background-color: color-mix(in srgb, var(--flow-bg) 55%, transparent);
+    border-color: color-mix(in srgb, var(--flow-border) 55%, transparent);
+  }
+  .step-card.is-waiting .step-card-band > *:not(.step-countdown) {
+    @apply opacity-55;
+  }
+  .step-card.is-waiting .step-card-body {
     @apply opacity-55;
   }
   /* Countdown im Kartenband: heller Ton der Flow-Farbe (wie Topbar-Chip),

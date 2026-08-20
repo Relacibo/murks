@@ -119,21 +119,25 @@ Zurück-Button → „Jetzt". Es gibt keine Flow-Chips-Leiste mehr.
 - **Drei Zonen, von oben nach unten:**
   1. **Prio-Queue**: aktive `high`-Karten, FIFO (Auftauch-Reihenfolge — eine neue Prio
      kommt hinten dran, verdrängt keine ältere), pulsierend.
-  2. **Normale Queue**: active + waiting in Auftauch-Reihenfolge.
+  2. **Normale Queue**: **gruppiert nach Flow** (Anlegereihenfolge: Flow 1, Flow 2, …);
+     innerhalb eines Flows stehen **alle** active + waiting Karten nach Schrittnummer.
+     **Kein „ein Schritt pro Flow":** pro Flow können mehrere Karten stehen
+     (z.B. parallele Timer — „Quellen lassen" + „Auflockern" gleichzeitig).
   3. **Blocked-Vorschau**: blocked-Karten, gedimmt wie done (keine gestrichelte Outline, kein
      Label — das Grau sagt es), in Anlage-Reihenfolge (Flow 1 Schritt n, n+1, … Flow 2 Schritt m, …).
 - **Prio-Aktivierung:** Wird eine `high`-Karte aktiv (ihre einzige Bedingung ist erfüllt),
   wechselt die UI automatisch in die „Jetzt"-View (falls nicht schon dort) und scrollt
   nach oben — die Karte steht in der Prio-Queue und pulsiert.
-- Neu eintretende Karten (KI legt Schritt an, Abhängigkeit erfüllt, Timer abgelaufen)
-  werden in ihrer Queue **unten angehängt**. Die KI kann nicht umsortieren (append-only,
-  kein Reorder-Werkzeug).
-- **Queue-Verhalten + Animation:** Abschließen entfernt die Karte aus der Queue — die
-  Karten darunter **wandern animiert nach oben** (FLIP). **Blocked→aktiv:** mobil ist die
-  Karte schon sichtbar — sie **bubbelt nur nach oben** und wird mit einer
-  **Farb-/Opacity-Transition** ent-dimmt; Desktop schießt sie **von rechts rein**
-  (dort war sie nicht in der Liste). Brandneue Karten (KI legt Schritt an) schießen
-  unten von rechts rein. Abschließen „tauscht" nie den Karteninhalt.
+- Die KI kann die Gruppierung nicht umsortieren (Reihenfolge = Flow-Anlegereihenfolge,
+  innerhalb nach Schrittnummer; Prio-Queue = FIFO). Kein Reorder-Werkzeug.
+- **Queue-Verhalten + Animation:** Abschließen entfernt die Karte — sie **fliegt weg**
+  (Ghost: Desktop nach links, mobil nach oben, Fade-out) und die Karten darunter
+  **wandern animiert nach oben** (FLIP). Der nächste Schritt desselben Flows **fliegt
+  von rechts an die freie Stelle** (Standard-Ersatz — gleicher Flow, gleiche Position).
+  **Timer-Karten** (waiting) sind schon in der Queue und **wandern per FLIP an die
+  richtige Stelle**, wenn der Timer abläuft. **Blocked→aktiv:** mobil bubbelt die Karte
+  nach oben und wird ent-dimmt; Desktop schießt sie von rechts rein (dort war sie
+  nicht in der Liste). Abschließen „tauscht" nie den Karteninhalt.
 - Karten voll ausgeklappt, **feste Größe**: **farbiges Titelband** (Emoji + Flow-Name,
   caps, klickbar) + ⏱ Timer + x/y; darunter neutraler Body (zinc) mit der Description
   (Markdown, 2 Zeilen). Der Body-Stil ist überall identisch — nur das Band unterscheidet
