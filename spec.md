@@ -4,23 +4,26 @@ Voice-first Kochassistent-PWA. KI navigiert primär per Tool, Nutzer übersteuer
 
 > **B2 verworfen.** Konzept C: Schritte haben optionale Abhängigkeiten; „aktiv" heißt
 > Abhängigkeiten erfüllt. Mobile zeigt alle aktiven Karten (statt Strips + eine Karte).
+>
+> **Sprach-Trennung:** visueller Text (UI) = **deutsch** („Strang", „Zutaten", „Zutatenliste");
+> Tools, Parameter und State = **englisch** (`add_flow`, `flow_id`, `add_ingredient`, …).
 
 ---
 
 ## Kerndatenmodell
 
-### Strang (Flow)
+### Flow (UI: „Strang")
 Ein paralleler Kochprozess (z.B. „Reis", „Soße", „Salat").
 
 ```ts
-interface Strang {
+interface Flow {
   id: string
   name: string
-  icon: string | null      // Emoji, vom LLM vergeben (add_strang) — visuelle Identität
-  color: StrangColor
+  icon: string | null      // Emoji, vom LLM vergeben (add_flow) — visuelle Identität
+  color: FlowColor
   steps: Step[]
   done: boolean
-  zutaten: Zutat[]         // Zutaten gehören zum Strang, nicht global
+  ingredients: Ingredient[]         // Ingredients gehören zum Flow, nicht global
 }
 ```
 
@@ -29,7 +32,7 @@ interface Strang {
 
 ```ts
 interface StepRef {
-  strang_id: string
+  flow_id: string
   step_id: string          // stabile Schritt-ID — überlebt Einfügen/Löschen/Splitten
 }
 
@@ -62,16 +65,16 @@ interface Step {
   **nur möglich, wenn keine Karte, die diesen Schritt als Abhängigkeit hat, selbst abgeschlossen ist**
   (sonst ↺ ausgeblendet bzw. Tool-Fehler). Der revertierte Schritt erscheint wieder hinten in
   seiner „Jetzt"-Queue (`activatedAt` neu); sein eigener Timer wird verworfen, ein gesetzter
-  `Strang.done` gelöscht; Abhängige werden wieder blocked (rücken in die Vorschau).
-- `complete_strang` = alle Schritte `done` + Strang `done` + alle Schritt-Timer abbrechen.
-- `Strang.done` gilt zusätzlich als abgeleitet, wenn alle Schritte `done` sind.
+  `Flow.done` gelöscht; Abhängige werden wieder blocked (rücken in die Vorschau).
+- `complete_flow` = alle Schritte `done` + Flow `done` + alle Schritt-Timer abbrechen.
+- `Flow.done` gilt zusätzlich als abgeleitet, wenn alle Schritte `done` sind.
 
 > **Migration:** `steps: string[]` → `steps: Step[]`. Alte Daten: `string` wird `description`;
 > altes `summary` wird übernommen, falls `description` leer ist.
-> Alte Strang-Timer → Timer des aktiven Schritts.
+> Alte Flow-Timer → Timer des aktiven Schritts.
 > Neue Felder defaulten: `id` (generiert), `done: false`, `dependsOn: []`, `activatedAt: null`,
 > `priority: 'normal'`. Alte `dependsOn`-Refs per `step_index` werden beim Laden auf
-> `step_id` gemappt; `Strang.stepIndex` entfällt.
+> `step_id` gemappt; `Flow.stepIndex` entfällt.
 
 ---
 
@@ -150,7 +153,7 @@ blocked mit Hinweis), scrollbar. Keine ◀▶-Browse-Navigation nötig — alles
 
 ### Prinzip
 Genug Platz → **links die „Jetzt"-Spalte** (fix, wie die mobile View 1), rechts daneben
-**Spalten pro Strang** (nur Gliederung mit Überschrift, keine Karte), alle Schritte als
+**Spalten pro Flow** (nur Gliederung mit Überschrift, keine Karte), alle Schritte als
 **voll ausgeklappte Karten** vertikal gestapelt. Keine Browsing-Navigation nötig —
 alles sichtbar.
 
@@ -175,25 +178,25 @@ alles sichtbar.
 - **„Jetzt"-Spalte ganz links, fix:** wie die mobile View 1 — aber **ohne Blocked-Vorschau**
   (blocked erscheint nur mobil). Nur leicht getönter Hintergrund (kein vertikaler Strich).
   Kleines „Jetzt"-Label als Header (nicht klickbar, keine Flow-Chips).
-  **Nie schmaler als eine Strang-Spalte** (gleiche Breite 320px).
-- **Übersicht ein-/ausblendbar:** Topbar-Toggle (nur Desktop) klappt die Strang-Spalten
+  **Nie schmaler als eine Flow-Spalte** (gleiche Breite 320px).
+- **Übersicht ein-/ausblendbar:** Topbar-Toggle (nur Desktop) klappt die Flow-Spalten
   komplett ein/aus. Geschlossen → nur die „Jetzt"-View, zentriert, mit breiteren Karten
   (400px).
-- **Rechts daneben die Strang-Spalten** (= mobile „Flow"-Views): jede Spalte hat ihre
+- **Rechts daneben die Flow-Spalten** (= mobile „Flow"-Views): jede Spalte hat ihre
   **eigene vertikale Scrollbar** (nur wenn nötig). **Die Seite selbst scrollt nie.**
-- **Horizontales Scrollen nur im Strang-Bereich** — die „Jetzt"-Spalte bleibt stehen.
-- Titel-Tap in der „Jetzt"-Spalte = **Schritt anspringen**: Strang fokussieren + Karte
+- **Horizontales Scrollen nur im Flow-Bereich** — die „Jetzt"-Spalte bleibt stehen.
+- Titel-Tap in der „Jetzt"-Spalte = **Schritt anspringen**: Flow fokussieren + Karte
   in den sichtbaren Bereich scrollen (Spalte horizontal, Karte vertikal) + kurzer Puls —
   gleiches Verhalten wie `show_step`.
 - **Spaltenreihenfolge:** fix = Anlegereihenfolge.
 - **Spalte ist keine Karte** — nur Header (Emoji + Name, Klick = fokussieren) + Kartenstapel.
 - **Alle Schritt-Karten ausgeklappt** und **identisch zur mobilen Karte** (gleiches Titelband —
   bewusst redundant zum Spalten-Header). Karten-Header: `🍚 FLOW-NAME · ⏱ Timer · x/y`.
-- **active:** hellere Outline in Strang-Farbe.
+- **active:** hellere Outline in Flow-Farbe.
 - **done:** gedimmt, ↺-Button zum Zurücknehmen (s. Abschluss-Regeln).
 - **waiting:** gestrichelte Outline, Countdown im Band, ✓ = früh abschließen.
 - **blocked:** gedimmt + 🔒 (Abhängigkeit offen), kein ✓-Button.
-- **Mehrere Karten pro Strang können gleichzeitig Timer laufen lassen.**
+- **Mehrere Karten pro Flow können gleichzeitig Timer laufen lassen.**
 - Vertikales Scrollen pro Spalte. Kein horizontales Scrollen (bis auf die Spalten selbst).
 
 ---
@@ -213,20 +216,20 @@ Mehrere Karten stehen untereinander (Stapel).
 **Alle Karten sind immer voll ausgeklappt** (Description sichtbar). Kein Ein-/Ausklappen mehr.
 
 ### Dekorator-Prinzip
-- Karte = **farbiges Titelband oben** (Strang-Farbe, Farbe endet vertikal am Band-Ende)
-  + **neutraler Body** (zinc, monoton) + **farbige Outline** (Strang-Farbe).
-- Emoji bleibt farbig (visuelle Identität); der Body-Text trägt keine Strang-Farbe.
+- Karte = **farbiges Titelband oben** (Flow-Farbe, Farbe endet vertikal am Band-Ende)
+  + **neutraler Body** (zinc, monoton) + **farbige Outline** (Flow-Farbe).
+- Emoji bleibt farbig (visuelle Identität); der Body-Text trägt keine Flow-Farbe.
 - **Karten sehen in Desktop und Mobile identisch aus** (eine `StepCard`-Komponente);
   Desktop-Spalten-Header bleibt zusätzlich als Gliederung.
 
 ### Karten-Header
-- Titelband in Strang-Farbe: Emoji immer, **Flow-Name nur in „Jetzt" (View 1)** — in
+- Titelband in Flow-Farbe: Emoji immer, **Flow-Name nur in „Jetzt" (View 1)** — in
   View 2 / Desktop-Spalten reicht das Emoji, der Name steht ja im Flow-/Spalten-Header.
   `· ⏱ Timer (nur wenn läuft) · x/y`. Nur mobile „Jetzt": `▸` + Titel-Tap =
   Schritt anspringen (Flow-View auf + Scroll + Puls).
 
 ### Zustände
-- **active**: hellere Outline (Strang-Farbe), Titelband heller
+- **active**: hellere Outline (Flow-Farbe), Titelband heller
 - **waiting**: gestrichelte Outline, Countdown im Band, ✓ rechts neben dem Text = früh abschließen
 - **blocked**: gedimmt wie done (opacity — **kein grayscale**, Farbzuordnung bleibt erhalten),
   🔒-Hinweis auf fehlende Abhängigkeit, kein ✓-Button
@@ -260,23 +263,37 @@ Mehrere Karten stehen untereinander (Stapel).
 
 ---
 
-## Zutaten
+## Zutaten (Ingredients)
 
-- Gehören zum **Strang**, nicht global.
-- Zutaten-Modal öffnet sich pro Strang.
-- `open_zutaten` / `add_zutaten` erfordern `strang_id`.
+- Gehören zum **Flow**, nicht global. UI-Text deutsch: „Zutaten", „Zutatenliste".
+- Zutaten-Modal öffnet sich pro Flow.
+- `open_ingredients` / `add_ingredient` erfordern `flow_id`.
 - Globale Einkaufsliste (alle Zutaten aggregiert) bleibt als separate Ansicht möglich.
 - Modal-Darstellung: Desktop zentriertes Dialog (max-w-md, Rahmen, abgerundet),
   Mobile Bottom-Sheet; schließt über X, Esc, Klick auf den Hintergrund.
 
 ---
 
+## Modals (Chat + Zutaten)
+
+- **Hauptscreen ist immer der Koch-Screen.** Chat und Zutatenliste sind **nur Modals**
+  (Bottom-Sheet mobil, zentriertes Dialog desktop).
+- **Sichtbarkeit steht in der URL:** `?modal=chat`, `?modal=ingredients`, beides
+  `?modal=chat,ingredients` — öffnen/schließen ist back/forward-fähig.
+- **KI kann die Modals öffnen und schließen:** `open_chat`/`close_chat`,
+  `open_ingredients`/`close_ingredients` (Engine-Signal → URL).
+- Chat-Modal: Verlauf (auto-scroll), Texteingabe, Mikro, „Verlauf löschen", ⚙;
+  die Voice-Instanz teilen sich Koch-Screen und Chat-Modal.
+- Ohne Flows wird der Chat beim Laden automatisch geöffnet (dort entstehen die ersten Flows).
+
+---
+
 ## Timer
 
-- Gehören zum **Schritt** (Karte), nicht zum Strang. Deklariert als `timerSeconds` (Dauer)
-  beim Anlegen (`add_strang`/`add_step`).
+- Gehören zum **Schritt** (Karte), nicht zum Flow. Deklariert als `timerSeconds` (Dauer)
+  beim Anlegen (`add_flow`/`add_step`).
 - **Läuft NACH dem Abschließen** des Schritts: `complete_step` startet den Timer;
-  abhängige Schritte sind waiting, bis er abgelaufen ist. Mehrere Schritte eines Strangs
+  abhängige Schritte sind waiting, bis er abgelaufen ist. Mehrere Schritte eines Flows
   können parallel Timer laufen lassen.
 - **Kein Timer-UI:** Neusetzen läuft über die KI — `start_timer` ersetzt den laufenden Timer
   (z.B. „das muss noch 5 Minuten"); `cancel_timer` bricht ab (Abhängige werden dann frei).
@@ -287,14 +304,14 @@ Mehrere Karten stehen untereinander (Stapel).
 - Sichtbar: in der Schritt-Karte (Header), Topbar-Timer-Chips (nur Emoji + Zeit bzw. 🔔).
 - Dringlichkeit: Orange + Pulsieren < 2 min; bei Ablauf verschwindet der Topbar-Chip sofort
   (Bell bleibt nur auf der Schritt-Karte).
-- Bei Ablauf: KI navigiert aktiv zum betroffenen Schritt (`focus_strang` + `set_step`).
-- `complete_strang` bricht alle Schritt-Timer des Strangs ab.
+- Bei Ablauf: KI navigiert aktiv zum betroffenen Schritt (`show_step`).
+- `complete_flow` bricht alle Schritt-Timer des Flows ab.
 
 ---
 
 ## Priorität
 
-- `priority: 'normal' | 'high'` am Schritt (LLM-vergeben beim Anlegen; `set_step_priority`
+- `priority: 'normal' | 'high'` am Schritt (LLM-vergeben beim Anlegen; `update_step`
   zum Nachziehen). `high` sparsam — nur wenn sofortiges Handeln nötig ist (z.B. Ofen).
 - **high-Karten** stehen bei `active` in der **Prio-Queue ganz oben** (FIFO) und
   **pulsieren** (Outline); als waiting/blocked verhalten sie sich wie jede andere Karte.
@@ -351,8 +368,8 @@ umbenennen/löschen/teilen, Timer neu setzen oder verlängern.
 
 | Tool | Semantik |
 |---|---|
-| `get_cook_state` | kompletter Zustand (Stränge, Steps mit IDs, Timer, Zutaten) |
-| `add_strang` | neuer Flow: `name`, `icon`, `steps[]` mit `description`, `depends_on` (nur auf existierende Steps), `timer_seconds`, `priority` |
+| `get_cook_state` | kompletter Zustand (Flows, Steps mit IDs, Timer, Ingredients) |
+| `add_flow` | neuer Flow: `name`, `icon`, `steps[]` mit `description`, `depends_on` (nur auf existierende Steps), `timer_seconds`, `priority` |
 | `add_step` | Step anhängen oder hinter `after_step_id` einfügen; optional `depends_on`, `timer_seconds`, `priority` |
 | `update_step` | `description` / `depends_on` / `timer_seconds` / `priority` ändern (nur angegebene Felder); Queue-Status wird neu bewertet |
 | `delete_step` | Step entfernen; Refs auf ihn werden entfernt, frei gewordene Steps werden aktiv |
@@ -361,17 +378,18 @@ umbenennen/löschen/teilen, Timer neu setzen oder verlängern.
 | `revert_step` | zurücknehmen — nur wenn keine abhängige Karte abgeschlossen ist; verwirft eigenen Timer, Abhängige werden wieder blocked |
 | `start_timer` | `seconds` — Timer neu setzen **oder verlängern** (ersetzt laufenden; KI-Override, z.B. „noch 5 Minuten") |
 | `cancel_timer` | Timer abbrechen (Abhängige werden frei) |
-| `complete_strang` | alle Steps `done` + Strang `done` + alle Schritt-Timer abbrechen |
-| `update_strang` | `name` / `icon` ändern |
-| `delete_strang` | Flow löschen; Refs anderer Stränge auf seine Steps werden entfernt |
-| `reset_cook` | alles verwerfen: alle Stränge + Zutaten löschen |
-| `show_step` | gezielt einen Schritt zeigen: Fokus + View-Wechsel (mobil) + Scroll in den sichtbaren Bereich + kurzer Puls — ersetzt `set_step`/`focus_strang`-Navigation |
-| `focus_strang` | Strang fokussieren (Spalten-Hervorhebung), ohne Schritt-Puls |
-| `add_zutaten` | `name`, optional `amount` |
-| `open_zutaten` / `close_zutaten` | Zutaten-Modal |
-| `toggle_zutaten` | **kein KI-Tool mehr** — nur UI-intern (Nutzer hakt ab) |
+| `complete_flow` | alle Steps `done` + Flow `done` + alle Schritt-Timer abbrechen |
+| `update_flow` | `name` / `icon` ändern |
+| `delete_flow` | Flow löschen; Refs anderer Flows auf seine Steps werden entfernt |
+| `reset_cook` | alles verwerfen: alle Flows + Ingredients löschen |
+| `show_step` | gezielt einen Schritt zeigen: Fokus + View-Wechsel (mobil) + Scroll in den sichtbaren Bereich + kurzer Puls — ersetzt `set_step`/`focus_flow`-Navigation |
+| `focus_flow` | Flow fokussieren (Spalten-Hervorhebung), ohne Schritt-Puls |
+| `add_ingredient` | `name`, optional `amount` |
+| `open_ingredients` / `close_ingredients` | Zutaten-Modal |
+| `open_chat` / `close_chat` | Chat-Modal |
+| `toggle_ingredient` | **kein KI-Tool mehr** — nur UI-intern (Nutzer hakt ab) |
 
-**Entfernt:** `set_step`, `set_step_priority` (→ `update_step`), `toggle_zutaten` (KI-seitig).
+**Entfernt:** `set_step`, `set_step_priority` (→ `update_step`), `toggle_ingredient` (KI-seitig).
 
 ---
 
@@ -379,4 +397,4 @@ umbenennen/löschen/teilen, Timer neu setzen oder verlängern.
 
 - Schritt-spezifische Zutaten?
 - Swipe-Schwellwert / Achsenerkennung bei nassen Händen?
-- Einkaufslisten-Ansicht (alle Stränge aggregiert)?
+- Einkaufslisten-Ansicht (alle Flows aggregiert)?

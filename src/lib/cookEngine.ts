@@ -1,20 +1,28 @@
 import { createContext, createSignal } from 'solid-js'
-import type { CookState, Step, StepRef, Strang, StrangColor } from '../state/store'
+import type { CookState, Step, StepRef, Flow, FlowColor } from '../state/store'
 import { showToast } from './toast'
 import { fmtRemaining, stepLabel } from './tools'
 
-export const STRANG_COLORS: StrangColor[] = ['cyan', 'violet', 'amber', 'emerald', 'rose', 'sky']
+export const FLOW_COLORS: FlowColor[] = ['cyan', 'violet', 'amber', 'emerald', 'rose', 'sky']
 
 /** Navigation/Puls-Event an die UI (ephemer, wird nicht persistiert) */
 export interface NavTarget {
-  strangId: string
+  flowId: string
   stepId: string
+  nonce: number
+}
+
+/** Modal öffnen/schließen (Chat, Ingredients) — UI spiegelt das in die URL */
+export interface ModalRequest {
+  modal: 'chat' | 'ingredients'
+  open: boolean
   nonce: number
 }
 
 export interface CookEngine {
   readonly cook: CookState
   readonly navTarget: NavTarget | null
+  readonly modalRequest: ModalRequest | null
   executeTool(name: string, args: Record<string, unknown>, opts?: { silent?: boolean }): string
   expireTimers(): void
 }
@@ -30,24 +38,25 @@ type SetCookFn = (fn: (cook: CookState) => CookState) => void
  */
 export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): CookEngine {
   const [navTarget, setNavTarget] = createSignal<NavTarget | null>(null)
+  const [modalRequest, setModalRequest] = createSignal<ModalRequest | null>(null)
 
-  function findStrang(id: string) {
-    return getCook().strangs.find((s) => s.id === id)
+  function findFlow(id: string) {
+    return getCook().flows.find((s) => s.id === id)
   }
 
-  function stepIndexOf(strangId: string, stepId: string): number {
-    return findStrang(strangId)?.steps.findIndex((st) => st.id === stepId) ?? -1
+  function stepIndexOf(flowId: string, stepId: string): number {
+    return findFlow(flowId)?.steps.findIndex((st) => st.id === stepId) ?? -1
   }
 
-  function patchStrang(id: string, patch: Partial<Strang>) {
-    setCook((c) => ({ ...c, strangs: c.strangs.map((s) => (s.id === id ? { ...s, ...patch } : s)) }))
+  function patchFlow(id: string, patch: Partial<Flow>) {
+    setCook((c) => ({ ...c, flows: c.flows.map((s) => (s.id === id ? { ...s, ...patch } : s)) }))
   }
 
-  function patchStep(strangId: string, stepId: string, patch: Partial<Step>) {
+  function patchStep(flowId: string, stepId: string, patch: Partial<Step>) {
     setCook((c) => ({
       ...c,
-      strangs: c.strangs.map((s) =>
-        s.id === strangId
+      flows: c.flows.map((s) =>
+        s.id === flowId
           ? { ...s, steps: s.steps.map((st) => (st.id === stepId ? { ...st, ...patch } : st)) }
           : s,
       ),
@@ -71,7 +80,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
 
   function depStep(ref: StepRef): Step | undefined {
     return getCook()
-      .strangs.find((x) => x.id === ref.strang_id)
+      .flows.find((x) => x.id === ref.flow_id)
       ?.steps.find((st) => st.id === ref.step_id)
   }
 
@@ -83,19 +92,19 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
 
   // Abhängige neu in View 1 aufnehmen (alle Bedingungen done → active oder waiting)
   function activateDependents(refs: StepRef[]): void {
-    for (const s of getCook().strangs) {
+    for (const s of getCook().flows) {
       s.steps.forEach((st) => {
         if (st.done || st.activatedAt !== null) return
-        if (!st.dependsOn.some((d) => refs.some((r) => r.strang_id === d.strang_id && r.step_id === d.step_id))) return
+        if (!st.dependsOn.some((d) => refs.some((r) => r.flow_id === d.flow_id && r.step_id === d.step_id))) return
         if (!depsDone(st.dependsOn)) return
         patchStep(s.id, st.id, { activatedAt: nextAct() })
       })
     }
   }
 
-  // Alle noch nicht aktiven Steps neu bewerten (nach delete_step/delete_strang/update_step)
+  // Alle noch nicht aktiven Steps neu bewerten (nach delete_step/delete_flow/update_step)
   function activateEligible(): void {
-    for (const s of getCook().strangs) {
+    for (const s of getCook().flows) {
       s.steps.forEach((st) => {
         if (st.done || st.activatedAt !== null) return
         if (depsDone(st.dependsOn)) patchStep(s.id, st.id, { activatedAt: nextAct() })
@@ -105,33 +114,33 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
 
   // Abhängige aus View 1 entfernen (werden wieder blocked)
   function deactivateDependents(refs: StepRef[]): void {
-    for (const s of getCook().strangs) {
+    for (const s of getCook().flows) {
       s.steps.forEach((st) => {
         if (st.done || st.activatedAt === null) return
-        if (!st.dependsOn.some((d) => refs.some((r) => r.strang_id === d.strang_id && r.step_id === d.step_id))) return
+        if (!st.dependsOn.some((d) => refs.some((r) => r.flow_id === d.flow_id && r.step_id === d.step_id))) return
         patchStep(s.id, st.id, { activatedAt: null })
       })
     }
   }
 
-  function hasDoneDependents(strangId: string, stepId: string): boolean {
-    return getCook().strangs.some((s) =>
+  function hasDoneDependents(flowId: string, stepId: string): boolean {
+    return getCook().flows.some((s) =>
       s.steps.some(
         (st) =>
           st.done &&
-          st.dependsOn.some((d) => d.strang_id === strangId && d.step_id === stepId),
+          st.dependsOn.some((d) => d.flow_id === flowId && d.step_id === stepId),
       ),
     )
   }
 
-  // Alle dependsOn-Refs auf bestimmte Schritte entfernen (nach delete_step/delete_strang)
-  function removeRefsTo(strangId: string, stepIds: string[]): void {
-    for (const s of getCook().strangs) {
+  // Alle dependsOn-Refs auf bestimmte Schritte entfernen (nach delete_step/delete_flow)
+  function removeRefsTo(flowId: string, stepIds: string[]): void {
+    for (const s of getCook().flows) {
       s.steps.forEach((st) => {
-        if (st.dependsOn.some((d) => d.strang_id === strangId && stepIds.includes(d.step_id))) {
+        if (st.dependsOn.some((d) => d.flow_id === flowId && stepIds.includes(d.step_id))) {
           patchStep(s.id, st.id, {
             dependsOn: st.dependsOn.filter(
-              (d) => !(d.strang_id === strangId && stepIds.includes(d.step_id)),
+              (d) => !(d.flow_id === flowId && stepIds.includes(d.step_id)),
             ),
           })
         }
@@ -142,7 +151,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
   function parseDepRefs(raw: unknown): StepRef[] {
     if (!Array.isArray(raw)) return []
     return (raw as Record<string, unknown>[]).map((d) => ({
-      strang_id: String(d?.strang_id ?? '').trim(),
+      flow_id: String(d?.flow_id ?? '').trim(),
       step_id: String(d?.step_id ?? '').trim(),
     }))
   }
@@ -168,11 +177,11 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
       switch (name) {
         case 'get_cook_state':
           return JSON.stringify(getCook())
-        case 'add_strang': {
-          const strangName = String(args.name ?? '').trim()
+        case 'add_flow': {
+          const flowName = String(args.name ?? '').trim()
           const icon = String(args.icon ?? '').trim()
           const rawSteps = Array.isArray(args.steps) ? args.steps : []
-          if (!strangName) return JSON.stringify({ error: 'name fehlt' })
+          if (!flowName) return JSON.stringify({ error: 'name fehlt' })
           if (rawSteps.length === 0) return JSON.stringify({ error: 'steps brauchen mindestens einen Schritt' })
           const parsed = rawSteps.map((st) => {
             const o = (st ?? {}) as Record<string, unknown>
@@ -194,18 +203,18 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           // Refs dürfen nur auf bereits existierende Schritte zeigen (eigene neue Steps haben noch keine IDs)
           if (parsed.some((s) => s.dependsOn.some((d) => !depStep(d)))) {
             return JSON.stringify({
-              error: 'Unbekannte Abhängigkeit — Schritte des neuen Strangs können nicht referenziert werden',
+              error: 'Unbekannte Abhängigkeit — Schritte des neuen Flows können nicht referenziert werden',
             })
           }
           const id = crypto.randomUUID()
-          const color = STRANG_COLORS[getCook().strangs.length % STRANG_COLORS.length]
+          const color = FLOW_COLORS[getCook().flows.length % FLOW_COLORS.length]
           setCook((c) => ({
             ...c,
-            strangs: [
-              ...c.strangs,
+            flows: [
+              ...c.flows,
               {
                 id,
-                name: strangName,
+                name: flowName,
                 icon: icon || null,
                 color,
                 steps: parsed.map((st) => ({
@@ -223,15 +232,15 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               },
             ],
           }))
-          setCook((c) => ({ ...c, focusedStrangId: id }))
-          toast(`Strang: ${strangName}`)
-          return JSON.stringify({ id, name: strangName })
+          setCook((c) => ({ ...c, focusedFlowId: id }))
+          toast(`Strang: ${flowName}`)
+          return JSON.stringify({ id, name: flowName })
         }
         case 'add_step': {
-          const id = String(args.strang_id ?? '')
+          const id = String(args.flow_id ?? '')
           const description = String(args.description ?? '').trim()
-          const strang = findStrang(id)
-          if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
+          const flow = findFlow(id)
+          if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
           if (!description) return JSON.stringify({ error: 'description fehlt' })
           const dependsOn = parseDepRefs(args.depends_on)
           if (dependsOn.some((d) => !depStep(d))) {
@@ -256,7 +265,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             priority,
           }
           const afterId = typeof args.after_step_id === 'string' ? args.after_step_id : null
-          const steps = [...strang.steps]
+          const steps = [...flow.steps]
           if (afterId) {
             const pos = steps.findIndex((st) => st.id === afterId)
             if (pos < 0) return JSON.stringify({ error: 'Unbekannter after_step_id' })
@@ -264,16 +273,16 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           } else {
             steps.push(step)
           }
-          patchStrang(id, { steps })
-          toast(`${strang.name}: + „${stepLabel(description)}"`)
+          patchFlow(id, { steps })
+          toast(`${flow.name}: + „${stepLabel(description)}"`)
           return JSON.stringify({ ok: true, step_id: step.id })
         }
         case 'update_step': {
-          const id = String(args.strang_id ?? '')
+          const id = String(args.flow_id ?? '')
           const stepId = String(args.step_id ?? '')
-          const strang = findStrang(id)
-          if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
-          const step = strang.steps.find((st) => st.id === stepId)
+          const flow = findFlow(id)
+          if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
+          const step = flow.steps.find((st) => st.id === stepId)
           if (!step) return JSON.stringify({ error: 'Unbekannter Schritt' })
           const patch: Partial<Step> = {}
           if (typeof args.description === 'string') {
@@ -283,7 +292,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           }
           if (Array.isArray(args.depends_on)) {
             const deps = parseDepRefs(args.depends_on)
-            if (deps.some((d) => !depStep(d) || (d.strang_id === id && d.step_id === stepId))) {
+            if (deps.some((d) => !depStep(d) || (d.flow_id === id && d.step_id === stepId))) {
               return JSON.stringify({ error: 'Ungültige Abhängigkeit' })
             }
             patch.dependsOn = deps
@@ -309,32 +318,32 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           return JSON.stringify({ ok: true })
         }
         case 'delete_step': {
-          const id = String(args.strang_id ?? '')
+          const id = String(args.flow_id ?? '')
           const stepId = String(args.step_id ?? '')
-          const strang = findStrang(id)
-          if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
+          const flow = findFlow(id)
+          if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
           const idx = stepIndexOf(id, stepId)
           if (idx < 0) return JSON.stringify({ error: 'Unbekannter Schritt' })
-          const name = stepLabel(strang.steps[idx].description)
+          const name = stepLabel(flow.steps[idx].description)
           removeRefsTo(id, [stepId])
-          patchStrang(id, { steps: strang.steps.filter((st) => st.id !== stepId) })
+          patchFlow(id, { steps: flow.steps.filter((st) => st.id !== stepId) })
           activateEligible()
-          toast(`${strang.name}: „${name}" entfernt`)
+          toast(`${flow.name}: „${name}" entfernt`)
           return JSON.stringify({ ok: true })
         }
         case 'split_step': {
-          const id = String(args.strang_id ?? '')
+          const id = String(args.flow_id ?? '')
           const stepId = String(args.step_id ?? '')
           const first = String(args.first_description ?? '').trim()
           const second = String(args.second_description ?? '').trim()
-          const strang = findStrang(id)
-          if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
+          const flow = findFlow(id)
+          if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
           const idx = stepIndexOf(id, stepId)
           if (idx < 0) return JSON.stringify({ error: 'Unbekannter Schritt' })
           if (!first || !second) {
             return JSON.stringify({ error: 'first_description und second_description nötig' })
           }
-          const orig = strang.steps[idx]
+          const orig = flow.steps[idx]
           if (orig.done) {
             return JSON.stringify({ error: 'Nur nicht-abgeschlossene Schritte können geteilt werden' })
           }
@@ -342,14 +351,14 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             id: crypto.randomUUID(),
             description: second,
             done: false,
-            dependsOn: [{ strang_id: id, step_id: orig.id }],
+            dependsOn: [{ flow_id: id, step_id: orig.id }],
             timerSeconds: null,
             timerEndsAt: null,
             timerExpired: false,
             activatedAt: null,
             priority: 'normal',
           }
-          const steps = strang.steps.map((st) =>
+          const steps = flow.steps.map((st) =>
             st.id === stepId ? { ...st, description: first } : st,
           )
           steps.splice(idx + 1, 0, secondStep)
@@ -360,27 +369,27 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               : {
                   ...st,
                   dependsOn: st.dependsOn.map((d) =>
-                    d.strang_id === id && d.step_id === stepId
-                      ? { strang_id: id, step_id: secondStep.id }
+                    d.flow_id === id && d.step_id === stepId
+                      ? { flow_id: id, step_id: secondStep.id }
                       : d,
                   ),
                 },
           )
-          patchStrang(id, { steps: rewritten })
-          toast(`${strang.name}: „${stepLabel(orig.description)}" geteilt`)
+          patchFlow(id, { steps: rewritten })
+          toast(`${flow.name}: „${stepLabel(orig.description)}" geteilt`)
           return JSON.stringify({ ok: true, second_step_id: secondStep.id })
         }
         case 'complete_step': {
-          const id = String(args.strang_id ?? '')
+          const id = String(args.flow_id ?? '')
           const stepId = String(args.step_id ?? '')
-          const strang = findStrang(id)
-          if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
+          const flow = findFlow(id)
+          if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
           const stepIdx = stepIndexOf(id, stepId)
           if (stepIdx < 0) return JSON.stringify({ error: 'Unbekannter Schritt' })
-          if (strang.steps[stepIdx].done) {
+          if (flow.steps[stepIdx].done) {
             return JSON.stringify({ error: 'Schritt ist bereits abgeschlossen' })
           }
-          const steps = strang.steps.map((st) =>
+          const steps = flow.steps.map((st) =>
             st.id === stepId
               ? {
                   ...st,
@@ -392,20 +401,20 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               : st,
           )
           const allDone = steps.every((st) => st.done)
-          patchStrang(id, { steps, done: allDone ? true : strang.done })
+          patchFlow(id, { steps, done: allDone ? true : flow.done })
           // Abhängige aufnehmen (active oder waiting — Zustand wird in der UI abgeleitet)
-          activateDependents([{ strang_id: id, step_id: stepId }])
-          toast(`${strang.name}: „${stepLabel(strang.steps[stepIdx].description)}" fertig`)
+          activateDependents([{ flow_id: id, step_id: stepId }])
+          toast(`${flow.name}: „${stepLabel(flow.steps[stepIdx].description)}" fertig`)
           return JSON.stringify({ ok: true })
         }
         case 'revert_step': {
-          const id = String(args.strang_id ?? '')
+          const id = String(args.flow_id ?? '')
           const stepId = String(args.step_id ?? '')
-          const strang = findStrang(id)
-          if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
+          const flow = findFlow(id)
+          if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
           const stepIdx = stepIndexOf(id, stepId)
           if (stepIdx < 0) return JSON.stringify({ error: 'Unbekannter Schritt' })
-          if (!strang.steps[stepIdx].done) {
+          if (!flow.steps[stepIdx].done) {
             return JSON.stringify({ error: 'Schritt ist nicht abgeschlossen' })
           }
           if (hasDoneDependents(id, stepId)) {
@@ -420,17 +429,17 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             timerEndsAt: null,
             timerExpired: false,
           })
-          patchStrang(id, { done: false })
-          deactivateDependents([{ strang_id: id, step_id: stepId }])
-          toast(`${strang.name}: „${stepLabel(strang.steps[stepIdx].description)}" zurückgenommen`)
+          patchFlow(id, { done: false })
+          deactivateDependents([{ flow_id: id, step_id: stepId }])
+          toast(`${flow.name}: „${stepLabel(flow.steps[stepIdx].description)}" zurückgenommen`)
           return JSON.stringify({ ok: true })
         }
         case 'start_timer': {
-          const id = String(args.strang_id ?? '')
+          const id = String(args.flow_id ?? '')
           const stepId = String(args.step_id ?? '')
           const seconds = Number(args.seconds)
-          const strang = findStrang(id)
-          if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
+          const flow = findFlow(id)
+          if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
           const stepIdx = stepIndexOf(id, stepId)
           if (stepIdx < 0) return JSON.stringify({ error: 'Unbekannter Schritt' })
           if (!Number.isFinite(seconds) || seconds <= 0) {
@@ -441,47 +450,47 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             timerEndsAt: endsAt,
             timerExpired: false,
           })
-          toast(`⏱ Timer: ${fmtRemaining(endsAt)} (${strang.name}: ${stepLabel(strang.steps[stepIdx].description)})`)
+          toast(`⏱ Timer: ${fmtRemaining(endsAt)} (${flow.name}: ${stepLabel(flow.steps[stepIdx].description)})`)
           return JSON.stringify({ ok: true, endsAt })
         }
         case 'cancel_timer': {
-          const id = String(args.strang_id ?? '')
+          const id = String(args.flow_id ?? '')
           const stepId = String(args.step_id ?? '')
-          const strang = findStrang(id)
-          if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
+          const flow = findFlow(id)
+          if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
           if (stepIndexOf(id, stepId) < 0) return JSON.stringify({ error: 'Unbekannter Schritt' })
           patchStep(id, stepId, { timerEndsAt: null, timerExpired: false })
           toast('⏱ Timer abgebrochen')
           return JSON.stringify({ ok: true })
         }
-        case 'complete_strang': {
-          const id = String(args.strang_id ?? '')
-          const strang = findStrang(id)
-          if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
-          patchStrang(id, {
+        case 'complete_flow': {
+          const id = String(args.flow_id ?? '')
+          const flow = findFlow(id)
+          if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
+          patchFlow(id, {
             done: true,
-            steps: strang.steps.map((st) => ({
+            steps: flow.steps.map((st) => ({
               ...st,
               done: true,
               timerEndsAt: null,
               timerExpired: false,
             })),
           })
-          toast(`Fertig: ${strang.name}`)
-          // Abhängige aus anderen Strängen freigeben (alle Schritte sind jetzt done)
-          activateDependents(strang.steps.map((st) => ({ strang_id: id, step_id: st.id })))
+          toast(`Fertig: ${flow.name}`)
+          // Abhängige aus anderen Flows freigeben (alle Schritte sind jetzt done)
+          activateDependents(flow.steps.map((st) => ({ flow_id: id, step_id: st.id })))
           const cur = getCook()
-          const idx = cur.strangs.findIndex((s) => s.id === id)
-          const rest = cur.strangs.slice(idx + 1).concat(cur.strangs.slice(0, idx))
+          const idx = cur.flows.findIndex((s) => s.id === id)
+          const rest = cur.flows.slice(idx + 1).concat(cur.flows.slice(0, idx))
           const next = rest.find((s) => !s.done)
-          if (next) setCook((c) => ({ ...c, focusedStrangId: next.id }))
+          if (next) setCook((c) => ({ ...c, focusedFlowId: next.id }))
           return JSON.stringify({ ok: true })
         }
-        case 'update_strang': {
-          const id = String(args.strang_id ?? '')
-          const strang = findStrang(id)
-          if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
-          const patch: Partial<Strang> = {}
+        case 'update_flow': {
+          const id = String(args.flow_id ?? '')
+          const flow = findFlow(id)
+          if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
+          const patch: Partial<Flow> = {}
           if (typeof args.name === 'string') {
             const name = String(args.name).trim()
             if (!name) return JSON.stringify({ error: 'name darf nicht leer sein' })
@@ -493,81 +502,87 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           if (Object.keys(patch).length === 0) {
             return JSON.stringify({ error: 'name oder icon angeben' })
           }
-          patchStrang(id, patch)
+          patchFlow(id, patch)
           return JSON.stringify({ ok: true })
         }
-        case 'delete_strang': {
-          const id = String(args.strang_id ?? '')
-          const strang = findStrang(id)
-          if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
-          removeRefsTo(id, strang.steps.map((st) => st.id))
-          const strangs = getCook().strangs.filter((s) => s.id !== id)
+        case 'delete_flow': {
+          const id = String(args.flow_id ?? '')
+          const flow = findFlow(id)
+          if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
+          removeRefsTo(id, flow.steps.map((st) => st.id))
+          const flows = getCook().flows.filter((s) => s.id !== id)
           setCook((c) => ({
             ...c,
-            strangs,
-            focusedStrangId: c.focusedStrangId === id ? (strangs[0]?.id ?? null) : c.focusedStrangId,
+            flows,
+            focusedFlowId: c.focusedFlowId === id ? (flows[0]?.id ?? null) : c.focusedFlowId,
           }))
           activateEligible()
-          toast(`Gelöscht: ${strang.name}`)
+          toast(`Gelöscht: ${flow.name}`)
           return JSON.stringify({ ok: true })
         }
         case 'reset_cook': {
-          setCook((c) => ({ ...c, strangs: [], zutaten: [], focusedStrangId: null, zutatenOpen: false }))
+          setCook((c) => ({ ...c, flows: [], ingredients: [], focusedFlowId: null }))
           toast('Alle Stränge gelöscht')
           return JSON.stringify({ ok: true })
         }
         case 'show_step': {
-          const strangId = String(args.strang_id ?? '')
+          const flowId = String(args.flow_id ?? '')
           const stepId = String(args.step_id ?? '')
-          const strang = findStrang(strangId)
-          if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
-          if (!strang.steps.some((st) => st.id === stepId)) {
+          const flow = findFlow(flowId)
+          if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
+          if (!flow.steps.some((st) => st.id === stepId)) {
             return JSON.stringify({ error: 'Unbekannter Schritt' })
           }
-          setCook((c) => ({ ...c, focusedStrangId: strangId }))
-          setNavTarget({ strangId, stepId, nonce: Date.now() })
+          setCook((c) => ({ ...c, focusedFlowId: flowId }))
+          setNavTarget({ flowId, stepId, nonce: Date.now() })
           return JSON.stringify({ ok: true })
         }
-        case 'focus_strang': {
-          const id = String(args.strang_id ?? '')
-          if (!findStrang(id)) return JSON.stringify({ error: 'Unbekannter Strang' })
-          setCook((c) => ({ ...c, focusedStrangId: id }))
+        case 'focus_flow': {
+          const id = String(args.flow_id ?? '')
+          if (!findFlow(id)) return JSON.stringify({ error: 'Unbekannter Flow' })
+          setCook((c) => ({ ...c, focusedFlowId: id }))
           return JSON.stringify({ ok: true })
         }
-        case 'add_zutaten': {
+        case 'add_ingredient': {
           const zName = String(args.name ?? '').trim()
           if (!zName) return JSON.stringify({ error: 'name fehlt' })
           const id = crypto.randomUUID()
           setCook((c) => ({
             ...c,
-            zutaten: [
-              ...c.zutaten,
+            ingredients: [
+              ...c.ingredients,
               { id, name: zName, amount: args.amount ? String(args.amount) : '', checked: false },
             ],
           }))
           toast(`Zutat: ${zName}`)
           return JSON.stringify({ id, name: zName })
         }
-        case 'toggle_zutaten': {
-          // Nur UI-intern (Zutaten-Modal) — kein KI-Tool
+        case 'toggle_ingredient': {
+          // Nur UI-intern (Ingredients-Modal) — kein KI-Tool
           const id = String(args.id ?? '')
           let found = false
           setCook((c) => ({
             ...c,
-            zutaten: c.zutaten.map((x) => {
+            ingredients: c.ingredients.map((x) => {
               if (x.id !== id) return x
               found = true
               return { ...x, checked: !x.checked }
             }),
           }))
-          if (!found) return JSON.stringify({ error: 'Unbekannte Zutat' })
+          if (!found) return JSON.stringify({ error: 'Unbekannte Ingredient' })
           return JSON.stringify({ ok: true })
         }
-        case 'open_zutaten':
-          setCook((c) => ({ ...c, zutatenOpen: true }))
+        case 'open_ingredients':
+          setModalRequest({ modal: 'ingredients', open: true, nonce: Date.now() })
           return JSON.stringify({ ok: true })
-        case 'close_zutaten':
-          setCook((c) => ({ ...c, zutatenOpen: false }))
+        case 'close_ingredients':
+          setModalRequest({ modal: 'ingredients', open: false, nonce: Date.now() })
+          return JSON.stringify({ ok: true })
+        case 'open_chat':
+          setModalRequest({ modal: 'chat', open: true, nonce: Date.now() })
+          return JSON.stringify({ ok: true })
+        case 'close_chat':
+          setModalRequest({ modal: 'chat', open: false, nonce: Date.now() })
           return JSON.stringify({ ok: true })
         default:
           return JSON.stringify({ error: `Unbekanntes Tool: ${name}` })
@@ -581,7 +596,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
 
   function expireTimers(): void {
     const now = Date.now()
-    for (const s of getCook().strangs) {
+    for (const s of getCook().flows) {
       s.steps.forEach((step) => {
         if (step.timerExpired || step.timerEndsAt === null || step.timerEndsAt > now) return
         patchStep(s.id, step.id, { timerEndsAt: null, timerExpired: true })
@@ -596,6 +611,9 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
     },
     get navTarget() {
       return navTarget()
+    },
+    get modalRequest() {
+      return modalRequest()
     },
     executeTool,
     expireTimers,

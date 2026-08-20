@@ -12,10 +12,10 @@ const depRefSchema = {
   items: {
     type: 'object',
     properties: {
-      strang_id: { type: 'string' },
+      flow_id: { type: 'string' },
       step_id: { type: 'string', description: 'Stabile Schritt-ID (aus get_cook_state)' },
     },
-    required: ['strang_id', 'step_id'],
+    required: ['flow_id', 'step_id'],
   },
   description: 'Optionale Abhängigkeiten (Schritte, die zuerst erledigt sein müssen)',
 }
@@ -41,20 +41,20 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'get_cook_state',
-      description: 'Aktuellen Kochzustand abrufen: alle Stränge, Schritte (mit stabilen IDs), Timer, Zutaten-Modal.',
+      description: 'Aktuellen Kochzustand abrufen: alle Flows, Schritte (mit stabilen IDs), Timer, Ingredients-Modal.',
       parameters: { type: 'object', properties: {} },
     },
   },
   {
     type: 'function',
     function: {
-      name: 'add_strang',
-      description: 'Neuen Kochstrang anlegen (parallele Komponente mit eigener Schrittfolge). Schritte können nur auf bereits existierende Schritte anderer Stränge verweisen.',
+      name: 'add_flow',
+      description: 'Neuen Flow anlegen (parallele Komponente mit eigener Schrittfolge). Schritte können nur auf bereits existierende Schritte anderer Flows verweisen.',
       parameters: {
         type: 'object',
         properties: {
           name: { type: 'string', description: 'Name, z.B. "Reis"' },
-          icon: { type: 'string', description: 'Passendes Emoji, z.B. "🍚" — identifiziert den Strang visuell' },
+          icon: { type: 'string', description: 'Passendes Emoji, z.B. "🍚" — identifiziert den Flow visuell' },
           steps: {
             type: 'array',
             items: {
@@ -78,18 +78,18 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'add_step',
-      description: 'Schritt an einen bestehenden Strang anhängen oder hinter einem bestimmten Schritt einfügen (after_step_id).',
+      description: 'Schritt an einen bestehenden Flow anhängen oder hinter einem bestimmten Schritt einfügen (after_step_id).',
       parameters: {
         type: 'object',
         properties: {
-          strang_id: { type: 'string' },
+          flow_id: { type: 'string' },
           description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt); beginne mit einer kurzen Kernaussage' },
           after_step_id: { type: 'string', description: 'Optional: stabile ID des Schritts, hinter dem eingefügt wird (sonst ans Ende)' },
           timer_seconds: timerSecondsSchema,
           priority: prioritySchema,
           depends_on: depRefSchema,
         },
-        required: ['strang_id', 'description'],
+        required: ['flow_id', 'description'],
       },
     },
   },
@@ -101,14 +101,14 @@ export const TOOLS: ToolDef[] = [
       parameters: {
         type: 'object',
         properties: {
-          strang_id: { type: 'string' },
+          flow_id: { type: 'string' },
           step_id: stepIdSchema('Der Schritt'),
           description: { type: 'string', description: 'Neue Anweisung (Markdown erlaubt)' },
           depends_on: depRefSchema,
           timer_seconds: timerSecondsSchema,
           priority: prioritySchema,
         },
-        required: ['strang_id', 'step_id'],
+        required: ['flow_id', 'step_id'],
       },
     },
   },
@@ -120,10 +120,10 @@ export const TOOLS: ToolDef[] = [
       parameters: {
         type: 'object',
         properties: {
-          strang_id: { type: 'string' },
+          flow_id: { type: 'string' },
           step_id: stepIdSchema('Der Schritt'),
         },
-        required: ['strang_id', 'step_id'],
+        required: ['flow_id', 'step_id'],
       },
     },
   },
@@ -135,12 +135,12 @@ export const TOOLS: ToolDef[] = [
       parameters: {
         type: 'object',
         properties: {
-          strang_id: { type: 'string' },
+          flow_id: { type: 'string' },
           step_id: stepIdSchema('Der zu teilende Schritt'),
           first_description: { type: 'string', description: 'Anweisung für Teil 1 (bleibt an der Stelle)' },
           second_description: { type: 'string', description: 'Anweisung für Teil 2 (folgt danach)' },
         },
-        required: ['strang_id', 'step_id', 'first_description', 'second_description'],
+        required: ['flow_id', 'step_id', 'first_description', 'second_description'],
       },
     },
   },
@@ -152,10 +152,10 @@ export const TOOLS: ToolDef[] = [
       parameters: {
         type: 'object',
         properties: {
-          strang_id: { type: 'string' },
+          flow_id: { type: 'string' },
           step_id: stepIdSchema('Der Schritt'),
         },
-        required: ['strang_id', 'step_id'],
+        required: ['flow_id', 'step_id'],
       },
     },
   },
@@ -167,10 +167,10 @@ export const TOOLS: ToolDef[] = [
       parameters: {
         type: 'object',
         properties: {
-          strang_id: { type: 'string' },
+          flow_id: { type: 'string' },
           step_id: stepIdSchema('Der Schritt'),
         },
-        required: ['strang_id', 'step_id'],
+        required: ['flow_id', 'step_id'],
       },
     },
   },
@@ -182,11 +182,11 @@ export const TOOLS: ToolDef[] = [
       parameters: {
         type: 'object',
         properties: {
-          strang_id: { type: 'string' },
+          flow_id: { type: 'string' },
           step_id: stepIdSchema('Der Schritt'),
           seconds: { type: 'number', description: 'Dauer ab jetzt, in Sekunden' },
         },
-        required: ['strang_id', 'step_id', 'seconds'],
+        required: ['flow_id', 'step_id', 'seconds'],
       },
     },
   },
@@ -198,50 +198,50 @@ export const TOOLS: ToolDef[] = [
       parameters: {
         type: 'object',
         properties: {
-          strang_id: { type: 'string' },
+          flow_id: { type: 'string' },
           step_id: stepIdSchema('Der Schritt'),
         },
-        required: ['strang_id', 'step_id'],
+        required: ['flow_id', 'step_id'],
       },
     },
   },
   {
     type: 'function',
     function: {
-      name: 'complete_strang',
-      description: 'Strang als fertig markieren (alle Schritte done, alle Timer abgebrochen).',
+      name: 'complete_flow',
+      description: 'Flow als fertig markieren (alle Schritte done, alle Timer abgebrochen).',
       parameters: {
         type: 'object',
-        properties: { strang_id: { type: 'string' } },
-        required: ['strang_id'],
+        properties: { flow_id: { type: 'string' } },
+        required: ['flow_id'],
       },
     },
   },
   {
     type: 'function',
     function: {
-      name: 'update_strang',
-      description: 'Strang bearbeiten: Name und/oder Emoji ändern.',
+      name: 'update_flow',
+      description: 'Flow bearbeiten: Name und/oder Emoji ändern.',
       parameters: {
         type: 'object',
         properties: {
-          strang_id: { type: 'string' },
+          flow_id: { type: 'string' },
           name: { type: 'string', description: 'Neuer Name' },
           icon: { type: 'string', description: 'Neues Emoji (leer entfernt es)' },
         },
-        required: ['strang_id'],
+        required: ['flow_id'],
       },
     },
   },
   {
     type: 'function',
     function: {
-      name: 'delete_strang',
-      description: 'Strang löschen. Abhängigkeiten anderer Stränge auf seine Schritte werden entfernt.',
+      name: 'delete_flow',
+      description: 'Flow löschen. Abhängigkeiten anderer Flows auf seine Schritte werden entfernt.',
       parameters: {
         type: 'object',
-        properties: { strang_id: { type: 'string' } },
-        required: ['strang_id'],
+        properties: { flow_id: { type: 'string' } },
+        required: ['flow_id'],
       },
     },
   },
@@ -249,7 +249,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'reset_cook',
-      description: 'Alles verwerfen: alle Stränge und Zutaten löschen (z.B. „wir fangen neu an").',
+      description: 'Alles verwerfen: alle Flows und Ingredients löschen (z.B. „wir fangen neu an").',
       parameters: { type: 'object', properties: {} },
     },
   },
@@ -257,38 +257,38 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'show_step',
-      description: 'Dem Nutzer gezielt einen Schritt zeigen: Fokus auf den Strang, Ansicht wechseln, Schritt in den sichtbaren Bereich scrollen und kurz pulsieren lassen.',
+      description: 'Dem Nutzer gezielt einen Schritt zeigen: Fokus auf den Flow, Ansicht wechseln, Schritt in den sichtbaren Bereich scrollen und kurz pulsieren lassen.',
       parameters: {
         type: 'object',
         properties: {
-          strang_id: { type: 'string' },
+          flow_id: { type: 'string' },
           step_id: stepIdSchema('Der Schritt'),
         },
-        required: ['strang_id', 'step_id'],
+        required: ['flow_id', 'step_id'],
       },
     },
   },
   {
     type: 'function',
     function: {
-      name: 'focus_strang',
-      description: 'Strang fokussieren (hebt die Spalte hervor), ohne einen einzelnen Schritt zu zeigen.',
+      name: 'focus_flow',
+      description: 'Flow fokussieren (hebt die Spalte hervor), ohne einen einzelnen Schritt zu zeigen.',
       parameters: {
         type: 'object',
-        properties: { strang_id: { type: 'string' } },
-        required: ['strang_id'],
+        properties: { flow_id: { type: 'string' } },
+        required: ['flow_id'],
       },
     },
   },
   {
     type: 'function',
     function: {
-      name: 'add_zutaten',
-      description: 'Zutat zur Zutatenliste hinzufügen (Name, optional Menge).',
+      name: 'add_ingredient',
+      description: 'Ingredient zur Ingredientsliste hinzufügen (Name, optional Menge).',
       parameters: {
         type: 'object',
         properties: {
-          name: { type: 'string', description: 'Zutat, z.B. "Basmatireis"' },
+          name: { type: 'string', description: 'Ingredient, z.B. "Basmatireis"' },
           amount: { type: 'string', description: 'Menge, z.B. "300 g" oder "2 Stück"' },
         },
         required: ['name'],
@@ -298,16 +298,32 @@ export const TOOLS: ToolDef[] = [
   {
     type: 'function',
     function: {
-      name: 'open_zutaten',
-      description: 'Zutaten-Modal öffnen.',
+      name: 'open_ingredients',
+      description: 'Ingredients-Liste (Modal) öffnen.',
       parameters: { type: 'object', properties: {} },
     },
   },
   {
     type: 'function',
     function: {
-      name: 'close_zutaten',
-      description: 'Zutaten-Modal schließen.',
+      name: 'close_ingredients',
+      description: 'Ingredients-Liste (Modal) schließen.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'open_chat',
+      description: 'Chat-Verlauf (Modal) öffnen.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'close_chat',
+      description: 'Chat-Verlauf (Modal) schließen.',
       parameters: { type: 'object', properties: {} },
     },
   },

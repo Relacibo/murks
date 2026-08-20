@@ -1,12 +1,14 @@
 import { createSignal, createMemo, createEffect, onMount, createContext, useContext, Show } from 'solid-js'
 import type { Accessor, Setter } from 'solid-js'
-import { Router, Route } from '@solidjs/router'
-import { Agent } from './pages/Agent'
+import { Router, Route, useSearchParams } from '@solidjs/router'
+import { AgentModal } from './pages/Agent'
 import { ConfigModal } from './pages/Config'
 import { CookMock } from './pages/CookMock'
 import { Cook } from './pages/Cook'
 import { Setup } from './pages/Setup'
 import { Toasts } from './components/Toasts'
+import { IngredientsModal } from './components/IngredientsModal'
+import { createAgentVoice } from './lib/agentVoice'
 import { state, stateReady, cookEngine } from './state/store'
 import { CookContext } from './lib/cookEngine'
 
@@ -32,16 +34,52 @@ export function useConfig() {
   return useContext(ConfigContext)
 }
 
-function AgentPage() {
-  const ctx = useConfig()
-  return <Agent configOpen={ctx.configOpen} setConfigOpen={ctx.setConfigOpen} />
-}
+type ModalName = 'chat' | 'ingredients'
 
+/** Hauptscreen = Cook. Chat und Ingredients sind immer nur Modals — ihr Zustand steht in der URL (?modal=chat,ingredients). */
 function CookingRoute() {
+  const ctx = useConfig()
+  const [params, setParams] = useSearchParams<{ modal?: string }>()
+  // Eine gemeinsame Voice-Instanz für Koch-Screen (Overlay) + Chat-Modal
+  const voice = createAgentVoice({ configOpen: ctx.configOpen })
+
+  const modals = () =>
+    (typeof params.modal === 'string' ? params.modal.split(',').filter(Boolean) : []) as ModalName[]
+
+  const setModal = (m: ModalName, open: boolean) => {
+    const cur = new Set(modals())
+    if (open) cur.add(m)
+    else cur.delete(m)
+    const val = [...cur].join(',')
+    setParams(val ? { modal: val } : { modal: undefined })
+  }
+
+  // KI öffnet/schließt Modals (open_chat / open_ingredients …) → URL spiegeln
+  createEffect(() => {
+    const r = cookEngine.modalRequest
+    if (r) setModal(r.modal, r.open)
+  })
+
+  // Ohne Flows direkt den Chat öffnen (da entstehen die ersten Flows)
+  onMount(() => {
+    if (state.cook.flows.length === 0 && !modals().includes('chat')) setModal('chat', true)
+  })
+
   return (
-    <Show when={state.cook.strangs.length > 0} fallback={<AgentPage />}>
-      <Cook />
-    </Show>
+    <>
+      <Cook voice={voice} onOpenIngredients={() => setModal('ingredients', true)} />
+      <IngredientsModal
+        open={modals().includes('ingredients')}
+        onClose={() => setModal('ingredients', false)}
+      />
+      <AgentModal
+        open={modals().includes('chat')}
+        onClose={() => setModal('chat', false)}
+        voice={voice}
+        configOpen={ctx.configOpen}
+        setConfigOpen={ctx.setConfigOpen}
+      />
+    </>
   )
 }
 

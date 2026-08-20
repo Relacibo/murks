@@ -3,7 +3,7 @@ import { createStore } from 'solid-js/store'
 import { showToast } from '../lib/toast'
 import { dbGet, dbPut } from '../lib/db'
 import { TOOLS } from '../lib/tools'
-import { createCookEngine, STRANG_COLORS } from '../lib/cookEngine'
+import { createCookEngine, FLOW_COLORS } from '../lib/cookEngine'
 
 export interface AgentProfile {
   id: string
@@ -17,18 +17,19 @@ const DEFAULT_SYSTEM_PROMPT = [
   'Du bist MURKS, die KI einer Rezeptkochsoftware. Dein Name ist Murks — du reagierst auf diese Anrede.',
   'Du hilfst beim Kochen: Gerichte planen, Schritte koordinieren, Timer setzen, parallele Kochstränge im Blick behalten.',
   'Jeder Schritt hat eine description (vollständige, eigenständig ausführbare Anweisung mit Zutaten, Mengen und Methode; Markdown erlaubt). Beginne mit einer kurzen Kernaussage — sie erscheint als Titel in Timer-Chips.',
-  'Schritte können optional Abhängigkeiten haben (depends_on): Verweise auf andere Schritte (eigener oder anderer Strang), die zuerst erledigt sein müssen. Ein Schritt ist erst aktiv, wenn alle Abhängigkeiten erledigt sind.',
+  'Schritte können optional Abhängigkeiten haben (depends_on): Verweise auf andere Schritte (eigener oder anderer Flow), die zuerst erledigt sein müssen. Ein Schritt ist erst aktiv, wenn alle Abhängigkeiten erledigt sind.',
   'Schritte können optional timer_seconds haben (Dauer in Sekunden). Der Timer läuft NACH dem Abschließen des Schritts: Erst wenn er abgelaufen ist, werden abhängige Schritte frei. Will der Nutzer eine andere Zeit (z.B. „das muss noch 5 Minuten"), setze den Timer mit start_timer neu.',
   'Schritte können optional priority "high" haben (zeitkritisch, z.B. etwas im Ofen): Solche Karten stehen in der „Jetzt“-Ansicht oben und pulsieren. Ein "high"-Schritt darf höchstens EINE Abhängigkeit haben — den Schritt, dessen Timer die Wartezeit bestimmt (z.B. „Aus dem Ofen holen" hängt nur von „In den Ofen" ab). Modelliere zeitkritische Aktionen deshalb immer als eigene Karte. Vergib "high" sparsam.',
-  'Vergib beim Anlegen eines Strangs ein passendes Emoji als icon (z.B. 🍚 für Reis) — es identifiziert den Strang visuell.',
+  'Vergib beim Anlegen eines Flows ein passendes Emoji als icon (z.B. 🍚 für Reis) — es identifiziert den Flow visuell.',
   'Wir sprechen per Stimme: Der Nutzer diktiert seine Eingaben, deine Antworten werden vorgelesen. Sprich natürlich wie ein Gesprächspartner, nicht wie ein Textprogramm.',
   'Ton: trocken, direkt, präzise — aber hilfsbereit und zugewandt, nie abweisend oder herablassend. Keine leeren Floskeln, kein Smalltalk, keine Emojis, keine Sternchen-Gesten wie *lacht*.',
   'Weise Themen nie brüsk ab — Antworten wie „Kein Kochbezug" oder „Ende" sind verboten. Passt etwas nicht zum Kochen, überleite kurz und sachlich zu einer konkreten Kochfrage.',
   'Deine Antworten werden vorgelesen: kurze Sätze, keine Markdown-Formatierung, keine Listen.',
   'Der Nutzer spricht per Spracherkennung, die Fehler machen kann. Bei offensichtlich verrauschtem oder unsinnigem Input frage höchstens einmal kurz und freundlich nach und übergehe es danach.',
   'Wenn keine Antwort nötig ist — z.B. reine Bestätigung, Geräusch oder verrauschtes Transkript — antworte ausschließlich mit „OK." und sonst nichts. Diese Antwort wird nicht vorgelesen und nicht angezeigt.',
-  'Du hast Werkzeuge, um die Kochoberfläche zu steuern: add_strang, add_step, update_step, delete_step, split_step, complete_step, revert_step, start_timer, cancel_timer, complete_strang, update_strang, delete_strang, reset_cook, show_step, focus_strang, add_zutaten, open_zutaten, close_zutaten, get_cook_state.',
-  'Schritte haben stabile ids — referenziere Abhängigkeiten immer über step_id. Du darfst Flows ad-hoc umbauen: Schritte einfügen (after_step_id), umbenennen (update_step), löschen (delete_step), teilen (split_step), Stränge umbenennen (update_strang) oder löschen (delete_strang). show_step zeigt dem Nutzer gezielt einen Schritt (Fokus + Puls).',
+  'Du hast Werkzeuge, um die Kochoberfläche zu steuern: add_flow, add_step, update_step, delete_step, split_step, complete_step, revert_step, start_timer, cancel_timer, complete_flow, update_flow, delete_flow, reset_cook, show_step, focus_flow, add_ingredient, open_ingredients, close_ingredients, open_chat, close_chat, get_cook_state.',
+  'Schritte haben stabile ids — referenziere Abhängigkeiten immer über step_id. Du darfst Flows ad-hoc umbauen: Schritte einfügen (after_step_id), umbenennen (update_step), löschen (delete_step), teilen (split_step), Flows umbenennen (update_flow) oder löschen (delete_flow). show_step zeigt dem Nutzer gezielt einen Schritt (Fokus + Puls).',
+  'Du kannst die Modals öffnen und schließen: open_chat/close_chat (Chat-Verlauf) und open_ingredients/close_ingredients (Ingredients-Liste).',
   'Rufe get_cook_state auf, wenn du den aktuellen Stand nicht kennst. Kommentiere Werkzeug-Aktionen nicht — die Oberfläche bestätigt sie selbst. Antworte nur „OK." oder sprich, wenn es inhaltlich etwas zu sagen gibt.',
   'Antworte so kurz wie möglich. Nutze verfügbare Werkzeuge, statt Dinge in Text zu beschreiben.',
 ].join(' ')
@@ -63,10 +64,10 @@ export interface AgentMessage {
   silent?: boolean
 }
 
-export type StrangColor = 'cyan' | 'violet' | 'amber' | 'emerald' | 'rose' | 'sky'
+export type FlowColor = 'cyan' | 'violet' | 'amber' | 'emerald' | 'rose' | 'sky'
 
 export interface StepRef {
-  strang_id: string
+  flow_id: string
   step_id: string
 }
 
@@ -82,16 +83,16 @@ export interface Step {
   priority: 'normal' | 'high'
 }
 
-export interface Strang {
+export interface Flow {
   id: string
   name: string
   icon: string | null
-  color: StrangColor
+  color: FlowColor
   steps: Step[]
   done: boolean
 }
 
-export interface Zutat {
+export interface Ingredient {
   id: string
   name: string
   amount: string
@@ -99,10 +100,9 @@ export interface Zutat {
 }
 
 export interface CookState {
-  strangs: Strang[]
-  zutaten: Zutat[]
-  focusedStrangId: string | null
-  zutatenOpen: boolean
+  flows: Flow[]
+  ingredients: Ingredient[]
+  focusedFlowId: string | null
 }
 
 export interface AppState {
@@ -139,10 +139,9 @@ const defaults: AppState = {
   agents: [],
   defaultAgentId: null,
   cook: {
-    strangs: [],
-    zutaten: [],
-    focusedStrangId: null,
-    zutatenOpen: false,
+    flows: [],
+    ingredients: [],
+    focusedFlowId: null,
   },
   agent: {
     messages: [],
@@ -200,12 +199,12 @@ function hydrate(data: unknown): AppState {
       agents,
       defaultAgentId,
       cook: {
-        strangs: (() => {
-          const rawStrangs = (Array.isArray(cook.strangs) ? cook.strangs : []) as {
+        flows: (() => {
+          const rawFlows = (Array.isArray(cook.flows) ? cook.flows : []) as {
             id?: string
             name?: string
             icon?: string
-            color?: StrangColor
+            color?: FlowColor
             stepIndex?: number
             done?: boolean
             steps?: (
@@ -215,7 +214,7 @@ function hydrate(data: unknown): AppState {
                   description?: string
                   summary?: string
                   done?: boolean
-                  dependsOn?: (StepRef | { strang_id?: string; step_index?: number })[]
+                  dependsOn?: (StepRef | { flow_id?: string; step_index?: number })[]
                   timerSeconds?: number | null
                   timerEndsAt?: number | null
                   timerExpired?: boolean
@@ -228,8 +227,8 @@ function hydrate(data: unknown): AppState {
           }[]
           // Pass 1: Steps mit stabilen IDs versehen (alte Index-Refs sammeln)
           const idxToId = new Map<string, Map<number, string>>()
-          const rawDepsByStep = new Map<string, (StepRef | { strang_id?: string; step_index?: number })[]>()
-          const strangs: Strang[] = rawStrangs.map((s) => {
+          const rawDepsByStep = new Map<string, (StepRef | { flow_id?: string; step_index?: number })[]>()
+          const flows: Flow[] = rawFlows.map((s) => {
             const sid = String(s.id ?? '')
             const map = new Map<number, string>()
             idxToId.set(sid, map)
@@ -239,7 +238,7 @@ function hydrate(data: unknown): AppState {
                 o && typeof o.id === 'string' && o.id !== '' ? o.id : crypto.randomUUID()
               map.set(i, id)
               if (o && Array.isArray(o.dependsOn)) {
-                rawDepsByStep.set(id, o.dependsOn as (StepRef | { strang_id?: string; step_index?: number })[])
+                rawDepsByStep.set(id, o.dependsOn as (StepRef | { flow_id?: string; step_index?: number })[])
               }
               return {
                 id,
@@ -268,7 +267,7 @@ function hydrate(data: unknown): AppState {
               }
             })
             const stepIndex = typeof s.stepIndex === 'number' ? s.stepIndex : 0
-            // Migration: alter Strang-Timer → Timer des aktiven Schritts
+            // Migration: alter Flow-Timer → Timer des aktiven Schritts
             if (typeof s.timerEndsAt === 'number' && steps[stepIndex] && steps[stepIndex].timerEndsAt === null) {
               steps[stepIndex] = {
                 ...steps[stepIndex],
@@ -281,36 +280,35 @@ function hydrate(data: unknown): AppState {
               name: String(s.name ?? ''),
               icon: typeof s.icon === 'string' && s.icon.trim() !== '' ? s.icon.trim() : null,
               steps,
-              color: STRANG_COLORS.includes(s.color as StrangColor)
-                ? (s.color as StrangColor)
-                : STRANG_COLORS[0],
+              color: FLOW_COLORS.includes(s.color as FlowColor)
+                ? (s.color as FlowColor)
+                : FLOW_COLORS[0],
               done: s.done === true,
             }
           })
           // Pass 2: dependsOn auflösen — neue step_id-Refs behalten, alte step_index-Refs mappen
-          for (const s of strangs) {
+          for (const s of flows) {
             for (const st of s.steps) {
               const rawDeps = rawDepsByStep.get(st.id)
               if (!rawDeps) continue
               st.dependsOn = rawDeps
                 .map((d) => {
-                  const sid = String(d?.strang_id ?? '')
+                  const sid = String(d?.flow_id ?? '')
                   if (typeof (d as StepRef).step_id === 'string' && (d as StepRef).step_id !== '') {
-                    return { strang_id: sid, step_id: (d as StepRef).step_id }
+                    return { flow_id: sid, step_id: (d as StepRef).step_id }
                   }
                   const mapped = idxToId
                     .get(sid)
                     ?.get(Number((d as { step_index?: number }).step_index ?? 0))
-                  return mapped ? { strang_id: sid, step_id: mapped } : null
+                  return mapped ? { flow_id: sid, step_id: mapped } : null
                 })
                 .filter((d): d is StepRef => d !== null)
             }
           }
-          return strangs
+          return flows
         })(),
-        zutaten: Array.isArray(cook.zutaten) ? (cook.zutaten as Zutat[]) : [],
-        focusedStrangId: (cook.focusedStrangId as string | null) ?? null,
-        zutatenOpen: cook.zutatenOpen === true,
+        ingredients: Array.isArray(cook.ingredients) ? (cook.ingredients as Ingredient[]) : [],
+        focusedFlowId: (cook.focusedFlowId as string | null) ?? null,
       },
       agent: {
         messages: Array.isArray((raw.agent as Record<string, unknown> | null)?.messages)

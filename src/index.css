@@ -21,10 +21,10 @@
 @keyframes prio-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 var(--strang-border-active);
+    box-shadow: 0 0 0 0 var(--flow-border-active);
   }
   50% {
-    box-shadow: 0 0 0 3px var(--strang-border-active);
+    box-shadow: 0 0 0 3px var(--flow-border-active);
   }
 }
 
@@ -38,67 +38,67 @@
 }
 
 @layer components {
-  /* ── Strang-Farben (CSS-Variablen per data-color) ─────────────── */
+  /* ── Flow-Farben (CSS-Variablen per data-color) ─────────────── */
   [data-color='cyan'] {
-    --strang-bg: #083344;
-    --strang-border: #155e75;
-    --strang-text: #67e8f9;
-    --strang-bg-active: #164e63;
-    --strang-border-active: #06b6d4;
-    --strang-text-active: #cffafe;
+    --flow-bg: #083344;
+    --flow-border: #155e75;
+    --flow-text: #67e8f9;
+    --flow-bg-active: #164e63;
+    --flow-border-active: #06b6d4;
+    --flow-text-active: #cffafe;
   }
   [data-color='violet'] {
-    --strang-bg: #2e1065;
-    --strang-border: #5b21b6;
-    --strang-text: #c4b5fd;
-    --strang-bg-active: #4c1d95;
-    --strang-border-active: #8b5cf6;
-    --strang-text-active: #ede9fe;
+    --flow-bg: #2e1065;
+    --flow-border: #5b21b6;
+    --flow-text: #c4b5fd;
+    --flow-bg-active: #4c1d95;
+    --flow-border-active: #8b5cf6;
+    --flow-text-active: #ede9fe;
   }
   [data-color='amber'] {
-    --strang-bg: #451a03;
-    --strang-border: #92400e;
-    --strang-text: #fcd34d;
-    --strang-bg-active: #78350f;
-    --strang-border-active: #f59e0b;
-    --strang-text-active: #fef3c7;
+    --flow-bg: #451a03;
+    --flow-border: #92400e;
+    --flow-text: #fcd34d;
+    --flow-bg-active: #78350f;
+    --flow-border-active: #f59e0b;
+    --flow-text-active: #fef3c7;
   }
   [data-color='emerald'] {
-    --strang-bg: #022c22;
-    --strang-border: #065f46;
-    --strang-text: #6ee7b7;
-    --strang-bg-active: #064e3b;
-    --strang-border-active: #10b981;
-    --strang-text-active: #d1fae5;
+    --flow-bg: #022c22;
+    --flow-border: #065f46;
+    --flow-text: #6ee7b7;
+    --flow-bg-active: #064e3b;
+    --flow-border-active: #10b981;
+    --flow-text-active: #d1fae5;
   }
   [data-color='rose'] {
-    --strang-bg: #4c0519;
-    --strang-border: #9f1239;
-    --strang-text: #fda4af;
-    --strang-bg-active: #881337;
-    --strang-border-active: #f43f5e;
-    --strang-text-active: #ffe4e6;
+    --flow-bg: #4c0519;
+    --flow-border: #9f1239;
+    --flow-text: #fda4af;
+    --flow-bg-active: #881337;
+    --flow-border-active: #f43f5e;
+    --flow-text-active: #ffe4e6;
   }
   [data-color='sky'] {
-    --strang-bg: #082f49;
-    --strang-border: #075985;
-    --strang-text: #7dd3fc;
-    --strang-bg-active: #0c4a6e;
-    --strang-border-active: #0ea5e9;
-    --strang-text-active: #e0f2fe;
+    --flow-bg: #082f49;
+    --flow-border: #075985;
+    --flow-text: #7dd3fc;
+    --flow-bg-active: #0c4a6e;
+    --flow-border-active: #0ea5e9;
+    --flow-text-active: #e0f2fe;
   }
 
   /* ── Chip ───────────────────────────────────────────────────────── */
   .chip {
     @apply shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 border text-xs transition-colors;
-    background-color: var(--strang-bg);
-    border-color: var(--strang-border);
-    color: var(--strang-text);
+    background-color: var(--flow-bg);
+    border-color: var(--flow-border);
+    color: var(--flow-text);
   }
   .chip.is-active {
-    background-color: var(--strang-bg-active);
-    border-color: var(--strang-border-active);
-    color: var(--strang-text-active);
+    background-color: var(--flow-bg-active);
+    border-color: var(--flow-border-active);
+    color: var(--flow-text-active);
   }
   .chip.is-urgent {
     --pulse-color: 245 158 11;
@@ -110,7 +110,7 @@
     opacity: 0.6;
   }
 
-  /* ── Strang-Spalte (Desktop + Mobile-Flow-View): nur Gliederung ── */
+  /* ── Flow-Spalte (Desktop + Mobile-Flow-View): nur Gliederung ── */
   .column {
     @apply w-[320px] shrink-0 flex flex-col min-h-0 max-h-full;
   }
@@ -118,7 +118,7 @@
     @apply flex items-center gap-2 w-full text-left px-1 py-2 text-sm font-semibold text-zinc-300 transition-colors hover:text-zinc-100;
   }
   .column.is-focused .column-header {
-    color: var(--strang-text-active);
+    color: var(--flow-text-active);
   }
   .column-body {
     @apply flex flex-col gap-2 p-1 flex-1 min-h-0 overflow-y-auto;
@@ -129,10 +129,10 @@
   .step-card {
     /* bewusst nicht klickbar: kein Hover (kein Aufhellen), kein Cursor-Pointer */
     @apply w-full text-left rounded-xl border overflow-hidden bg-zinc-900 text-zinc-300 transition-opacity duration-300;
-    border-color: var(--strang-border);
+    border-color: var(--flow-border);
   }
   .step-card.is-active {
-    border-color: var(--strang-border-active);
+    border-color: var(--flow-border-active);
   }
   .step-card.is-past {
     @apply opacity-55;
@@ -154,14 +154,14 @@
   /* Titelband: auf jeder Karte (Desktop + Flow-View + Mobile „Jetzt") */
   .step-card-band {
     @apply flex items-center gap-2 px-3 py-1.5 border-b transition-colors duration-300;
-    background-color: var(--strang-bg);
-    border-color: var(--strang-border);
-    color: var(--strang-text);
+    background-color: var(--flow-bg);
+    border-color: var(--flow-border);
+    color: var(--flow-text);
   }
   .step-card.is-active .step-card-band {
-    background-color: var(--strang-bg-active);
-    border-color: var(--strang-border-active);
-    color: var(--strang-text-active);
+    background-color: var(--flow-bg-active);
+    border-color: var(--flow-border-active);
+    color: var(--flow-text-active);
   }
   .step-card-body {
     @apply px-3 pb-2.5 pt-2;
@@ -190,7 +190,7 @@
   }
 
   /* ── Markdown (Step-Description) ───────────────────────────────── */
-  /* Body ist monoton zinc — Akzente neutral, nicht strang-farbig */
+  /* Body ist monoton zinc — Akzente neutral, nicht flow-farbig */
   .step-description {
     @apply text-base leading-relaxed;
     color: theme('colors.zinc.300');
@@ -224,9 +224,9 @@
   }
   .check-btn {
     @apply w-11 h-11 flex items-center justify-center rounded-full border transition-colors shrink-0;
-    background-color: var(--strang-bg-active);
-    border-color: var(--strang-border-active);
-    color: var(--strang-text-active);
+    background-color: var(--flow-bg-active);
+    border-color: var(--flow-border-active);
+    color: var(--flow-text-active);
   }
   .check-btn:hover {
     @apply brightness-125;
@@ -266,7 +266,7 @@
     @apply mb-3 min-h-[36px] flex items-center px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-xl;
   }
 
-  /* ── Zutaten-Modal ──────────────────────────────────────────────── */
+  /* ── Modal-Basics ──────────────────────────────────────────────── */
   .modal-pop {
     animation: modal-pop 180ms ease-out;
   }

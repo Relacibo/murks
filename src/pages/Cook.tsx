@@ -1,18 +1,21 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, useContext } from 'solid-js'
 import { SolidMarkdown as Markdown } from 'solid-markdown'
 import { useConfig } from '../App'
-import { state, type Strang, type Step, type StepRef } from '../state/store'
+import { state, type Flow, type Step, type StepRef } from '../state/store'
 import { CookContext } from '../lib/cookEngine'
 import { fmtRemaining } from '../lib/tools'
 import { createAgentVoice } from '../lib/agentVoice'
 import {
   FiMic, FiMicOff, FiMoreHorizontal, FiFileText, FiSettings,
-  FiCheck, FiBell, FiX, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw, FiClock, FiSidebar,
+  FiCheck, FiBell, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw, FiClock, FiSidebar,
 } from 'solid-icons/fi'
 
-export function Cook() {
+export function Cook(props: {
+  voice?: ReturnType<typeof createAgentVoice>
+  onOpenIngredients: () => void
+}) {
   const { configOpen, setConfigOpen } = useConfig()
-  const voice = createAgentVoice({ configOpen })
+  const voice = props.voice ?? createAgentVoice({ configOpen })
   const engine = useContext(CookContext)!
 
   const [tick, setTick] = createSignal(Date.now())
@@ -50,27 +53,27 @@ export function Cook() {
     showTranscript() ||
     showAgentText()
 
-  const strangs = () => engine.cook.strangs
+  const flows = () => engine.cook.flows
 
   const active = createMemo(() => {
-    const all = strangs()
+    const all = flows()
     if (all.length === 0) return undefined
-    return all.find((s) => s.id === engine.cook.focusedStrangId) ?? all[0]
+    return all.find((s) => s.id === engine.cook.focusedFlowId) ?? all[0]
   })
 
-  function focusStrang(id: string) {
-    engine.executeTool('focus_strang', { strang_id: id })
+  function focusFlow(id: string) {
+    engine.executeTool('focus_flow', { flow_id: id })
   }
 
   /* ── Schritt anspringen: Fokus + Flow-View + Scroll + kurzer Puls ──── */
   const [pulse, setPulse] = createSignal<{ key: string; nonce: number } | null>(null)
   let pulseTimer: ReturnType<typeof setTimeout> | undefined
-  function revealStep(strangId: string, stepId: string) {
-    const s = strangs().find((x) => x.id === strangId)
+  function revealStep(flowId: string, stepId: string) {
+    const s = flows().find((x) => x.id === flowId)
     if (!s || !s.steps.some((st) => st.id === stepId)) return
-    focusStrang(strangId)
-    setFlowView(strangId)
-    const key = `${strangId}:${stepId}`
+    focusFlow(flowId)
+    setFlowView(flowId)
+    const key = `${flowId}:${stepId}`
     const nonce = Date.now()
     setPulse({ key, nonce })
     clearTimeout(pulseTimer)
@@ -86,14 +89,14 @@ export function Cook() {
   /* KI ruft show_step → gleiches Verhalten wie Titel-Tap */
   createEffect(() => {
     const t = engine.navTarget
-    if (t) revealStep(t.strangId, t.stepId)
+    if (t) revealStep(t.flowId, t.stepId)
   })
 
   /* ── Schritt-Zustände (Modell B: Timer läuft nach Abschluss) ──────── */
   function depStepOf(dep: StepRef): Step | undefined {
-    return strangs().find((x) => x.id === dep.strang_id)?.steps.find((st) => st.id === dep.step_id)
+    return flows().find((x) => x.id === dep.flow_id)?.steps.find((st) => st.id === dep.step_id)
   }
-  function depDone(s: Strang, step: Step, dep: StepRef): boolean {
+  function depDone(s: Flow, step: Step, dep: StepRef): boolean {
     return depStepOf(dep)?.done === true
   }
   function depPending(dep: StepRef): boolean {
@@ -101,35 +104,35 @@ export function Cook() {
     return !!d && d.done && d.timerEndsAt !== null && !d.timerExpired
   }
 
-  function stepState(s: Strang, step: Step): 'done' | 'blocked' | 'waiting' | 'active' {
+  function stepState(s: Flow, step: Step): 'done' | 'blocked' | 'waiting' | 'active' {
     if (step.done) return 'done'
     if (step.dependsOn.some((d) => !depDone(s, step, d))) return 'blocked'
     if (step.dependsOn.some((d) => depPending(d))) return 'waiting'
     return 'active'
   }
 
-  function strangDone(s: Strang): boolean {
+  function flowDone(s: Flow): boolean {
     return s.done || s.steps.every((st) => st.done)
   }
 
   /* Zurücknehmen nur, wenn keine abhängige Karte selbst abgeschlossen ist */
-  function canRevert(s: Strang, i: number): boolean {
+  function canRevert(s: Flow, i: number): boolean {
     const step = s.steps[i]
     if (!step?.done) return false
-    return !strangs().some((x) =>
+    return !flows().some((x) =>
       x.steps.some(
         (st) =>
           st.done &&
-          st.dependsOn.some((d) => d.strang_id === s.id && d.step_id === step.id),
+          st.dependsOn.some((d) => d.flow_id === s.id && d.step_id === step.id),
       ),
     )
   }
 
-  function blockedBy(s: Strang, step: Step): string[] {
+  function blockedBy(s: Flow, step: Step): string[] {
     return step.dependsOn
       .filter((d) => !depDone(s, step, d))
       .map((d) => {
-        const ts = strangs().find((x) => x.id === d.strang_id)
+        const ts = flows().find((x) => x.id === d.flow_id)
         const depStep = ts?.steps.find((st) => st.id === d.step_id)
         const nr = depStep ? ts!.steps.indexOf(depStep) + 1 : '?'
         return `${ts?.icon ?? ''} ${ts?.name ?? '?'} · Schritt ${nr}`.trim()
@@ -137,7 +140,7 @@ export function Cook() {
   }
 
   /* Frühester ablaufender Timer, auf den die Karte wartet */
-  function waitingRemaining(s: Strang, step: Step): number | null {
+  function waitingRemaining(s: Flow, step: Step): number | null {
     let min: number | null = null
     for (const d of step.dependsOn) {
       if (!depPending(d)) continue
@@ -156,15 +159,15 @@ export function Cook() {
   }
 
   const runningTimers = createMemo(() =>
-    strangs().flatMap((s) =>
+    flows().flatMap((s) =>
       s.steps
         .map((st, i) => ({ s, st, i }))
         .filter((x) => x.st.timerEndsAt !== null && !x.st.timerExpired),
     ),
   )
 
-  function completeStep(s: Strang, i: number) {
-    engine.executeTool('complete_step', { strang_id: s.id, step_id: s.steps[i].id }, { silent: true })
+  function completeStep(s: Flow, i: number) {
+    engine.executeTool('complete_step', { flow_id: s.id, step_id: s.steps[i].id }, { silent: true })
   }
 
   /* ── View 1 (Mobile „Jetzt"): Prio-Queue, normale Queue, Blocked ──── */
@@ -172,11 +175,11 @@ export function Cook() {
   /* Normale Queue: active + waiting in Auftauch-Reihenfolge            */
   /* Blocked: als Vorschau unten, grau, in Anlage-Reihenfolge           */
   const jetztCards = createMemo(() => {
-    const prio: { s: Strang; st: Step; i: number }[] = []
-    const normal: { s: Strang; st: Step; i: number }[] = []
-    const blocked: { s: Strang; st: Step; i: number }[] = []
-    for (const s of strangs()) {
-      if (strangDone(s)) continue
+    const prio: { s: Flow; st: Step; i: number }[] = []
+    const normal: { s: Flow; st: Step; i: number }[] = []
+    const blocked: { s: Flow; st: Step; i: number }[] = []
+    for (const s of flows()) {
+      if (flowDone(s)) continue
       s.steps.forEach((st, i) => {
         if (st.done) return
         const state = stepState(s, st)
@@ -216,20 +219,10 @@ export function Cook() {
     })
   })
 
-  const flowStrang = createMemo(() => strangs().find((x) => x.id === flowView()))
-
-  /* Zutaten-Modal: Esc schließt */
-  createEffect(() => {
-    if (!engine.cook.zutatenOpen) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') engine.executeTool('close_zutaten', {})
-    }
-    window.addEventListener('keydown', onKey)
-    onCleanup(() => window.removeEventListener('keydown', onKey))
-  })
+  const detailFlow = createMemo(() => flows().find((x) => x.id === flowView()))
 
   /* ── Schritt-Karte (flach, klein, nie verschachtelt) ──────────────── */
-  function StepCard(props: { s: Strang; i: number; onTitleClick?: () => void }) {
+  function StepCard(props: { s: Flow; i: number; onTitleClick?: () => void }) {
     const s = () => props.s
     const i = () => props.i
     const st = () => s().steps[i()]
@@ -328,7 +321,7 @@ export function Cook() {
               <Show
                 when={
                   (stateName() === 'active' || stateName() === 'waiting') &&
-                  !strangDone(s())
+                  !flowDone(s())
                 }
                 fallback={
                   <Show when={stateName() === 'done' && canRevert(s(), i())}>
@@ -340,7 +333,7 @@ export function Cook() {
                         e.stopPropagation()
                         engine.executeTool(
                           'revert_step',
-                          { strang_id: s().id, step_id: st().id },
+                          { flow_id: s().id, step_id: st().id },
                           { silent: true },
                         )
                       }}
@@ -392,7 +385,7 @@ export function Cook() {
 
   /* ── „Jetzt"-Queue (Mobile-View 1 + Desktop-Spalte links) ────────── */
   function JetztQueue(props: {
-    onTitleClick: (strangId: string, stepId: string) => void
+    onTitleClick: (flowId: string, stepId: string) => void
     scrollerRef?: (el: HTMLDivElement) => void
     showBlocked?: boolean
   }) {
@@ -485,13 +478,13 @@ export function Cook() {
   }
 
   /* ── Spalten-Header (Desktop) ─────────────────────────────────────── */
-  function StrangColumn(props: { s: Strang; isFocused: boolean; onFocus: () => void }) {
+  function FlowColumn(props: { s: Flow; isFocused: boolean; onFocus: () => void }) {
     const s = () => props.s
     return (
       <div
         class="column"
         data-color={s().color}
-        data-strang-id={s().id}
+        data-flow-id={s().id}
         classList={{ 'is-focused': props.isFocused }}
       >
         <button class="column-header" onClick={props.onFocus}>
@@ -499,7 +492,7 @@ export function Cook() {
             <span class="text-base leading-none shrink-0">{s().icon}</span>
           </Show>
           <span class="text-sm font-semibold truncate flex-1 min-w-0">{s().name}</span>
-          <Show when={strangDone(s())}>
+          <Show when={flowDone(s())}>
             <FiCheck size={13} class="text-emerald-400 shrink-0" />
           </Show>
         </button>
@@ -555,7 +548,7 @@ export function Cook() {
               <FiMoreHorizontal size={20} class="animate-pulse" />
             </Show>
           </button>
-          <button class="icon-btn" onClick={() => engine.executeTool('open_zutaten', {})} title="Zutaten"><FiFileText size={16} /></button>
+          <button class="icon-btn" onClick={() => props.onOpenIngredients()} title="Zutaten"><FiFileText size={16} /></button>
           <button
             class="icon-btn hidden sm:flex"
             onClick={() => setOverviewOpen((v) => !v)}
@@ -571,7 +564,7 @@ export function Cook() {
       {/* ── Karten ─────────────────────────────────────────────────────── */}
       <main class="flex-1 min-h-0 flex flex-col">
         <Show
-          when={strangs().length > 0}
+          when={flows().length > 0}
           fallback={
             <div class="flex items-center justify-center h-full">
               <p class="text-sm text-zinc-500">Noch keine Stränge.</p>
@@ -581,10 +574,10 @@ export function Cook() {
           {/* Mobile: „Jetzt" (alle aktiven Karten) ↔ „Flow" (eine Spalte) */}
           <div class="sm:hidden flex-1 min-h-0 flex flex-col overflow-hidden">
             <Show
-              when={flowStrang()}
+              when={detailFlow()}
               fallback={
                 <JetztQueue
-                  onTitleClick={(strangId, stepId) => revealStep(strangId, stepId)}
+                  onTitleClick={(flowId, stepId) => revealStep(flowId, stepId)}
                   scrollerRef={(el) => (jetztScroller = el)}
                 />
               }
@@ -613,9 +606,9 @@ export function Cook() {
             </Show>
           </div>
 
-          {/* Desktop: „Jetzt"-Spalte links + Übersicht (eine Spalte pro Strang) */}
+          {/* Desktop: „Jetzt"-Spalte links + Übersicht (eine Spalte pro Flow) */}
           {/* Übersicht ein-/ausblendbar; zu → „Jetzt" allein, zentriert, breitere Karten */}
-          {/* Horizontales Scrollen nur im Strang-Bereich — „Jetzt" bleibt stehen */}
+          {/* Horizontales Scrollen nur im Flow-Bereich — „Jetzt" bleibt stehen */}
           <div class="hidden sm:flex flex-1 min-h-0" classList={{ 'justify-center': !overviewOpen() }}>
             <div
               class="shrink-0 flex flex-col min-h-0 bg-zinc-900/50"
@@ -625,19 +618,19 @@ export function Cook() {
                 Jetzt
               </div>
               <JetztQueue
-                onTitleClick={(strangId, stepId) => revealStep(strangId, stepId)}
+                onTitleClick={(flowId, stepId) => revealStep(flowId, stepId)}
                 scrollerRef={(el) => (jetztScrollerDesktop = el)}
                 showBlocked={false}
               />
             </div>
             <Show when={overviewOpen()}>
               <div class="columns-area flex flex-1 min-h-0 gap-3 p-3 overflow-x-auto items-stretch">
-                <For each={strangs()}>
+                <For each={flows()}>
                   {(s) => (
-                    <StrangColumn
+                    <FlowColumn
                       s={s}
                       isFocused={s.id === active()?.id}
-                      onFocus={() => focusStrang(s.id)}
+                      onFocus={() => focusFlow(s.id)}
                     />
                   )}
                 </For>
@@ -694,59 +687,6 @@ export function Cook() {
           </Show>
         </div>
       </div>
-
-      {/* ── Zutaten Modal ─────────────────────────────────────────────── */}
-      <Show when={engine.cook.zutatenOpen}>
-        <div
-          class="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex flex-col justify-end sm:items-center sm:justify-center sm:p-4"
-          onClick={(e) => e.target === e.currentTarget && engine.executeTool('close_zutaten', {})}
-        >
-          <div class="bg-zinc-950 rounded-t-2xl sm:rounded-2xl sm:border sm:border-zinc-600 sm:shadow-2xl sm:w-full sm:max-w-md max-h-[80vh] overflow-y-auto modal-pop">
-            <div class="flex items-center justify-between px-5 py-4 border-b border-zinc-600 sticky top-0 bg-zinc-950">
-              <h2 class="text-base font-semibold">Zutaten</h2>
-              <button
-                class="icon-btn"
-                onClick={() => engine.executeTool('close_zutaten', {})}
-              >
-                <FiX size={16} />
-              </button>
-            </div>
-            <div class="px-4 py-2 pb-6 flex flex-col">
-              <Show
-                when={engine.cook.zutaten.length > 0}
-                fallback={<p class="text-sm text-zinc-500 py-2">Noch keine Zutaten.</p>}
-              >
-                <For each={engine.cook.zutaten}>
-                  {(item) => (
-                    <button
-                      class="flex items-center gap-3 py-3 px-1 border-b border-zinc-600 last:border-0 w-full text-left"
-                      onClick={() => engine.executeTool('toggle_zutaten', { id: item.id }, { silent: true })}
-                    >
-                      <div
-                        class={`w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                          item.checked ? 'border-zinc-400 bg-zinc-700' : 'border-zinc-600 bg-zinc-700'
-                        }`}
-                      >
-                        <Show when={item.checked}>
-                          <FiCheck size={12} class="text-zinc-100" />
-                        </Show>
-                      </div>
-                      <span
-                        class={`flex-1 text-sm ${
-                          item.checked ? 'text-zinc-400 line-through' : 'text-zinc-100'
-                        }`}
-                      >
-                        {item.name}
-                      </span>
-                      <span class="text-xs text-zinc-400 shrink-0">{item.amount}</span>
-                    </button>
-                  )}
-                </For>
-              </Show>
-            </div>
-          </div>
-        </div>
-      </Show>
     </div>
   )
 }
