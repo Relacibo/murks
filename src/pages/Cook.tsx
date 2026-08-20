@@ -425,6 +425,7 @@ export function Cook(props: {
     onTitleClick: (flowId: string, stepId: string) => void
     scrollerRef?: (el: HTMLDivElement) => void
     showBlocked?: boolean
+    dense?: boolean
   }) {
     const showBlocked = () => props.showBlocked !== false
     const empty = () =>
@@ -488,7 +489,7 @@ export function Cook(props: {
           listRef = el
           props.scrollerRef?.(el)
         }}
-        class="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-2"
+        class={`flex-1 min-h-0 overflow-y-auto flex flex-col gap-2 ${props.dense ? 'p-1' : 'p-3'}`}
       >
         <For each={jetztCards().prio}>
           {(c) => (
@@ -662,6 +663,7 @@ export function Cook(props: {
                 onTitleClick={(flowId, stepId) => revealStep(flowId, stepId)}
                 scrollerRef={(el) => (jetztScrollerDesktop = el)}
                 showBlocked={false}
+                dense
               />
             </div>
             <Show when={overviewOpen()}>

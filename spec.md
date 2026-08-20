@@ -178,7 +178,7 @@ alles sichtbar.
 - **„Jetzt"-Spalte ganz links, fix:** wie die mobile View 1 — aber **ohne Blocked-Vorschau**
   (blocked erscheint nur mobil). Nur leicht getönter Hintergrund (kein vertikaler Strich).
   Kleines „Jetzt"-Label als Header (nicht klickbar, keine Flow-Chips).
-  **Nie schmaler als eine Flow-Spalte** (gleiche Breite 320px).
+  **Kartenbreite identisch zu den Flow-Spalten** (320px Spalte, gleiches Innen-Padding p-1).
 - **Übersicht ein-/ausblendbar:** Topbar-Toggle (nur Desktop) klappt die Flow-Spalten
   komplett ein/aus. Geschlossen → nur die „Jetzt"-View, zentriert, mit breiteren Karten
   (400px).
