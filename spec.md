@@ -53,6 +53,10 @@ interface Step {
 ### Abschluss-Regeln
 - **Navigation allein schließt nie ab** (◀▶, Dots, Klick auf Desktop-Karte, `set_step`).
 - **✓ (runder Button, nur Häkchen)** = expliziter Abschluss: `complete_step` (aktueller Schritt) + Navigation zum nächsten.
+- **↺ Zurücknehmen** (`revert_step`) = abgeschlossenen Schritt wieder auf nicht-erledigt setzen —
+  **nur möglich, wenn keine Karte, die diesen Schritt als Abhängigkeit hat, selbst abgeschlossen ist**
+  (sonst ↺ ausgeblendet bzw. Tool-Fehler). Der revertierte Schritt erscheint wieder unten in
+  „Jetzt" (`activatedAt` neu); ein gesetzter `Strang.done` wird dabei gelöscht.
 - `complete_strang` = alle Schritte `done` + Strang `done` + alle Schritt-Timer abbrechen.
 - `Strang.done` gilt zusätzlich als abgeleitet, wenn alle Schritte `done` sind.
 
@@ -150,7 +154,7 @@ Keine Browsing-Navigation nötig — alles sichtbar.
 - **Alle Schritt-Karten ausgeklappt** (Description sichtbar), **ohne eigenen Titel** —
   der Flow-Name steht im Spalten-Header. Karten-Header: `⏱ Timer (nur wenn läuft) · x/y`.
 - **active:** hellere Outline in Strang-Farbe (Desktop: Spalten-Header farbig).
-- **done:** gedimmt.
+- **done:** gedimmt, ↺-Button zum Zurücknehmen (s. Abschluss-Regeln).
 - **blocked:** dezenter + 🔒 (Abhängigkeit offen), ✓-Button deaktiviert.
 - **Mehrere Karten pro Strang können gleichzeitig Timer laufen lassen.**
 - Vertikales Scrollen pro Spalte. Kein horizontales Scrollen (bis auf die Spalten selbst).
@@ -185,7 +189,8 @@ Mehrere Karten stehen untereinander (Stapel).
 ### Zustände
 - **active**: hellere Outline (Strang-Farbe), Titelband heller
 - **blocked**: dezenter, 🔒-Hinweis auf fehlende Abhängigkeit, ✓-Button deaktiviert
-- **done**: gedimmt, Description bleibt sichtbar
+- **done**: gedimmt, Description bleibt sichtbar, ↺-Button zum Zurücknehmen
+  (ausgeblendet, wenn eine abhängige Karte bereits abgeschlossen ist)
 
 ### Karte (allgemein)
 ```
@@ -252,6 +257,7 @@ Mehrere Karten stehen untereinander (Stapel).
 | `add_step` | `description` statt `text`; optional `depends_on` |
 | `set_step` | unverändert (reine Navigation, schließt nie ab) |
 | `complete_step` | **neu**: Schritt abschließen (`done`), Timer des Schritts abbrechen |
+| `revert_step` | **neu**: Schritt auf nicht-erledigt setzen — nur wenn keine abhängige Karte abgeschlossen ist |
 | `focus_strang` | unverändert |
 | `start_timer` | `strang_id` + `step_index` (Timer gehört zum Schritt) |
 | `cancel_timer` | `strang_id` + `step_index` |

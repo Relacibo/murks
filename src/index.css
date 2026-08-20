@@ -186,6 +186,9 @@
   .check-btn:hover {
     @apply brightness-125;
   }
+  .revert-btn {
+    @apply w-6 h-6 flex items-center justify-center rounded-full border border-zinc-600 bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors shrink-0;
+  }
   .mic-btn {
     @apply relative w-9 h-9 rounded-full flex items-center justify-center text-base transition-all disabled:opacity-40;
   }

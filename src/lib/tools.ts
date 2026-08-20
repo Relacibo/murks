@@ -102,6 +102,21 @@ export const TOOLS: ToolDef[] = [
   {
     type: 'function',
     function: {
+      name: 'revert_step',
+      description: 'Abgeschlossenen Schritt wieder auf nicht-erledigt setzen. Nur möglich, wenn keine Karte, die diesen Schritt als Abhängigkeit hat, selbst abgeschlossen ist.',
+      parameters: {
+        type: 'object',
+        properties: {
+          strang_id: { type: 'string' },
+          step_index: { type: 'number', description: '0-basiert' },
+        },
+        required: ['strang_id', 'step_index'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'set_step',
       description: 'Schritt eines Strangs setzen (vor oder zurück).',
       parameters: {
@@ -267,6 +282,16 @@ function depsDone(deps: { strang_id: string; step_index: number }[]): boolean {
   )
 }
 
+function hasDoneDependents(strangId: string, stepIndex: number): boolean {
+  return state.cook.strangs.some((s) =>
+    s.steps.some(
+      (st) =>
+        st.done &&
+        st.dependsOn.some((d) => d.strang_id === strangId && d.step_index === stepIndex),
+    ),
+  )
+}
+
 export function executeTool(name: string, args: Record<string, unknown>): string {
   try {
     switch (name) {
@@ -371,6 +396,27 @@ export function executeTool(name: string, args: Record<string, unknown>): string
           })
         }
         showToast(`${strang.name}: „${stepLabel(strang.steps[stepIdx].description)}" fertig`)
+        return JSON.stringify({ ok: true })
+      }
+      case 'revert_step': {
+        const id = String(args.strang_id ?? '')
+        const stepIdx = Number(args.step_index)
+        const strang = findStrang(id)
+        if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
+        if (!Number.isInteger(stepIdx) || stepIdx < 0 || stepIdx >= strang.steps.length) {
+          return JSON.stringify({ error: `step_index muss 0..${strang.steps.length - 1} sein` })
+        }
+        if (!strang.steps[stepIdx].done) {
+          return JSON.stringify({ error: 'Schritt ist nicht abgeschlossen' })
+        }
+        if (hasDoneDependents(id, stepIdx)) {
+          return JSON.stringify({
+            error: 'Abhängige Karte ist bereits abgeschlossen — Schritt kann nicht zurückgenommen werden',
+          })
+        }
+        patchStep(id, stepIdx, { done: false, activatedAt: nextAct() })
+        patchStrang(id, { done: false })
+        showToast(`${strang.name}: „${stepLabel(strang.steps[stepIdx].description)}" zurückgenommen`)
         return JSON.stringify({ ok: true })
       }
       case 'set_step': {

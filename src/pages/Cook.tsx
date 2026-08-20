@@ -6,7 +6,7 @@ import { executeTool, fmtRemaining, stepLabel } from '../lib/tools'
 import { createAgentVoice } from '../lib/agentVoice'
 import {
   FiMic, FiMicOff, FiMoreHorizontal, FiFileText, FiSettings,
-  FiCheck, FiBell, FiX, FiLock, FiChevronLeft, FiChevronRight,
+  FiCheck, FiBell, FiX, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw,
 } from 'solid-icons/fi'
 
 export function Cook() {
@@ -75,6 +75,19 @@ export function Cook() {
 
   function strangDone(s: Strang): boolean {
     return s.done || s.steps.every((st) => st.done)
+  }
+
+  /* Zurücknehmen nur, wenn keine abhängige Karte selbst abgeschlossen ist */
+  function canRevert(s: Strang, i: number): boolean {
+    const step = s.steps[i]
+    if (!step?.done) return false
+    return !strangs().some((x) =>
+      x.steps.some(
+        (st) =>
+          st.done &&
+          st.dependsOn.some((d) => d.strang_id === s.id && d.step_index === i),
+      ),
+    )
   }
 
   function blockedBy(s: Strang, step: Step): string[] {
@@ -189,6 +202,19 @@ export function Cook() {
           <span class="text-xs opacity-60 tabular-nums shrink-0">
             {i() + 1}/{s().steps.length}
           </span>
+          <Show when={stateName() === 'done' && canRevert(s(), i())}>
+            <button
+              class="revert-btn"
+              title="Schritt zurücknehmen"
+              aria-label="Schritt zurücknehmen"
+              onClick={(e) => {
+                e.stopPropagation()
+                executeTool('revert_step', { strang_id: s().id, step_index: i() })
+              }}
+            >
+              <FiRotateCcw size={12} />
+            </button>
+          </Show>
         </div>
 
         <div class="step-card-body">
