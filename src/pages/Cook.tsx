@@ -380,11 +380,13 @@ export function Cook() {
       jetztCards().normal.length === 0 &&
       (!showBlocked() || jetztCards().blocked.length === 0)
 
-    /* Queue-Animation (FLIP + Eintritt von rechts):
+    /* Queue-Animation (FLIP + Eintritt von rechts mit Fade):
        Abschließen entfernt die Karte, die Karten darunter wandern nach oben,
-       neue Karten schießen unten von rechts rein. */
+       nur frisch aktivierte/neue Karten schießen von rechts rein.
+       Erster Render (Seiten-Load, Flow-Wechsel zurück) = statisch. */
     let listRef: HTMLDivElement | undefined
     let prevRects = new Map<string, number>()
+    let firstRun = true
     const visibleKeys = () => {
       const list = [...jetztCards().prio, ...jetztCards().normal]
       if (showBlocked()) list.push(...jetztCards().blocked)
@@ -396,7 +398,16 @@ export function Cook() {
       if (!cont) return
       const nodes = Array.from(cont.querySelectorAll<HTMLElement>('[data-card-key]'))
       const next = new Map(nodes.map((el) => [el.dataset.cardKey!, el.getBoundingClientRect().top]))
+      const skip = firstRun
+      firstRun = false
+      if (skip) {
+        prevRects = next
+        return
+      }
+      // display:none (andere Breakpoint) → nur merken, nicht animieren
+      const hidden = cont.offsetParent === null
       for (const el of nodes) {
+        if (hidden) continue
         const k = el.dataset.cardKey!
         const prev = prevRects.get(k)
         const now = next.get(k)
@@ -404,10 +415,10 @@ export function Cook() {
         if (prev === undefined) {
           el.animate(
             [
-              { transform: 'translateX(48px)', opacity: 0 },
+              { transform: 'translateX(24px)', opacity: 0 },
               { transform: 'translateX(0)', opacity: 1 },
             ],
-            { duration: 280, easing: 'ease-out' },
+            { duration: 300, easing: 'ease-out' },
           )
         } else if (Math.abs(prev - now) > 1) {
           el.animate(
@@ -574,35 +585,36 @@ export function Cook() {
             </Show>
           </div>
 
-          {/* Desktop: „Jetzt"-Spalte links (ein-/ausblendbar) + eine Spalte pro Strang */}
+          {/* Desktop: „Jetzt"-Spalte links + Übersicht (eine Spalte pro Strang) */}
+          {/* Übersicht ein-/ausblendbar; zu → „Jetzt" allein, zentriert, breitere Karten */}
           {/* Horizontales Scrollen nur im Strang-Bereich — „Jetzt" bleibt stehen */}
-          <div class="hidden sm:flex flex-1 min-h-0">
+          <div class="hidden sm:flex flex-1 min-h-0" classList={{ 'justify-center': !overviewOpen() }}>
+            <div
+              class="shrink-0 flex flex-col min-h-0 bg-zinc-900/50"
+              classList={{ 'w-[320px]': overviewOpen(), 'w-[400px]': !overviewOpen() }}
+            >
+              <div class="shrink-0 px-3 py-2 border-b border-zinc-700 text-xs uppercase tracking-widest text-zinc-500">
+                Jetzt
+              </div>
+              <JetztQueue
+                onTitleClick={(id) => focusColumn(id)}
+                scrollerRef={(el) => (jetztScrollerDesktop = el)}
+                showBlocked={false}
+              />
+            </div>
             <Show when={overviewOpen()}>
-              <div class="w-72 shrink-0 flex flex-col min-h-0 bg-zinc-900/50">
-                <div class="shrink-0 px-3 py-2 border-b border-zinc-700 text-xs uppercase tracking-widest text-zinc-500">
-                  Jetzt
-                </div>
-                <JetztQueue
-                  onTitleClick={(id) => focusColumn(id)}
-                  scrollerRef={(el) => (jetztScrollerDesktop = el)}
-                  showBlocked={false}
-                />
+              <div class="columns-area flex flex-1 min-h-0 gap-3 p-3 overflow-x-auto items-stretch">
+                <For each={strangs()}>
+                  {(s) => (
+                    <StrangColumn
+                      s={s}
+                      isFocused={s.id === active()?.id}
+                      onFocus={() => focusStrang(s.id)}
+                    />
+                  )}
+                </For>
               </div>
             </Show>
-            <div
-              class="columns-area flex flex-1 min-h-0 gap-3 p-3 overflow-x-auto items-stretch"
-              classList={{ 'is-wide justify-center': !overviewOpen() }}
-            >
-              <For each={strangs()}>
-                {(s) => (
-                  <StrangColumn
-                    s={s}
-                    isFocused={s.id === active()?.id}
-                    onFocus={() => focusStrang(s.id)}
-                  />
-                )}
-              </For>
-            </div>
           </div>
         </Show>
       </main>

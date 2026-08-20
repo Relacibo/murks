@@ -176,8 +176,10 @@ alles sichtbar.
 - **„Jetzt"-Spalte ganz links, fix:** wie die mobile View 1 — aber **ohne Blocked-Vorschau**
   (blocked erscheint nur mobil). Nur leicht getönter Hintergrund (kein vertikaler Strich).
   Kleines „Jetzt"-Label als Header (nicht klickbar, keine Flow-Chips).
-- **Ein-/ausblendbar:** Topbar-Toggle (nur Desktop) klappt die Übersicht komplett
-  ein/aus. Geschlossen → Strang-Spalten zentriert und Karten breiter (Spalten wachsen).
+  **Nie schmaler als eine Strang-Spalte** (gleiche Breite 320px).
+- **Übersicht ein-/ausblendbar:** Topbar-Toggle (nur Desktop) klappt die Strang-Spalten
+  komplett ein/aus. Geschlossen → nur die „Jetzt"-View, zentriert, mit breiteren Karten
+  (400px).
 - **Rechts daneben die Strang-Spalten** (= mobile „Flow"-Views): jede Spalte hat ihre
   **eigene vertikale Scrollbar** (nur wenn nötig). **Die Seite selbst scrollt nie.**
 - **Horizontales Scrollen nur im Strang-Bereich** — die „Jetzt"-Spalte bleibt stehen.
