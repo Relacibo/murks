@@ -746,26 +746,28 @@ export function Cook(props: {
           </span>
         </div>
 
-        {/* Button außerhalb step-card-body, damit opacity-55 (waiting) ihn nicht dimmt */}
-        <div class="flex items-stretch">
-          <div class="step-card-body flex-1 min-w-0">
-            <div class="step-description">
-              <Show when={st().description}>
-                <Markdown>{st().description}</Markdown>
-              </Show>
-            </div>
-            <p class="mt-1 min-h-4 text-xs leading-4 opacity-70">
-              <Show when={stateName() === 'blocked'}>
-                Wartet auf: {blockedBy(s(), st()).join(', ')}
-              </Show>
-              <Show when={stateName() === 'waiting'}>
-                <span class="inline-flex items-center gap-1">
-                  Wartet auf <FiClock size={11} /> Timer
-                </span>
-              </Show>
-            </p>
+        {/* Button-Zeile unter dem Text — Status („Wartet auf …") teilt sich
+            die Zeile links mit dem Button rechts; außerhalb der step-card-body,
+            damit opacity-55 (waiting) den Button nicht dimmt. min-h reserviert
+            die Zeile, blockierte Karten zeigen nur den Status. */}
+        <div class="step-card-body">
+          <div class="step-description">
+            <Show when={st().description}>
+              <Markdown>{st().description}</Markdown>
+            </Show>
           </div>
-          <div class="shrink-0 w-14 flex items-center justify-center">
+        </div>
+        <div class="step-card-footer">
+          <p class="flex-1 min-w-0 text-xs leading-4 opacity-70">
+            <Show when={stateName() === 'blocked'}>
+              Wartet auf: {blockedBy(s(), st()).join(', ')}
+            </Show>
+            <Show when={stateName() === 'waiting'}>
+              <span class="inline-flex items-center gap-1">
+                Wartet auf <FiClock size={11} /> Timer
+              </span>
+            </Show>
+          </p>
             {/* Wartende Karte: Uhr öffnet Timer-Modal */}
             <Show when={stateName() === 'waiting'}>
               <button
@@ -838,7 +840,6 @@ export function Cook(props: {
                 <FiRotateCcw size={18} />
               </button>
             </Show>
-          </div>
         </div>
       </div>
     )

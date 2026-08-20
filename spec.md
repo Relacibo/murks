@@ -264,7 +264,7 @@ Mehrere Karten stehen untereinander (Stapel).
   ✓ (grau, wie der ↺-Button) rechts neben dem Text = früh abschließen
 - **blocked**: gedimmt wie done (opacity — **kein grayscale**, Farbzuordnung bleibt erhalten),
   🔒-Hinweis auf fehlende Abhängigkeit, kein ✓-Button
-- **done**: gedimmt (gleiche Art wie blocked), Description bleibt sichtbar, ↺ im Button-Slot
+- **done**: gedimmt (gleiche Art wie blocked), Description bleibt sichtbar, ↺ in der Button-Zeile
   rechts neben dem Text (ausgeblendet, wenn eine abhängige Karte bereits abgeschlossen ist)
 - **prio (high, active)**: pulsiert (Outline) und steht in „Jetzt" oben — greift beim
   Aktiv-Werden; blocked/waiting verhalten sich wie immer
@@ -283,9 +283,9 @@ Mehrere Karten stehen untereinander (Stapel).
 - **Karten haben natürliche Größe — nichts wird geklemmt oder abgekürzt:**
   Description und „Wartet auf"-Zeile zeigen immer den vollen Text (Zeilenumbrüche
   statt `…`). Karten dürfen unterschiedlich groß sein; ihre Größe ändert sich nur,
-  wenn sich Daten ändern (Description, Abhängigkeiten, Zustand). Die Statuszeile
-  hält mit `min-h-4` eine Zeile frei, damit ein Wechsel active ↔ blocked nicht
-  springt; Button-Slot bleibt reserviert.
+  wenn sich Daten ändern (Description, Abhängigkeiten, Zustand). Die **Button-Zeile**
+  unter dem Text teilen sich Status (links) und Button (rechts); `min-h-11` reserviert
+  sie auch ohne Button — blockierte Karten zeigen nur den Status und springen nicht.
 - **Karten sind nicht klickbar** und haben **keine Hover-Effekte** (kein Aufhellen,
   kein Cursor-Pointer). Nur der **Titel** ist klickbar: springt gezielt zu diesem Schritt
   (Fokus + Flow-View/Scroll + kurzer Puls) — dasselbe wie das KI-Tool `show_step`.

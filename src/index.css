@@ -136,8 +136,10 @@
   /* ── Schritt-Karte: flach, klein, nie verschachtelt ─────────────── */
   /* Dekorator-Muster: farbiges Titelband oben, neutraler Body, farbige Outline */
   .step-card {
-    /* bewusst nicht klickbar: kein Hover (kein Aufhellen), kein Cursor-Pointer */
-    @apply w-full text-left rounded-xl border overflow-hidden bg-zinc-900 text-zinc-300 transition-opacity duration-300;
+    /* bewusst nicht klickbar: kein Hover (kein Aufhellen), kein Cursor-Pointer.
+       shrink-0: in den Flex-Spalten nicht stauchen lassen — sonst quetscht
+       Flexbox die Karten zusammen, statt die Spalte scrollen zu lassen */
+    @apply w-full shrink-0 text-left rounded-xl border overflow-hidden bg-zinc-900 text-zinc-300 transition-opacity duration-300;
     border-color: var(--flow-border);
   }
   /* Ausnahme: blockierte Karte — Klick pulsiert die Karten, auf die sie wartet */
@@ -196,7 +198,12 @@
     color: var(--flow-text-active);
   }
   .step-card-body {
-    @apply px-3 pb-2.5 pt-2;
+    @apply px-3 pt-2;
+  }
+  /* Button-Zeile unter dem Text: Status links, Button rechts; min-h reserviert
+     die Zeile auch ohne Button (blocked) — Größe springt nicht */
+  .step-card-footer {
+    @apply px-3 pb-2.5 mt-1 flex items-center justify-between gap-2 min-h-11;
   }
   .step-card-title-btn {
     @apply flex items-center gap-1 flex-1 min-w-0 text-left;
