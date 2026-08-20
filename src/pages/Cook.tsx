@@ -617,6 +617,18 @@ export function Cook(props: {
           'is-blocked': stateName() === 'blocked',
           'is-waiting': stateName() === 'waiting',
           'is-prio': st().priority === 'high' && stateName() === 'active',
+          'is-clickable': stateName() === 'blocked',
+        }}
+        title={
+          stateName() === 'blocked'
+            ? 'Zeigt, worauf diese Karte wartet'
+            : undefined
+        }
+        onClick={(e) => {
+          if (stateName() !== 'blocked') return
+          e.stopPropagation()
+          const keys = st().dependsOn.map((d) => `${d.flow_id}:${d.step_id}`)
+          if (keys.length > 0) pulseCards(keys)
         }}
       >
         <div class="step-card-band">

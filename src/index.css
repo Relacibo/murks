@@ -140,6 +140,10 @@
     @apply w-full text-left rounded-xl border overflow-hidden bg-zinc-900 text-zinc-300 transition-opacity duration-300;
     border-color: var(--flow-border);
   }
+  /* Ausnahme: blockierte Karte — Klick pulsiert die Karten, auf die sie wartet */
+  .step-card.is-clickable {
+    @apply cursor-pointer;
+  }
   .step-card.is-active {
     border-color: var(--flow-border-active);
   }
