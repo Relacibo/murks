@@ -1044,7 +1044,7 @@ export function Cook(props: {
   }
 
   return (
-    <div class="h-screen bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
+    <div class="h-[100dvh] bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
       {/* ── Topbar: Timer-Chips + Buttons (eine Leiste, kein Logo) ────── */}
       <header class="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-zinc-600">
         <div
@@ -1112,6 +1112,30 @@ export function Cook(props: {
           >
             <FiSidebar size={16} />
           </button>
+          <Show when={!composerOpen()}>
+            <button
+              class="mic-btn sm:hidden"
+              classList={{
+                'is-listening': voice.listening() && !voice.transcribing(),
+                'is-speaking': voice.speaking(),
+              }}
+              onClick={() => voice.toggleMic()}
+              disabled={state.agent.busy || (!voice.sttReady() && !voice.listening())}
+              title={voice.micTitle()}
+              aria-label="Mikrofon umschalten"
+            >
+              <Show
+                when={voice.transcribing()}
+                fallback={
+                  <Show when={voice.listening()} fallback={<FiMicOff size={20} />}>
+                    <FiMic size={20} />
+                  </Show>
+                }
+              >
+                <FiMoreHorizontal size={20} class="animate-pulse" />
+              </Show>
+            </button>
+          </Show>
           <div class="flex items-center rounded-lg border border-zinc-600 overflow-hidden divide-x divide-zinc-600 shrink-0">
             <button class="grouped-btn" onClick={() => props.onOpenIngredients()} title="Zutaten"><FiFileText size={16} /></button>
             <button class="grouped-btn" onClick={() => props.onOpenChat()} title="Chat"><FiMessageSquare size={16} /></button>

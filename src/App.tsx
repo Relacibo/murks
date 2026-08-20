@@ -1,4 +1,4 @@
-import { createSignal, createMemo, createEffect, onMount, createContext, useContext, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, createContext, useContext, Show } from 'solid-js'
 import type { Accessor, Setter } from 'solid-js'
 import { Router, Route, useSearchParams } from '@solidjs/router'
 import { AgentModal } from './pages/Agent'
@@ -67,11 +67,6 @@ function CookingRoute() {
   createEffect(() => {
     const r = cookEngine.modalRequest
     if (r) setModal(r.modal, r.open)
-  })
-
-  // Ohne Flows direkt den Chat öffnen (da entstehen die ersten Flows)
-  onMount(() => {
-    if (state.cook.flows.length === 0 && !modals().includes('chat')) setModal('chat', true)
   })
 
   // Kein gültiger Agent → Konfiguration aufpoppen
