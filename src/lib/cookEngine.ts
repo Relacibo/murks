@@ -2,6 +2,7 @@ import { batch, createContext, createSignal } from 'solid-js'
 import type { CookState, Step, StepRef, StepTimer, Flow, FlowColor } from '../state/store'
 import { showToast } from './toast'
 import { fmtRemaining, stepLabel } from './tools'
+import { speak } from './tts'
 
 export const FLOW_COLORS: FlowColor[] = ['cyan', 'violet', 'amber', 'emerald', 'rose', 'sky']
 
@@ -749,6 +750,16 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
         case 'reset_cook': {
           setCook((c) => ({ ...c, flows: [], ingredients: [], focusedFlowId: null }))
           toast('Alle Stränge gelöscht')
+          return JSON.stringify({ ok: true })
+        }
+        case 'read_step': {
+          const flowId = String(args.flow_id ?? '')
+          const stepId = String(args.step_id ?? '')
+          const flow = findFlow(flowId)
+          if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
+          const step = flow.steps.find((st) => st.id === stepId)
+          if (!step) return JSON.stringify({ error: 'Unbekannter Schritt' })
+          speak(step.description)
           return JSON.stringify({ ok: true })
         }
         case 'show_step': {
