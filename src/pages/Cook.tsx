@@ -1276,16 +1276,7 @@ export function Cook(props: {
             </div>
           </Show>
 
-          <Show when={composerOpen()} fallback={
-            <button
-              class="composer-fab"
-              onClick={openComposer}
-              title="Chat-Eingabe"
-              aria-label="Chat-Eingabe öffnen"
-            >
-              <FiMessageSquare size={18} />
-            </button>
-          }>
+          <Show when={composerOpen()}>
           <form class="composer-row" onSubmit={submitComposer}>
             <button
               type="button"
@@ -1348,6 +1339,17 @@ export function Cook(props: {
           </form>
           </Show>
         </div>
+        {/* Eingeklappt: FAB außerhalb des zentrierten Containers — ganz rechts */}
+        <Show when={!composerOpen()}>
+          <button
+            class="composer-fab"
+            onClick={openComposer}
+            title="Chat-Eingabe"
+            aria-label="Chat-Eingabe öffnen"
+          >
+            <FiMessageSquare size={18} />
+          </button>
+        </Show>
       </div>
 
       <WaitMenu />

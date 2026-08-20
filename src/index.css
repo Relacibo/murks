@@ -282,21 +282,25 @@
   .mic-btn {
     @apply relative w-9 h-9 rounded-full flex items-center justify-center text-base transition-all disabled:opacity-40;
   }
+  /* Inaktiv (TTS gemutet / Mic aus): bewusst ohne Hintergrund */
   .mic-btn.is-off {
-    @apply bg-zinc-700 border border-zinc-600 text-zinc-300 hover:bg-zinc-600;
+    @apply text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200;
   }
-  .mic-btn.is-on {
+  /* Aktiv (TTS an / Mic hört zu oder erkennt Sprache): weißer Kreis */
+  .mic-btn.is-on,
+  .mic-btn.is-listening,
+  .mic-btn.is-speaking {
     @apply bg-zinc-100 text-zinc-900 ring-2 ring-zinc-300;
   }
 
   /* ── Voice-Overlay ──────────────────────────────────────────────── */
   /* ── Composer-Bar: globale Eingabe (Text + Mikrofon), immer sichtbar ── */
   .composer {
-    @apply pointer-events-none fixed bottom-0 inset-x-0 z-40 px-3;
+    @apply pointer-events-none fixed bottom-0 inset-x-0 z-40 px-3 flex flex-col items-end;
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   }
   .composer-inner {
-    @apply mx-auto flex flex-col gap-2;
+    @apply w-full mx-auto flex flex-col gap-2;
     max-width: theme('maxWidth.2xl');
   }
   .composer-row {
@@ -306,13 +310,11 @@
     @apply flex-1 min-w-0 bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-500;
   }
   .composer-mic {
-    @apply h-10 w-10 shrink-0 rounded-full border flex items-center justify-center text-base transition-all disabled:opacity-40 disabled:cursor-not-allowed border-zinc-600 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 hover:bg-zinc-600 active:scale-95;
+    @apply h-10 w-10 shrink-0 rounded-full flex items-center justify-center text-base transition-all disabled:opacity-40 disabled:cursor-not-allowed text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 active:scale-95;
   }
-  .composer-mic.is-listening {
-    @apply border-zinc-300 text-zinc-100 bg-zinc-600;
-  }
+  .composer-mic.is-listening,
   .composer-mic.is-speaking {
-    @apply border-red-500 bg-red-500/20 text-red-400 ring-2 ring-red-500/40 animate-pulse;
+    @apply bg-zinc-100 text-zinc-900 ring-2 ring-zinc-300 hover:bg-zinc-100;
   }
   .composer-send {
     @apply h-10 w-10 shrink-0 rounded-full flex items-center justify-center bg-zinc-100 text-zinc-900 transition-colors disabled:opacity-40 hover:bg-zinc-300 active:scale-95;

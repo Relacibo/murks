@@ -1,4 +1,5 @@
 import { For, Show, createSignal, onMount } from 'solid-js'
+import { FiX, FiExternalLink } from 'solid-icons/fi'
 import {
   state,
   setConfig,
@@ -224,37 +225,29 @@ export function ConfigModal(props: ConfigModalProps) {
   }
 
   return (
-    <div
-      class={`fixed inset-0 z-50 flex flex-col justify-end md:items-center md:justify-center transition-all duration-300 ${
-        props.open
-          ? 'bg-zinc-950/80 backdrop-blur-sm pointer-events-auto'
-          : 'bg-transparent pointer-events-none'
-      }`}
-      onClick={(e) => {
-        if (e.target === e.currentTarget && props.dismissible) props.onClose()
-      }}
-    >
-      {/* Mobile: slide up from bottom. Desktop: scale in centered dialog */}
+    <Show when={props.open}>
       <div
-        class={`bg-zinc-950 w-full max-h-[90vh] overflow-y-auto transition-all duration-300 ease-out
-          rounded-t-2xl md:rounded-2xl md:max-w-lg md:max-h-[85vh] md:shadow-2xl ${
-          props.open
-            ? 'translate-y-0 md:translate-y-0 md:scale-100 md:opacity-100'
-            : 'translate-y-full md:translate-y-0 md:scale-95 md:opacity-0'
-        }`}
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
+        class="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex flex-col justify-end sm:items-center sm:justify-center sm:p-4"
+        onClick={(e) => {
+          if (e.target === e.currentTarget && props.dismissible) props.onClose()
+        }}
+      >
+        <div
+          class="bg-zinc-950 w-full max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl sm:border sm:border-zinc-600 sm:shadow-2xl sm:max-w-lg sm:max-h-[85vh] modal-pop"
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
       >
         {/* Header */}
         <div class="flex items-center justify-between px-5 py-4 border-b border-zinc-600 sticky top-0 bg-zinc-950 z-10">
           <h1 class="text-base font-semibold text-zinc-100">Konfiguration</h1>
           <Show when={props.dismissible}>
             <button
-              class="w-11 h-11 flex items-center justify-center rounded-full text-zinc-400 hover:text-zinc-100 hover:bg-zinc-600 text-xl transition-colors"
-              onClick={props.onClose}
+              class="icon-btn"
+              onClick={() => props.onClose()}
+              title="Schließen"
               aria-label="Schließen"
             >
-              ×
+              <FiX size={16} />
             </button>
           </Show>
         </div>
@@ -383,8 +376,18 @@ export function ConfigModal(props: ConfigModalProps) {
           </section>
 
           <p class="text-xs text-zinc-500 pb-2">Alles lokal gespeichert · Kein Backend</p>
+          <a
+            href="https://github.com/Relacibo/murks/issues"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="flex items-center justify-center gap-2 rounded-lg border border-zinc-600 bg-zinc-800 px-3 py-2.5 text-sm text-zinc-200 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
+          >
+            <FiExternalLink size={14} />
+            Feedback / Bug melden
+          </a>
         </div>
       </div>
     </div>
+    </Show>
   )
 }
