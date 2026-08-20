@@ -549,8 +549,11 @@ export function Cook(props: {
               <FiMoreHorizontal size={20} class="animate-pulse" />
             </Show>
           </button>
-          <button class="icon-btn" onClick={() => props.onOpenIngredients()} title="Zutaten"><FiFileText size={16} /></button>
-          <button class="icon-btn" onClick={() => props.onOpenChat()} title="Chat"><FiMessageSquare size={16} /></button>
+          <div class="flex items-center rounded-lg border border-zinc-700 bg-zinc-800/50 overflow-hidden divide-x divide-zinc-700 shrink-0">
+            <button class="grouped-btn" onClick={() => props.onOpenIngredients()} title="Zutaten"><FiFileText size={16} /></button>
+            <button class="grouped-btn" onClick={() => props.onOpenChat()} title="Chat"><FiMessageSquare size={16} /></button>
+            <button class="grouped-btn" onClick={() => setConfigOpen(true)} title="Konfiguration"><FiSettings size={16} /></button>
+          </div>
           <button
             class="icon-btn hidden sm:flex"
             onClick={() => setOverviewOpen((v) => !v)}
@@ -559,7 +562,6 @@ export function Cook(props: {
           >
             <FiSidebar size={16} />
           </button>
-          <button class="icon-btn" onClick={() => setConfigOpen(true)} title="Konfiguration"><FiSettings size={16} /></button>
         </div>
       </header>
 
