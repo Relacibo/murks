@@ -260,15 +260,38 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           const rawSteps = Array.isArray(args.steps) ? args.steps : []
           if (!flowName) return JSON.stringify({ error: 'name fehlt' })
           if (rawSteps.length === 0) return JSON.stringify({ error: 'steps brauchen mindestens einen Schritt' })
-          const parsed = rawSteps.map((st) => {
+
+          // Erst alle UUIDs vergeben, damit interne Abhängigkeiten (step_index) aufgelöst werden können
+          const ids = rawSteps.map(() => crypto.randomUUID())
+          const flowId = crypto.randomUUID()
+
+          const parsed = rawSteps.map((st, i) => {
             const o = (st ?? {}) as Record<string, unknown>
+            const rawDeps = Array.isArray(o.depends_on) ? o.depends_on : []
+            const dependsOn: StepRef[] = rawDeps.flatMap((d: unknown) => {
+              if (!d || typeof d !== 'object') return []
+              const entry = d as Record<string, unknown>
+              // step_index: Verweis auf einen Schritt innerhalb desselben neuen Flows (0-basiert)
+              if (typeof entry.step_index === 'number') {
+                const idx = entry.step_index
+                if (idx < 0 || idx >= ids.length || idx === i) return []
+                const ref: StepRef = { flow_id: flowId, step_id: ids[idx] }
+                if (typeof entry.timer_seconds === 'number' && entry.timer_seconds > 0) {
+                  ref.timer_seconds = entry.timer_seconds
+                }
+                return [ref]
+              }
+              // Externe Abhängigkeit (anderer, bereits existierender Flow)
+              return parseDepRefs([d])
+            })
             return {
               description: typeof st === 'string' ? st : String(o.description ?? '').trim(),
-              dependsOn: typeof st === 'string' ? [] : parseDepRefs(o.depends_on),
+              dependsOn,
               priority: typeof st === 'string' ? 'normal' as const : parsePriority(o.priority),
               score: typeof st === 'string' ? 0 : parseScore(o.score),
             }
           })
+
           if (parsed.some((s) => s.description === '')) {
             return JSON.stringify({ error: 'steps brauchen mindestens eine description' })
           }
@@ -277,41 +300,35 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               error: 'Ein Schritt mit priority "high" darf höchstens eine Abhängigkeit haben',
             })
           }
-          // Refs dürfen nur auf bereits existierende Schritte zeigen (eigene neue Steps haben noch keine IDs)
-          if (parsed.some((s) => s.dependsOn.some((d) => !depStep(d)))) {
+          // Externe Refs müssen auf existierende Schritte zeigen
+          if (parsed.some((s) => s.dependsOn.some((d) => d.flow_id !== flowId && !depStep(d)))) {
             return JSON.stringify({
-              error: 'Unbekannte Abhängigkeit — Schritte des neuen Flows können nicht referenziert werden',
+              error: 'Unbekannte externe Abhängigkeit',
             })
           }
-          const id = crypto.randomUUID()
+
           const color = FLOW_COLORS[getCook().flows.length % FLOW_COLORS.length]
+          const steps = parsed.map((st, i) => ({
+            id: ids[i],
+            description: st.description,
+            done: false,
+            doneAt: null,
+            dependsOn: st.dependsOn,
+            timer: null,
+            activatedAt: depsDone(st.dependsOn) ? nextAct() : null,
+            priority: st.priority,
+            score: st.score,
+          }))
           setCook((c) => ({
             ...c,
             flows: [
               ...c.flows,
-              {
-                id,
-                name: flowName,
-                icon: icon || null,
-                color,
-                steps: parsed.map((st) => ({
-                  id: crypto.randomUUID(),
-                  description: st.description,
-                  done: false,
-                  doneAt: null,
-                  dependsOn: st.dependsOn,
-                  timer: null,
-                  activatedAt: depsDone(st.dependsOn) ? nextAct() : null,
-                  priority: st.priority,
-                  score: st.score,
-                })),
-                done: false,
-              },
+              { id: flowId, name: flowName, icon: icon || null, color, steps, done: false },
             ],
           }))
-          setCook((c) => ({ ...c, focusedFlowId: id }))
+          setCook((c) => ({ ...c, focusedFlowId: flowId }))
           toast(`Strang: ${flowName}`)
-          return JSON.stringify({ id, name: flowName })
+          return JSON.stringify({ id: flowId, name: flowName })
         }
         case 'add_step': {
           const id = String(args.flow_id ?? '')
