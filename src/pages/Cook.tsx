@@ -6,13 +6,14 @@ import { CookContext } from '../lib/cookEngine'
 import { fmtRemaining } from '../lib/tools'
 import { createAgentVoice } from '../lib/agentVoice'
 import {
-  FiMic, FiMicOff, FiMoreHorizontal, FiFileText, FiSettings,
+  FiMic, FiMicOff, FiMoreHorizontal, FiFileText, FiSettings, FiMessageSquare,
   FiCheck, FiBell, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw, FiClock, FiSidebar,
 } from 'solid-icons/fi'
 
 export function Cook(props: {
   voice?: ReturnType<typeof createAgentVoice>
   onOpenIngredients: () => void
+  onOpenChat: () => void
 }) {
   const { configOpen, setConfigOpen } = useConfig()
   const voice = props.voice ?? createAgentVoice({ configOpen })
@@ -549,6 +550,7 @@ export function Cook(props: {
             </Show>
           </button>
           <button class="icon-btn" onClick={() => props.onOpenIngredients()} title="Zutaten"><FiFileText size={16} /></button>
+          <button class="icon-btn" onClick={() => props.onOpenChat()} title="Chat"><FiMessageSquare size={16} /></button>
           <button
             class="icon-btn hidden sm:flex"
             onClick={() => setOverviewOpen((v) => !v)}

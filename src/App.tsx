@@ -67,7 +67,11 @@ function CookingRoute() {
 
   return (
     <>
-      <Cook voice={voice} onOpenIngredients={() => setModal('ingredients', true)} />
+      <Cook
+        voice={voice}
+        onOpenIngredients={() => setModal('ingredients', true)}
+        onOpenChat={() => setModal('chat', true)}
+      />
       <IngredientsModal
         open={modals().includes('ingredients')}
         onClose={() => setModal('ingredients', false)}

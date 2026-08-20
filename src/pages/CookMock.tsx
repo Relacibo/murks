@@ -110,7 +110,7 @@ export function CookMock() {
 
   return (
     <CookContext.Provider value={engine}>
-      <Cook onOpenIngredients={() => setIngredientsOpen(true)} />
+      <Cook onOpenIngredients={() => setIngredientsOpen(true)} onOpenChat={() => {}} />
       <IngredientsModal open={ingredientsOpen()} onClose={() => setIngredientsOpen(false)} />
       {/* Gemockte Events zum Durchklicken */}
       <div class="fixed bottom-4 right-4 z-50 flex flex-col gap-1.5 items-end">
