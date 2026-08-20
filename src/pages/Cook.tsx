@@ -228,6 +228,7 @@ export function Cook() {
       <div
         class="step-card"
         data-color={s().color}
+        data-card-key={`${s().id}:${i()}`}
         classList={{
           'is-active': stateName() === 'active',
           'is-past': stateName() === 'done',
@@ -378,8 +379,54 @@ export function Cook() {
       jetztCards().prio.length === 0 &&
       jetztCards().normal.length === 0 &&
       (!showBlocked() || jetztCards().blocked.length === 0)
+
+    /* Queue-Animation (FLIP + Eintritt von rechts):
+       Abschließen entfernt die Karte, die Karten darunter wandern nach oben,
+       neue Karten schießen unten von rechts rein. */
+    let listRef: HTMLDivElement | undefined
+    let prevRects = new Map<string, number>()
+    const visibleKeys = () => {
+      const list = [...jetztCards().prio, ...jetztCards().normal]
+      if (showBlocked()) list.push(...jetztCards().blocked)
+      return list.map((c) => `${c.s.id}:${c.i}`).join('|')
+    }
+    createEffect(() => {
+      visibleKeys()
+      const cont = listRef
+      if (!cont) return
+      const nodes = Array.from(cont.querySelectorAll<HTMLElement>('[data-card-key]'))
+      const next = new Map(nodes.map((el) => [el.dataset.cardKey!, el.getBoundingClientRect().top]))
+      for (const el of nodes) {
+        const k = el.dataset.cardKey!
+        const prev = prevRects.get(k)
+        const now = next.get(k)
+        if (now === undefined) continue
+        if (prev === undefined) {
+          el.animate(
+            [
+              { transform: 'translateX(48px)', opacity: 0 },
+              { transform: 'translateX(0)', opacity: 1 },
+            ],
+            { duration: 280, easing: 'ease-out' },
+          )
+        } else if (Math.abs(prev - now) > 1) {
+          el.animate(
+            [{ transform: `translateY(${prev - now}px)` }, { transform: 'translateY(0)' }],
+            { duration: 260, easing: 'ease-out' },
+          )
+        }
+      }
+      prevRects = next
+    })
+
     return (
-      <div ref={props.scrollerRef} class="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-2">
+      <div
+        ref={(el) => {
+          listRef = el
+          props.scrollerRef?.(el)
+        }}
+        class="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-2"
+      >
         <For each={jetztCards().prio}>
           {(c) => <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(c.s.id)} />}
         </For>

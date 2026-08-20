@@ -126,6 +126,10 @@ Zurück-Button → „Jetzt". Es gibt keine Flow-Chips-Leiste mehr.
 - Neu eintretende Karten (KI legt Schritt an, Abhängigkeit erfüllt, Timer abgelaufen)
   werden in ihrer Queue **unten angehängt**. Die KI kann nicht umsortieren (append-only,
   kein Reorder-Werkzeug).
+- **Queue-Verhalten + Animation:** Abschließen entfernt die Karte aus der Queue — die
+  Karten darunter **wandern animiert nach oben** (FLIP), neue Karten **schießen unten
+  von rechts rein** (kein Fade). Blocked→aktiv wandert animiert in seine Queue.
+  Abschließen „tauscht" nie den Karteninhalt.
 - Karten voll ausgeklappt, **feste Größe**: **farbiges Titelband** (Emoji + Flow-Name,
   caps, klickbar) + ⏱ Timer + x/y; darunter neutraler Body (zinc) mit der Description
   (Markdown, 2 Zeilen). Der Body-Stil ist überall identisch — nur das Band unterscheidet
