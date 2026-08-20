@@ -14,6 +14,8 @@ export function Cook(props: {
   voice?: ReturnType<typeof createAgentVoice>
   onOpenIngredients: () => void
   onOpenChat: () => void
+  overviewOpen?: boolean
+  onToggleOverview?: () => void
 }) {
   const { configOpen, setConfigOpen } = useConfig()
   const voice = props.voice ?? createAgentVoice({ configOpen })
@@ -21,7 +23,11 @@ export function Cook(props: {
 
   const [tick, setTick] = createSignal(Date.now())
   const [flowView, setFlowView] = createSignal<string | null>(null)
-  const [overviewOpen, setOverviewOpen] = createSignal(true)
+  // Übersicht (Desktop): Zustand kommt aus der URL; Mock fällt auf lokalen Signal zurück
+  const [localOverviewOpen, setLocalOverviewOpen] = createSignal(true)
+  const overviewOpen = () => props.overviewOpen ?? localOverviewOpen()
+  const toggleOverview = () =>
+    props.onToggleOverview ? props.onToggleOverview() : setLocalOverviewOpen((v) => !v)
   const [lastAgent, setLastAgent] = createSignal<{ text: string; at: number } | null>(null)
   const interval = setInterval(() => {
     setTick(Date.now())
@@ -103,6 +109,26 @@ export function Cook(props: {
     pulseCards(keys)
   }
 
+  /* Kurzer Puls via WAAPI — startet bei jedem Klick neu (auch schnell hintereinander) */
+  createEffect(() => {
+    const p = pulses()
+    if (!p) return
+    for (const key of p.keys) {
+      for (const el of Array.from(
+        document.querySelectorAll<HTMLElement>(`[data-card-key="${CSS.escape(key)}"]`),
+      )) {
+        if (el.offsetParent === null) continue
+        el.animate(
+          [
+            { boxShadow: '0 0 0 2px rgba(255, 255, 255, 0.9)' },
+            { boxShadow: '0 0 0 10px rgba(255, 255, 255, 0)' },
+          ],
+          { duration: 1500, easing: 'ease-out' },
+        )
+      }
+    }
+  })
+
   /* KI ruft show_step → gleiches Verhalten wie Titel-Tap */
   createEffect(() => {
     const t = engine.navTarget
@@ -172,7 +198,7 @@ export function Cook(props: {
   const stepUrgent = (st: Step) => {
     tick()
     const r = stepRemaining(st)
-    return r !== null && r < 120_000
+    return r !== null && r < 30_000
   }
 
   /* Tick lesen + formatieren als Funktionsaufruf, nicht als {tick() && fmt…}
@@ -271,7 +297,7 @@ export function Cook(props: {
     const urgent = () => {
       tick()
       const ends = countdownEndsAt()
-      return ends !== null && ends - Date.now() < 120_000
+      return ends !== null && ends - Date.now() < 30_000
     }
     return (
       <div
@@ -284,7 +310,6 @@ export function Cook(props: {
           'is-blocked': stateName() === 'blocked',
           'is-waiting': stateName() === 'waiting',
           'is-prio': st().priority === 'high' && stateName() === 'active',
-          'is-pulse': pulses()?.keys.has(`${s().id}:${st().id}`),
         }}
       >
         <div class="step-card-band">
@@ -585,19 +610,19 @@ export function Cook(props: {
               <FiMoreHorizontal size={20} class="animate-pulse" />
             </Show>
           </button>
-          <div class="flex items-center rounded-lg border border-zinc-700 bg-zinc-800/50 overflow-hidden divide-x divide-zinc-700 shrink-0">
-            <button class="grouped-btn" onClick={() => props.onOpenIngredients()} title="Zutaten"><FiFileText size={16} /></button>
-            <button class="grouped-btn" onClick={() => props.onOpenChat()} title="Chat"><FiMessageSquare size={16} /></button>
-            <button class="grouped-btn" onClick={() => setConfigOpen(true)} title="Konfiguration"><FiSettings size={16} /></button>
-          </div>
           <button
             class="icon-btn hidden sm:flex"
-            onClick={() => setOverviewOpen((v) => !v)}
+            onClick={toggleOverview}
             title={overviewOpen() ? 'Übersicht ausblenden' : 'Übersicht einblenden'}
             aria-label="Übersicht ein-/ausblenden"
           >
             <FiSidebar size={16} />
           </button>
+          <div class="flex items-center rounded-lg border border-zinc-600 overflow-hidden divide-x divide-zinc-600 shrink-0">
+            <button class="grouped-btn" onClick={() => props.onOpenIngredients()} title="Zutaten"><FiFileText size={16} /></button>
+            <button class="grouped-btn" onClick={() => props.onOpenChat()} title="Chat"><FiMessageSquare size={16} /></button>
+            <button class="grouped-btn" onClick={() => setConfigOpen(true)} title="Konfiguration"><FiSettings size={16} /></button>
+          </div>
         </div>
       </header>
 

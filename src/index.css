@@ -28,15 +28,6 @@
   }
 }
 
-@keyframes step-pulse {
-  0% {
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
-  }
-  100% {
-    box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
-  }
-}
-
 @layer components {
   /* ── Flow-Farben (CSS-Variablen per data-color) ─────────────── */
   [data-color='cyan'] {
@@ -147,10 +138,6 @@
   .step-card.is-prio {
     animation: prio-pulse 1.4s ease-in-out infinite;
   }
-  /* Kurzer Puls beim Anspringen (show_step / Titel-Tap) */
-  .step-card.is-pulse {
-    animation: step-pulse 1.5s ease-out 1;
-  }
   /* Titelband: auf jeder Karte (Desktop + Flow-View + Mobile „Jetzt") */
   .step-card-band {
     @apply flex items-center gap-2 px-3 py-1.5 border-b transition-colors duration-300;
@@ -222,9 +209,10 @@
   .icon-btn {
     @apply w-9 h-9 flex items-center justify-center rounded-full border border-zinc-600 bg-zinc-700 text-zinc-400 hover:bg-zinc-600 hover:text-zinc-100 transition-colors;
   }
-  /* Buttongruppe in der Topbar (Zutaten · Chat · Konfiguration) */
+  /* Buttongruppe in der Topbar (Zutaten · Chat · Konfiguration) —
+     gleiche Farben wie die runden Buttons */
   .grouped-btn {
-    @apply w-9 h-9 flex items-center justify-center text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100 transition-colors;
+    @apply w-9 h-9 flex items-center justify-center bg-zinc-700 text-zinc-400 hover:bg-zinc-600 hover:text-zinc-100 transition-colors;
   }
   .check-btn {
     @apply w-11 h-11 flex items-center justify-center rounded-full border transition-colors shrink-0;

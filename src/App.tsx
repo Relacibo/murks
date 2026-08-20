@@ -39,12 +39,16 @@ type ModalName = 'chat' | 'ingredients'
 /** Hauptscreen = Cook. Chat und Ingredients sind immer nur Modals — ihr Zustand steht in der URL (?modal=chat,ingredients). */
 function CookingRoute() {
   const ctx = useConfig()
-  const [params, setParams] = useSearchParams<{ modal?: string }>()
+  const [params, setParams] = useSearchParams<{ modal?: string; overview?: string }>()
   // Eine gemeinsame Voice-Instanz für Koch-Screen (Overlay) + Chat-Modal
   const voice = createAgentVoice({ configOpen: ctx.configOpen })
 
   const modals = () =>
     (typeof params.modal === 'string' ? params.modal.split(',').filter(Boolean) : []) as ModalName[]
+
+  const overviewHidden = () => params.overview === 'hidden'
+  const toggleOverview = () =>
+    setParams({ overview: overviewHidden() ? undefined : 'hidden' })
 
   const setModal = (m: ModalName, open: boolean) => {
     const cur = new Set(modals())
@@ -71,6 +75,8 @@ function CookingRoute() {
         voice={voice}
         onOpenIngredients={() => setModal('ingredients', true)}
         onOpenChat={() => setModal('chat', true)}
+        overviewOpen={!overviewHidden()}
+        onToggleOverview={toggleOverview}
       />
       <IngredientsModal
         open={modals().includes('ingredients')}
