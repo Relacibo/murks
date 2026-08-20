@@ -67,24 +67,40 @@ export function Cook(props: {
   }
 
   /* ── Schritt anspringen: Fokus + Flow-View + Scroll + kurzer Puls ──── */
-  const [pulse, setPulse] = createSignal<{ key: string; nonce: number } | null>(null)
+  const [pulses, setPulses] = createSignal<{ keys: Set<string>; nonce: number } | null>(null)
   let pulseTimer: ReturnType<typeof setTimeout> | undefined
+  function pulseCards(keys: string[]) {
+    const nonce = Date.now()
+    setPulses({ keys: new Set(keys), nonce })
+    clearTimeout(pulseTimer)
+    pulseTimer = setTimeout(() => setPulses((p) => (p && p.nonce === nonce ? null : p)), 1600)
+  }
   function revealStep(flowId: string, stepId: string) {
     const s = flows().find((x) => x.id === flowId)
     if (!s || !s.steps.some((st) => st.id === stepId)) return
     focusFlow(flowId)
     setFlowView(flowId)
     const key = `${flowId}:${stepId}`
-    const nonce = Date.now()
-    setPulse({ key, nonce })
-    clearTimeout(pulseTimer)
-    pulseTimer = setTimeout(() => setPulse((p) => (p && p.nonce === nonce ? null : p)), 1600)
+    pulseCards([key])
     requestAnimationFrame(() => {
       const el = Array.from(
         document.querySelectorAll<HTMLElement>(`[data-card-key="${CSS.escape(key)}"]`),
       ).find((n) => n.offsetParent !== null)
       el?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
     })
+  }
+
+  /* Alle (noch offenen) Karten markieren, die auf einen Timer warten */
+  function pulseDependents(s: Flow, st: Step) {
+    const keys: string[] = []
+    for (const x of flows()) {
+      for (const d of x.steps) {
+        if (!d.done && d.dependsOn.some((r) => r.flow_id === s.id && r.step_id === st.id)) {
+          keys.push(`${x.id}:${d.id}`)
+        }
+      }
+    }
+    pulseCards(keys)
   }
 
   /* KI ruft show_step → gleiches Verhalten wie Titel-Tap */
@@ -164,6 +180,18 @@ export function Cook(props: {
       s.steps
         .map((st, i) => ({ s, st, i }))
         .filter((x) => x.st.timerEndsAt !== null && !x.st.timerExpired),
+    ),
+  )
+  /* Topbar-Chips nur für Timer, auf die eine Karte wartet (abhängige Karte offen) */
+  const chipTimers = createMemo(() =>
+    runningTimers().filter((x) =>
+      flows().some((s) =>
+        s.steps.some(
+          (st) =>
+            !st.done &&
+            st.dependsOn.some((d) => d.flow_id === x.s.id && d.step_id === x.st.id),
+        ),
+      ),
     ),
   )
 
@@ -250,7 +278,7 @@ export function Cook(props: {
           'is-blocked': stateName() === 'blocked',
           'is-waiting': stateName() === 'waiting',
           'is-prio': st().priority === 'high' && stateName() === 'active',
-          'is-pulse': pulse()?.key === `${s().id}:${st().id}`,
+          'is-pulse': pulses()?.keys.has(`${s().id}:${st().id}`),
         }}
       >
         <div class="step-card-band">
@@ -511,7 +539,7 @@ export function Cook(props: {
       {/* ── Topbar: Timer-Chips + Buttons (eine Leiste, kein Logo) ────── */}
       <header class="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-zinc-600">
         <div class="flex-1 min-w-0 flex items-center gap-2 overflow-x-auto">
-          <For each={runningTimers()}>
+          <For each={chipTimers()}>
             {(x) => (
               <button
                 class="chip"
@@ -520,7 +548,8 @@ export function Cook(props: {
                   'is-urgent': stepUrgent(x.st),
                   'is-active': x.s.id === active()?.id,
                 }}
-                onClick={() => revealStep(x.s.id, x.st.id)}
+                onClick={() => pulseDependents(x.s, x.st)}
+                title="Abhängige Karten markieren"
               >
                 <Show when={x.s.icon}>
                   <span class="text-base leading-none">{x.s.icon}</span>

@@ -301,7 +301,11 @@ Mehrere Karten stehen untereinander (Stapel).
   **vor Ablauf abgeschlossen** werden — das cancelt die Timer anderer Schritte nicht.
 - **Revert:** `revert_step` verwirft den eigenen Timer und macht Abhängige wieder blocked
   (sie rücken in die Vorschau).
-- Sichtbar: in der Schritt-Karte (Header), Topbar-Timer-Chips (nur Emoji + Zeit bzw. 🔔).
+- Sichtbar: in der Schritt-Karte (Header) + Topbar-Timer-Chips (nur Emoji + Zeit).
+  **Topbar-Chips nur für Timer, auf die eine offene Karte wartet** — Timer ohne
+  abhängige Karten erscheinen nicht in der Topbar (Countdown bleibt auf der Karte).
+- **Klick auf einen Timer-Chip markiert alle abhängigen Karten** (kurzer Puls,
+  wo immer sie gerade sichtbar sind).
 - Dringlichkeit: Orange + Pulsieren < 2 min; bei Ablauf verschwindet der Topbar-Chip sofort
   (Bell bleibt nur auf der Schritt-Karte).
 - Bei Ablauf: KI navigiert aktiv zum betroffenen Schritt (`show_step`).
@@ -341,7 +345,7 @@ Mehrere Karten stehen untereinander (Stapel).
   **Buttongruppe** [📄 Zutaten · 💬 Chat · ⚙ Konfiguration] als Segmente (gemeinsamer
   Rahmen, Trennlinien) + Desktop-Übersicht-Toggle.
 - Chip-Dringlichkeit: gelb pulsierend < 2 min. **Bei Ablauf verschwindet der Chip sofort**
-  (kein Bell-Chip). Klick = zu Schritt springen.
+  (kein Bell-Chip). Klick = alle abhängigen Karten markieren (Puls).
 
 ---
 
