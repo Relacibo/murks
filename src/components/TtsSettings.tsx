@@ -1,5 +1,6 @@
 import { Show } from 'solid-js'
 import { state, setTts } from '../state/store'
+import { webTtsAvailable } from '../lib/webSpeech'
 import { inputCls, selectCls } from './fields'
 
 export function TtsSettings() {
@@ -16,7 +17,9 @@ export function TtsSettings() {
         >
           <option value="wasm">Lokal (Piper, offline)</option>
           <option value="server">Server (OpenAI-kompatibel)</option>
-          <option value="webspeech">Browser-Stimme</option>
+          <Show when={webTtsAvailable() || state.tts.mode === 'webspeech'}>
+            <option value="webspeech">Browser-Stimme (online, ohne Key)</option>
+          </Show>
         </select>
       </label>
 

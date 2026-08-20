@@ -1,5 +1,6 @@
 import { Show } from 'solid-js'
 import { state, setStt } from '../state/store'
+import { webSttAvailable } from '../lib/webSpeech'
 import { inputCls, selectCls } from './fields'
 
 export function SttSettings() {
@@ -16,7 +17,9 @@ export function SttSettings() {
         >
           <option value="wasm">Lokal (Whisper, offline)</option>
           <option value="server">Server (OpenAI-kompatibel)</option>
-          <option value="webspeech">Browser-Spracherkennung (online)</option>
+          <Show when={webSttAvailable() || state.stt.mode === 'webspeech'}>
+            <option value="webspeech">Browser-Spracherkennung (online, ohne Key)</option>
+          </Show>
         </select>
       </label>
 

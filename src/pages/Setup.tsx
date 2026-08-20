@@ -5,11 +5,14 @@ import {
   setSetupDone,
   addAgent,
   updateAgent,
+  setStt,
+  setTts,
 } from '../state/store'
 import { inputCls } from '../components/fields'
 import { ModelPicker } from '../components/ModelPicker'
 import { SttSettings } from '../components/SttSettings'
 import { TtsSettings } from '../components/TtsSettings'
+import { webSttAvailable, webTtsAvailable } from '../lib/webSpeech'
 import { isSttModelCached, downloadSttModel } from '../lib/stt'
 import { isTtsModelCached, downloadTtsModel } from '../lib/tts'
 import type { DownloadProgress } from '../lib/modelProgress'
@@ -126,6 +129,11 @@ export function Setup() {
   onMount(() => {
     const existing = state.agents[0]
     setAgentId(existing ? existing.id : addAgent())
+    /* Browser-Sprachfunktionen vorhanden → vorauswählen (online ohne Key,
+       über die Server des Browser-Herstellers). Nur der unberührte
+       wasm-Default wird überschrieben — explizite Auswahl bleibt. */
+    if (state.stt.mode === 'wasm' && webSttAvailable()) setStt({ mode: 'webspeech' })
+    if (state.tts.mode === 'wasm' && webTtsAvailable()) setTts({ mode: 'webspeech' })
   })
 
   createEffect(() => {
@@ -285,7 +293,9 @@ export function Setup() {
               <div>
                 <h2 class="text-lg font-semibold text-zinc-100">Stimme</h2>
                 <p class="text-sm text-zinc-400 mt-1">
-                  Lokal läuft komplett im Browser und funktioniert offline.
+                  Lokal läuft komplett im Browser und funktioniert offline. Kann dein
+                  Browser die Spracherkennung, ist „Browser" automatisch vorausgewählt —
+                  läuft dann online ohne Key, sonst nimmst du Lokal.
                 </p>
               </div>
               <div class="space-y-4">
