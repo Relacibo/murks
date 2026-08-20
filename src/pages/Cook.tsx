@@ -478,7 +478,7 @@ export function Cook(props: {
               onClick={() => setWaitMenu(null)}
             >
               <div
-                class="w-full sm:max-w-xs rounded-t-xl sm:rounded-xl border border-zinc-700 bg-zinc-900 p-5 flex flex-col gap-5"
+                class="w-full sm:max-w-xs rounded-t-xl sm:rounded-xl border border-zinc-700 bg-zinc-900 p-5 flex flex-col gap-5 overflow-y-auto max-h-[85svh]"
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Timer-Anzeige = Eingabe */}
@@ -681,7 +681,7 @@ export function Cook(props: {
                 <Markdown>{st().description}</Markdown>
               </Show>
             </div>
-            <p class="mt-1 h-4 text-xs leading-4 truncate opacity-70">
+            <p class="mt-1 min-h-4 text-xs leading-4 opacity-70 line-clamp-2">
               <Show when={stateName() === 'blocked'}>
                 Wartet auf: {blockedBy(s(), st()).join(', ')}
               </Show>
