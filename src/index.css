@@ -123,7 +123,7 @@
   /* Dekorator-Muster: farbiges Titelband oben, neutraler Body, farbige Outline */
   .step-card {
     /* bewusst nicht klickbar: kein Hover (kein Aufhellen), kein Cursor-Pointer */
-    @apply w-full text-left rounded-xl border overflow-hidden bg-zinc-900 text-zinc-300;
+    @apply w-full text-left rounded-xl border overflow-hidden bg-zinc-900 text-zinc-300 transition-opacity duration-300;
     border-color: var(--strang-border);
   }
   .step-card.is-active {
@@ -144,7 +144,7 @@
   }
   /* Titelband: auf jeder Karte (Desktop + Flow-View + Mobile „Jetzt") */
   .step-card-band {
-    @apply flex items-center gap-2 px-3 py-1.5 border-b;
+    @apply flex items-center gap-2 px-3 py-1.5 border-b transition-colors duration-300;
     background-color: var(--strang-bg);
     border-color: var(--strang-border);
     color: var(--strang-text);
