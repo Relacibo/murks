@@ -313,9 +313,13 @@ Mehrere Karten stehen untereinander (Stapel).
   öffnen/schließen ist back/forward-fähig.
 - **KI kann die Modals öffnen und schließen:** `open_chat`/`close_chat`,
   `open_ingredients`/`close_ingredients` (Engine-Signal → URL).
-- Chat-Modal: Verlauf (auto-scroll), Texteingabe, Mikro, „Verlauf löschen", ⚙;
-  die Voice-Instanz teilen sich Koch-Screen und Chat-Modal.
-- Ohne Flows wird der Chat beim Laden automatisch geöffnet (dort entstehen die ersten Flows).
+- Chat-Modal: reine **Verlaufs-View** (auto-scroll, „Verlauf löschen") — ohne Mikro
+  und ohne Eingabefeld. Die Eingabe ist **global**: eine immer sichtbare Composer-Bar
+  am unteren Bildschirmrand (Mikro + Textfeld + Senden; mobile Tastatur schiebt sie hoch,
+  safe-area berücksichtigt). Darüber erscheinen bei Aktivität Transkript/Status/letzte
+  Antwort. Die Voice-Instanz teilen sich Composer und Koch-Screen (eine Instanz).
+- Ohne Flows wird der Chat beim Laden automatisch geöffnet (Verlauf sichtbar — die
+  ersten Flows entstehen über die Composer-Bar).
 
 ---
 
@@ -416,7 +420,8 @@ Mehrere Karten stehen untereinander (Stapel).
 - **Eine einzige Leiste** — keine zweite Timer-Leiste darunter.
 - Kein Logo/Schriftzug „MURKS".
 - Links: Timer-Chips (Emoji + Zeit — keine Beschreibung), scrollbar; rechts: 🔇 **Mute**
-  (schaltet nur die Sprachausgabe stumm — Timer-Alarmtöne bleiben an) + 🎤 + eine
+  (schaltet nur die Sprachausgabe stumm — Timer-Alarmtöne bleiben an; das Mikrofon sitzt
+  in der Composer-Bar unten) + eine
   **Buttongruppe** [📄 Zutaten · 💬 Chat · ⚙ Konfiguration] als Segmente (gemeinsamer
   Rahmen, Trennlinien) + Desktop-Übersicht-Toggle.
 - Chip-Dringlichkeit: gelb pulsierend < 2 min. **Bei Ablauf verschwindet der Chip sofort**

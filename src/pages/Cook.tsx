@@ -1,16 +1,16 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, useContext } from 'solid-js'
 import { SolidMarkdown as Markdown } from 'solid-markdown'
 import { useConfig } from '../App'
-import { state, type Flow, type Step, type StepRef, type StepTimer } from '../state/store'
+import { state, sendMessage, type Flow, type Step, type StepRef, type StepTimer } from '../state/store'
 import { CookContext, timerEffectiveEnd } from '../lib/cookEngine'
 import { fmtRemaining } from '../lib/tools'
 import { createAgentVoice } from '../lib/agentVoice'
 import {
   FiMic, FiMicOff, FiMoreHorizontal, FiFileText, FiSettings, FiMessageSquare,
   FiCheck, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw, FiClock, FiSidebar,
-  FiVolume2, FiVolumeX, FiPause, FiPlay, FiPlus, FiFastForward, FiRefreshCw,
+  FiVolume2, FiVolumeX, FiPause, FiPlay, FiPlus, FiFastForward, FiRefreshCw, FiSend,
 } from 'solid-icons/fi'
-import { toggleMuted } from '../lib/tts'
+import { toggleMuted, stopSpeaking } from '../lib/tts'
 
 export function Cook(props: {
   voice?: ReturnType<typeof createAgentVoice>
@@ -61,6 +61,17 @@ export function Cook(props: {
     state.agent.busy ||
     showTranscript() ||
     showAgentText()
+
+  /* ── Globale Eingabe (Composer-Bar): Text + Mikrofon, immer sichtbar ── */
+  const [composerInput, setComposerInput] = createSignal('')
+  function submitComposer(e: Event) {
+    e.preventDefault()
+    const text = composerInput().trim()
+    if (!text) return
+    stopSpeaking()
+    sendMessage(text)
+    setComposerInput('')
+  }
 
   const flows = () => engine.cook.flows
 
@@ -898,22 +909,6 @@ export function Cook(props: {
             </Show>
           </button>
           <button
-            class="mic-btn"
-            classList={{ 'is-on': voice.listening(), 'is-off': !voice.listening() }}
-            onClick={() => voice.toggleMic()}
-            disabled={state.agent.busy}
-            title={voice.micTitle()}
-            aria-label="Mikrofon umschalten"
-          >
-            <Show when={voice.transcribing()} fallback={
-              <Show when={voice.listening()} fallback={<FiMicOff size={20} />}>
-                <FiMic size={20} />
-              </Show>
-            }>
-              <FiMoreHorizontal size={20} class="animate-pulse" />
-            </Show>
-          </button>
-          <button
             class="icon-btn hidden sm:flex"
             onClick={toggleOverview}
             title={overviewOpen() ? 'Übersicht ausblenden' : 'Übersicht einblenden'}
@@ -964,7 +959,7 @@ export function Cook(props: {
                       {s().icon ? `${s().icon} ${s().name}` : s().name}
                     </span>
                   </div>
-                  <div class="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-2">
+                  <div class="flex-1 min-h-0 overflow-y-auto pt-3 px-3 pb-28 flex flex-col gap-2">
                     <For each={s().steps}>
                       {(_, i) => <StepCard s={s()} i={i()} />}
                     </For>
@@ -998,7 +993,7 @@ export function Cook(props: {
               />
             </div>
             <Show when={overviewOpen()}>
-              <div class="columns-area flex flex-1 min-h-0 gap-3 p-3 overflow-x-auto items-stretch">
+              <div class="columns-area flex flex-1 min-h-0 gap-3 pt-3 px-3 pb-20 overflow-x-auto items-stretch">
                 <For each={flows()}>
                   {(s) => (
                     <FlowColumn
@@ -1014,51 +1009,97 @@ export function Cook(props: {
         </Show>
       </main>
 
-      {/* ── Voice-Overlay: erscheint bei Aktivität, sonst versteckt ───── */}
-      <div class="voice-overlay" classList={{ 'is-visible': barVisible() }}>
-        {/* Erkannte Eingabe (STT-Text) */}
-        <Show when={showTranscript()}>
-          <div class="transcript-strip">
-            <p class="text-sm text-zinc-300 line-clamp-2">
-              <span class="text-zinc-500 mr-1">🗣</span>
-              {voice.lastTranscript()!.text}
-            </p>
-          </div>
-        </Show>
+      {/* ── Composer-Bar: globale Eingabe (Text + Mikrofon), immer sichtbar.
+             Strips darüber erscheinen nur bei Aktivität. ────────────── */}
+      <div class="composer">
+        <div class="composer-inner">
+          {/* Erkannte Eingabe (STT-Text) */}
+          <Show when={showTranscript()}>
+            <div class="transcript-strip">
+              <p class="text-sm text-zinc-300 line-clamp-2">
+                <span class="text-zinc-500 mr-1">🗣</span>
+                {voice.lastTranscript()!.text}
+              </p>
+            </div>
+          </Show>
 
-        {/* Status / letzte Agent-Antwort */}
-        <div class="transcript-strip">
-          <Show
-            when={voice.transcribing()}
-            fallback={
+          {/* Status / letzte Agent-Antwort */}
+          <Show when={barVisible()}>
+            <div class="transcript-strip">
               <Show
-                when={voice.listening()}
+                when={voice.transcribing()}
                 fallback={
                   <Show
-                    when={voice.speaking()}
+                    when={voice.listening()}
                     fallback={
                       <Show
-                        when={state.agent.busy}
+                        when={voice.speaking()}
                         fallback={
-                          <Show when={showAgentText()}>
-                            <p class="text-sm text-zinc-400 line-clamp-4">{lastAgent()!.text}</p>
+                          <Show
+                            when={state.agent.busy}
+                            fallback={
+                              <Show when={showAgentText()}>
+                                <p class="text-sm text-zinc-400 line-clamp-4">{lastAgent()!.text}</p>
+                              </Show>
+                            }
+                          >
+                            <p class="text-xs italic text-zinc-500 animate-pulse">Denke nach …</p>
                           </Show>
                         }
                       >
-                        <p class="text-xs italic text-zinc-500 animate-pulse">Denke nach …</p>
+                        <p class="text-xs italic text-zinc-400">Sprache erkannt</p>
                       </Show>
                     }
                   >
-                    <p class="text-xs italic text-zinc-400">Sprache erkannt</p>
+                    <p class="text-xs italic text-zinc-400">Höre zu …</p>
                   </Show>
                 }
               >
-                <p class="text-xs italic text-zinc-400">Höre zu …</p>
+                <p class="text-xs italic text-zinc-500 animate-pulse">Transkribiere …</p>
               </Show>
-            }
-          >
-            <p class="text-xs italic text-zinc-500 animate-pulse">Transkribiere …</p>
+            </div>
           </Show>
+
+          <form class="composer-row" onSubmit={submitComposer}>
+            <button
+              type="button"
+              class="composer-mic"
+              classList={{
+                'is-listening': voice.listening() && !voice.transcribing(),
+                'is-speaking': voice.speaking(),
+              }}
+              onClick={() => voice.toggleMic()}
+              disabled={state.agent.busy || (!voice.sttReady() && !voice.listening())}
+              title={voice.micTitle()}
+              aria-label="Mikrofon umschalten"
+            >
+              <Show
+                when={voice.transcribing()}
+                fallback={
+                  <Show when={voice.listening()} fallback={<FiMicOff size={20} />}>
+                    <FiMic size={20} />
+                  </Show>
+                }
+              >
+                <FiMoreHorizontal size={20} class="animate-pulse" />
+              </Show>
+            </button>
+            <input
+              class="composer-input"
+              placeholder="Nachricht …"
+              value={composerInput()}
+              onInput={(e) => setComposerInput(e.currentTarget.value)}
+            />
+            <button
+              type="submit"
+              class="composer-send"
+              disabled={state.agent.busy || !composerInput().trim()}
+              title="Senden"
+              aria-label="Nachricht senden"
+            >
+              <FiSend size={18} />
+            </button>
+          </form>
         </div>
       </div>
 

@@ -291,16 +291,37 @@
   }
 
   /* ── Voice-Overlay ──────────────────────────────────────────────── */
-  .voice-overlay {
-    @apply pointer-events-none fixed bottom-3 inset-x-0 px-4 z-40 transition-all duration-300 opacity-0 translate-y-2;
+  /* ── Composer-Bar: globale Eingabe (Text + Mikrofon), immer sichtbar ── */
+  .composer {
+    @apply pointer-events-none fixed bottom-0 inset-x-0 z-40 px-3;
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   }
-  .voice-overlay.is-visible {
-    @apply opacity-100 translate-y-0;
+  .composer-inner {
+    @apply mx-auto flex flex-col gap-2;
+    max-width: theme('maxWidth.2xl');
+  }
+  .composer-row {
+    @apply pointer-events-auto flex items-center gap-2 rounded-xl border border-zinc-600 bg-zinc-800 px-2 py-2 shadow-lg;
+  }
+  .composer-input {
+    @apply flex-1 min-w-0 bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-500;
+  }
+  .composer-mic {
+    @apply h-10 w-10 shrink-0 rounded-full border flex items-center justify-center text-base transition-all disabled:opacity-40 disabled:cursor-not-allowed border-zinc-600 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 hover:bg-zinc-600 active:scale-95;
+  }
+  .composer-mic.is-listening {
+    @apply border-zinc-300 text-zinc-100 bg-zinc-600;
+  }
+  .composer-mic.is-speaking {
+    @apply border-red-500 bg-red-500/20 text-red-400 ring-2 ring-red-500/40 animate-pulse;
+  }
+  .composer-send {
+    @apply h-10 w-10 shrink-0 rounded-full flex items-center justify-center bg-zinc-100 text-zinc-900 transition-colors disabled:opacity-40 hover:bg-zinc-300 active:scale-95;
   }
 
   /* ── Transkript-Streifen ────────────────────────────────────────── */
   .transcript-strip {
-    @apply mb-3 min-h-[36px] flex items-center px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-xl;
+    @apply flex items-center px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-xl;
   }
 
   /* ── Modal-Basics ──────────────────────────────────────────────── */

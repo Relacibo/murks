@@ -60,7 +60,7 @@ function CookingRoute() {
   const setConfigOpen: Setter<boolean> = (v) =>
     setModal('config', typeof v === 'function' ? v(configOpen()) : v)
 
-  // Eine gemeinsame Voice-Instanz für Koch-Screen (Overlay) + Chat-Modal
+  // Eine gemeinsame Voice-Instanz für Koch-Screen (Composer-Bar) + Chat-Modal
   const voice = createAgentVoice({ configOpen })
 
   // KI öffnet/schließt Modals (open_chat / open_ingredients …) → URL spiegeln
@@ -96,7 +96,6 @@ function CookingRoute() {
       <AgentModal
         open={modals().includes('chat')}
         onClose={() => setModal('chat', false)}
-        voice={voice}
       />
       <ConfigModal
         open={configOpen()}

@@ -1,19 +1,15 @@
-import { For, Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js'
+import { For, Show, createEffect, createMemo, onCleanup } from 'solid-js'
 import { FiX } from 'solid-icons/fi'
-import { state, sendMessage, clearMessages } from '../state/store'
-import { createAgentVoice } from '../lib/agentVoice'
-import { stopSpeaking } from '../lib/tts'
+import { state, clearMessages } from '../state/store'
 
 interface AgentModalProps {
   open: boolean
   onClose: () => void
-  voice: ReturnType<typeof createAgentVoice>
 }
 
-/** Chat-Verlauf als Modal — Sichtbarkeit steuert die URL (?modal=…), KI über open/close_chat */
+/** Chat-Verlauf als Modal (nur Feed) — die Eingabe ist global in der Composer-Bar.
+    Sichtbarkeit steuert die URL (?modal=…), KI über open/close_chat */
 export function AgentModal(props: AgentModalProps) {
-  const [input, setInput] = createSignal('')
-
   const agent = createMemo(() => state.agents.find((a) => a.id === state.defaultAgentId))
   const ready = createMemo(() => Boolean(agent()?.endpoint && agent()?.model))
 
@@ -35,15 +31,6 @@ export function AgentModal(props: AgentModalProps) {
     window.addEventListener('keydown', onKey)
     onCleanup(() => window.removeEventListener('keydown', onKey))
   })
-
-  function submit(e: Event) {
-    e.preventDefault()
-    const text = input().trim()
-    if (!text) return
-    stopSpeaking()
-    sendMessage(text)
-    setInput('')
-  }
 
   return (
     <Show when={props.open}>
@@ -77,9 +64,6 @@ export function AgentModal(props: AgentModalProps) {
             <Show when={state.agent.messages.length === 0 && ready()}>
               <p class="text-sm text-zinc-500">Noch keine Nachrichten.</p>
             </Show>
-            <Show when={props.voice.transcribing()}>
-              <p class="text-sm text-zinc-500 animate-pulse">Transkribiere …</p>
-            </Show>
             <For each={state.agent.messages}>
               {(m) => (
                 <div
@@ -94,38 +78,6 @@ export function AgentModal(props: AgentModalProps) {
               )}
             </For>
           </div>
-
-          {/* Eingabe */}
-          <form onSubmit={submit} class="flex items-center gap-2 border-t border-zinc-600 p-3 shrink-0">
-            <button
-              type="button"
-              onClick={() => props.voice.toggleMic()}
-              disabled={state.agent.busy || (!props.voice.sttReady() && !props.voice.listening())}
-              title={props.voice.micTitle()}
-              class={`h-11 w-11 shrink-0 rounded-full border text-base transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                props.voice.speaking()
-                  ? 'border-red-500 bg-red-500/20 text-red-400 animate-pulse ring-2 ring-red-500/40'
-                  : props.voice.listening()
-                    ? 'border-zinc-300 text-zinc-100 bg-zinc-600'
-                    : 'border-zinc-600 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 hover:bg-zinc-600 active:scale-95'
-              }`}
-            >
-              {props.voice.transcribing() ? '…' : props.voice.listening() ? '■' : '🎤'}
-            </button>
-            <input
-              class="flex-1 bg-zinc-700 border border-zinc-600 rounded-lg px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-zinc-500 placeholder:text-zinc-500 w-full"
-              placeholder="Nachricht an den Agenten …"
-              value={input()}
-              onInput={(e) => setInput(e.currentTarget.value)}
-            />
-            <button
-              type="submit"
-              disabled={state.agent.busy || !ready()}
-              class="h-11 flex items-center rounded-lg bg-zinc-100 px-4 text-sm font-medium text-zinc-900 transition-colors disabled:opacity-40 enabled:hover:bg-zinc-300 enabled:active:scale-95"
-            >
-              Senden
-            </button>
-          </form>
         </div>
       </div>
     </Show>
