@@ -280,10 +280,12 @@ Mehrere Karten stehen untereinander (Stapel).
 └──────────────────────────────────┘
 ```
 
-- **Karten ändern nie ihre Größe:** Description fest auf 2 Zeilen geklemmt (line-clamp),
-  Statuszeile und Button-Slot fest reserviert — Zustandswechsel (Button erscheint,
-  „Wartet auf"-Zeile) verschieben nichts. Reines CSS (Flex + line-clamp), keine
-  Laufzeit-Berechnung nötig.
+- **Karten haben natürliche Größe — nichts wird geklemmt oder abgekürzt:**
+  Description und „Wartet auf"-Zeile zeigen immer den vollen Text (Zeilenumbrüche
+  statt `…`). Karten dürfen unterschiedlich groß sein; ihre Größe ändert sich nur,
+  wenn sich Daten ändern (Description, Abhängigkeiten, Zustand). Die Statuszeile
+  hält mit `min-h-4` eine Zeile frei, damit ein Wechsel active ↔ blocked nicht
+  springt; Button-Slot bleibt reserviert.
 - **Karten sind nicht klickbar** und haben **keine Hover-Effekte** (kein Aufhellen,
   kein Cursor-Pointer). Nur der **Titel** ist klickbar: springt gezielt zu diesem Schritt
   (Fokus + Flow-View/Scroll + kurzer Puls) — dasselbe wie das KI-Tool `show_step`.

@@ -198,18 +198,6 @@
   .step-card-body {
     @apply px-3 pb-2.5 pt-2;
   }
-  /* Karten ändern nie ihre Größe: Description fest auf 2 Zeilen geklemmt */
-  .step-description-clamp {
-    @apply h-[52px] overflow-hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-  }
-  .step-description-clamp p,
-  .step-description-clamp ul,
-  .step-description-clamp ol {
-    @apply mb-0;
-  }
   .step-card-title-btn {
     @apply flex items-center gap-1 flex-1 min-w-0 text-left;
   }

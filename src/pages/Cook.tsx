@@ -727,11 +727,11 @@ export function Cook(props: {
           </Show>
           <Show when={countdownEndsAt() !== null}>
             <span
-              class="step-countdown font-mono text-sm font-semibold leading-none translate-y-[1px] shrink-0 tabular-nums inline-flex items-baseline gap-[2px]"
+              class="step-countdown font-mono text-sm font-semibold leading-none translate-y-[1px] shrink-0 tabular-nums inline-flex items-center gap-[2px]"
               classList={{ 'animate-pulse': urgent() }}
             >
               <Show when={st().timer?.pausedAt !== null}>
-                <FiPause size={9} class="text-amber-400 translate-y-[1px] shrink-0" />
+                <FiPause size={9} class="text-amber-400 shrink-0" />
               </Show>
               <span classList={{
                 'text-amber-300': urgent() || st().timer?.pausedAt === null,
@@ -749,12 +749,12 @@ export function Cook(props: {
         {/* Button außerhalb step-card-body, damit opacity-55 (waiting) ihn nicht dimmt */}
         <div class="flex items-stretch">
           <div class="step-card-body flex-1 min-w-0">
-            <div class="step-description step-description-clamp">
+            <div class="step-description">
               <Show when={st().description}>
                 <Markdown>{st().description}</Markdown>
               </Show>
             </div>
-            <p class="mt-1 min-h-4 text-xs leading-4 opacity-70 line-clamp-2">
+            <p class="mt-1 min-h-4 text-xs leading-4 opacity-70">
               <Show when={stateName() === 'blocked'}>
                 Wartet auf: {blockedBy(s(), st()).join(', ')}
               </Show>
@@ -1041,7 +1041,7 @@ export function Cook(props: {
                     <span class="chip-icon text-base leading-none shrink-0">{x.s.icon}</span>
                   </Show>
                 }>
-                  <FiPause size={14} class="text-amber-300 shrink-0" />
+                  <FiPause size={14} class="text-amber-300 shrink-0 self-center" />
                 </Show>
                 <span
                   class="font-mono font-semibold tabular-nums"
