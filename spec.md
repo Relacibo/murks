@@ -320,10 +320,14 @@ Mehrere Karten stehen untereinander (Stapel).
 - **KI kann die Modals öffnen und schließen:** `open_chat`/`close_chat`,
   `open_ingredients`/`close_ingredients` (Engine-Signal → URL).
 - Chat-Modal: reine **Verlaufs-View** (auto-scroll, „Verlauf löschen") — ohne Mikro
-  und ohne Eingabefeld. Die Eingabe ist **global**: eine immer sichtbare Composer-Bar
-  am unteren Bildschirmrand (Mikro + Textfeld + Senden; mobile Tastatur schiebt sie hoch,
-  safe-area berücksichtigt). Darüber erscheinen bei Aktivität Transkript/Status/letzte
-  Antwort. Die Voice-Instanz teilen sich Composer und Koch-Screen (eine Instanz).
+  und ohne Eingabefeld. Die Eingabe ist **global** als Composer-Bar am unteren
+  Bildschirmrand (Mikro + Textfeld + Senden; mobile Tastatur schiebt sie hoch,
+  safe-area berücksichtigt). **Ein-/ausklappbar:** eingeklappt nur ein runder
+  Sprechblasen-Button (sticky unten rechts), der die Bar aufklappt und das Textfeld
+  fokussiert; ausgeklappt zusätzlich ein Einklapp-Chevron. Darüber erscheinen bei
+  Aktivität Transkript/Status/letzte Antwort. Die Voice-Instanz teilen sich Composer
+  und Koch-Screen (eine Instanz). Die Übersichts-Spalten laufen wie die „Jetzt"-Ansicht
+  über die volle Länge.
 - Ohne Flows wird der Chat beim Laden automatisch geöffnet (Verlauf sichtbar — die
   ersten Flows entstehen über die Composer-Bar).
 

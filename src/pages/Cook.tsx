@@ -8,7 +8,7 @@ import { createAgentVoice } from '../lib/agentVoice'
 import {
   FiMic, FiMicOff, FiMoreHorizontal, FiFileText, FiSettings, FiMessageSquare,
   FiCheck, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw, FiClock, FiSidebar,
-  FiVolume2, FiVolumeX, FiPause, FiPlay, FiPlus, FiFastForward, FiSend,
+  FiVolume2, FiVolumeX, FiPause, FiPlay, FiPlus, FiFastForward, FiSend, FiChevronDown,
 } from 'solid-icons/fi'
 import { toggleMuted, stopSpeaking, speak, pregenCard } from '../lib/tts'
 
@@ -62,8 +62,16 @@ export function Cook(props: {
     showTranscript() ||
     showAgentText()
 
-  /* ── Globale Eingabe (Composer-Bar): Text + Mikrofon, immer sichtbar ── */
+  /* ── Globale Eingabe (Composer-Bar): Text + Mikrofon ────────────────
+     Eingeklappt nur ein runder Sprechblasen-Button (sticky unten rechts);
+     ausgeklappt die volle Zeile. Strips erscheinen bei Aktivität. */
+  const [composerOpen, setComposerOpen] = createSignal(false)
   const [composerInput, setComposerInput] = createSignal('')
+  let composerInputRef: HTMLInputElement | undefined
+  function openComposer() {
+    setComposerOpen(true)
+    requestAnimationFrame(() => composerInputRef?.focus())
+  }
   function submitComposer(e: Event) {
     e.preventDefault()
     const text = composerInput().trim()
@@ -840,6 +848,16 @@ export function Cook(props: {
                 <FiRotateCcw size={18} />
               </button>
             </Show>
+            {/* Platzhalter, wenn kein Button da ist — Zeile behält ihre Höhe */}
+            <Show
+              when={
+                stateName() !== 'waiting' &&
+                !(stateName() === 'active' && !flowDone(s())) &&
+                !(stateName() === 'done' && canRevert(s(), i()))
+              }
+            >
+              <div class="w-11 h-11 shrink-0" aria-hidden="true" />
+            </Show>
         </div>
       </div>
     )
@@ -1155,7 +1173,7 @@ export function Cook(props: {
               />
             </div>
             <Show when={overviewOpen()}>
-              <div class="columns-area flex flex-1 min-h-0 gap-3 pt-3 px-3 pb-20 overflow-x-auto items-stretch">
+              <div class="columns-area flex flex-1 min-h-0 gap-3 pt-3 px-3 pb-3 overflow-x-auto items-stretch">
                 <For each={flows()}>
                   {(s) => (
                     <FlowColumn
@@ -1222,7 +1240,26 @@ export function Cook(props: {
             </div>
           </Show>
 
+          <Show when={composerOpen()} fallback={
+            <button
+              class="composer-fab"
+              onClick={openComposer}
+              title="Chat-Eingabe"
+              aria-label="Chat-Eingabe öffnen"
+            >
+              <FiMessageSquare size={18} />
+            </button>
+          }>
           <form class="composer-row" onSubmit={submitComposer}>
+            <button
+              type="button"
+              class="composer-collapse"
+              onClick={() => setComposerOpen(false)}
+              title="Eingabe einklappen"
+              aria-label="Eingabe einklappen"
+            >
+              <FiChevronDown size={16} />
+            </button>
             <button
               type="button"
               class="composer-mic"
@@ -1247,6 +1284,7 @@ export function Cook(props: {
               </Show>
             </button>
             <input
+              ref={composerInputRef}
               class="composer-input"
               placeholder="Nachricht …"
               value={composerInput()}
@@ -1262,6 +1300,7 @@ export function Cook(props: {
               <FiSend size={18} />
             </button>
           </form>
+          </Show>
         </div>
       </div>
 
