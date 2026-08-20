@@ -11,6 +11,7 @@ const step = (
   timerEndsAt: number | null = null,
   priority: 'normal' | 'high' = 'normal',
 ) => ({
+  id: crypto.randomUUID(),
   description,
   done,
   dependsOn,
@@ -21,28 +22,50 @@ const step = (
   priority,
 })
 
+const s1_0 = step('Mehl und Eier in eine Schüssel geben.', true)
+const s1_1 = step('Milch nach und nach einrühren, bis der Teig glatt ist.', true, [
+  { strang_id: 's1', step_id: s1_0.id },
+])
+const s1_2 = step(
+  'Teig 15 Minuten gehen lassen.',
+  true,
+  [{ strang_id: 's1', step_id: s1_1.id }],
+  900,
+  Date.now() + 240_000,
+)
+const s1_3 = step('Pfanne mit etwas Öl erhitzen.', false, [
+  { strang_id: 's1', step_id: s1_2.id },
+])
+const s1_4 = step('Teig portionsweise von beiden Seiten goldbraun backen.', false, [
+  { strang_id: 's1', step_id: s1_3.id },
+])
+const s2_0 = step('Zwiebeln fein würfeln und glasig andünsten.')
+const s2_1 = step(
+  'Passierte Tomaten und Gewürze zugeben.',
+  false,
+  [{ strang_id: 's1', step_id: s1_2.id }],
+  null,
+  null,
+  'high',
+)
+const s2_2 = step('Offen ~10 min köcheln, gelegentlich rühren.', false, [
+  { strang_id: 's2', step_id: s2_1.id },
+])
+const s3_0 = step('Salat waschen und trocken schleudern.', true)
+const s3_1 = step('Öl, Essig, Senf und Gewürze verrühren.', true, [
+  { strang_id: 's3', step_id: s3_0.id },
+])
+const s3_2 = step('Alles in einer Schüssel mischen.', true, [
+  { strang_id: 's3', step_id: s3_1.id },
+])
+
 const MOCK_STRANGS: Strang[] = [
   {
     id: 's1',
     name: 'Pfannkuchenteig',
     icon: '🥞',
     color: 'cyan',
-    steps: [
-      step('Mehl und Eier in eine Schüssel geben.', true),
-      step('Milch nach und nach einrühren, bis der Teig glatt ist.', true, [
-        { strang_id: 's1', step_index: 0 },
-      ]),
-      step('Teig 15 Minuten gehen lassen.', true, [
-        { strang_id: 's1', step_index: 1 },
-      ], 900, Date.now() + 240_000),
-      step('Pfanne mit etwas Öl erhitzen.', false, [
-        { strang_id: 's1', step_index: 2 },
-      ]),
-      step('Teig portionsweise von beiden Seiten goldbraun backen.', false, [
-        { strang_id: 's1', step_index: 3 },
-      ]),
-    ],
-    stepIndex: 2,
+    steps: [s1_0, s1_1, s1_2, s1_3, s1_4],
     done: false,
   },
   {
@@ -50,16 +73,7 @@ const MOCK_STRANGS: Strang[] = [
     name: 'Tomatensauce',
     icon: '🍅',
     color: 'rose',
-    steps: [
-      step('Zwiebeln fein würfeln und glasig andünsten.'),
-      step('Passierte Tomaten und Gewürze zugeben.', false, [
-        { strang_id: 's1', step_index: 2 },
-      ], null, null, 'high'),
-      step('Offen ~10 min köcheln, gelegentlich rühren.', false, [
-        { strang_id: 's2', step_index: 1 },
-      ]),
-    ],
-    stepIndex: 0,
+    steps: [s2_0, s2_1, s2_2],
     done: false,
   },
   {
@@ -67,16 +81,7 @@ const MOCK_STRANGS: Strang[] = [
     name: 'Salat',
     icon: '🥗',
     color: 'emerald',
-    steps: [
-      step('Salat waschen und trocken schleudern.', true),
-      step('Öl, Essig, Senf und Gewürze verrühren.', true, [
-        { strang_id: 's3', step_index: 0 },
-      ]),
-      step('Alles in einer Schüssel mischen.', true, [
-        { strang_id: 's3', step_index: 1 },
-      ]),
-    ],
-    stepIndex: 2,
+    steps: [s3_0, s3_1, s3_2],
     done: true,
   },
 ]
@@ -108,13 +113,13 @@ export function CookMock() {
       <div class="fixed bottom-4 right-4 z-50 flex flex-col gap-1.5 items-end">
         <button
           class={mockBtn}
-          onClick={() => engine.executeTool('complete_step', { strang_id: 's1', step_index: 3 })}
+          onClick={() => engine.executeTool('complete_step', { strang_id: 's1', step_id: s1_3.id })}
         >
           ✓ S1 Schritt 4 früh fertig (wartend)
         </button>
         <button
           class={mockBtn}
-          onClick={() => engine.executeTool('cancel_timer', { strang_id: 's1', step_index: 2 })}
+          onClick={() => engine.executeTool('cancel_timer', { strang_id: 's1', step_id: s1_2.id })}
         >
           ⏭ Timer S1 überspringen
         </button>
@@ -139,9 +144,28 @@ export function CookMock() {
         </button>
         <button
           class={mockBtn}
-          onClick={() => engine.executeTool('revert_step', { strang_id: 's3', step_index: 2 })}
+          onClick={() => engine.executeTool('revert_step', { strang_id: 's3', step_id: s3_2.id })}
         >
           ↺ S3 Schritt 3 zurück
+        </button>
+        <button
+          class={mockBtn}
+          onClick={() => engine.executeTool('show_step', { strang_id: 's1', step_id: s1_4.id })}
+        >
+          👆 S1 Schritt 5 zeigen (Puls)
+        </button>
+        <button
+          class={mockBtn}
+          onClick={() =>
+            engine.executeTool('split_step', {
+              strang_id: 's1',
+              step_id: s1_3.id,
+              first_description: 'Pfanne mit etwas Öl erhitzen.',
+              second_description: 'Teig in die heiße Pfanne geben.',
+            })
+          }
+        >
+          ✂ S1 Schritt 4 splitten
         </button>
       </div>
     </CookContext.Provider>

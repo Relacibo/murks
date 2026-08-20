@@ -28,6 +28,15 @@
   }
 }
 
+@keyframes step-pulse {
+  0% {
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+  }
+  100% {
+    box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
+  }
+}
+
 @layer components {
   /* ── Strang-Farben (CSS-Variablen per data-color) ─────────────── */
   [data-color='cyan'] {
@@ -137,6 +146,10 @@
   }
   .step-card.is-prio {
     animation: prio-pulse 1.4s ease-in-out infinite;
+  }
+  /* Kurzer Puls beim Anspringen (show_step / Titel-Tap) */
+  .step-card.is-pulse {
+    animation: step-pulse 1.5s ease-out 1;
   }
   /* Titelband: auf jeder Karte (Desktop + Flow-View + Mobile „Jetzt") */
   .step-card-band {

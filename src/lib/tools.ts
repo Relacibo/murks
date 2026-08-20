@@ -7,12 +7,41 @@ export interface ToolDef {
   }
 }
 
+const depRefSchema = {
+  type: 'array',
+  items: {
+    type: 'object',
+    properties: {
+      strang_id: { type: 'string' },
+      step_id: { type: 'string', description: 'Stabile Schritt-ID (aus get_cook_state)' },
+    },
+    required: ['strang_id', 'step_id'],
+  },
+  description: 'Optionale Abhängigkeiten (Schritte, die zuerst erledigt sein müssen)',
+}
+
+const timerSecondsSchema = {
+  type: 'number',
+  description: 'Optionale Dauer in Sekunden. Der Timer läuft NACH dem Abschließen dieses Schritts; abhängige Schritte werden erst frei, wenn er abgelaufen ist.',
+}
+
+const prioritySchema = {
+  type: 'string',
+  enum: ['normal', 'high'],
+  description: '"high" für zeitkritische Schritte (z.B. etwas im Ofen): Karte steht in „Jetzt" oben und pulsiert. Ein "high"-Schritt darf höchstens EINE Abhängigkeit haben (den Schritt mit dem Timer). Sparsam verwenden.',
+}
+
+const stepIdSchema = (description: string) => ({
+  type: 'string',
+  description: `${description} (stabile Schritt-ID aus get_cook_state)`,
+})
+
 export const TOOLS: ToolDef[] = [
   {
     type: 'function',
     function: {
       name: 'get_cook_state',
-      description: 'Aktuellen Kochzustand abrufen: alle Stränge, Schritte, Timer, Zutaten-Modal.',
+      description: 'Aktuellen Kochzustand abrufen: alle Stränge, Schritte (mit stabilen IDs), Timer, Zutaten-Modal.',
       parameters: { type: 'object', properties: {} },
     },
   },
@@ -20,7 +49,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'add_strang',
-      description: 'Neuen Kochstrang anlegen (parallele Komponente mit eigener Schrittfolge).',
+      description: 'Neuen Kochstrang anlegen (parallele Komponente mit eigener Schrittfolge). Schritte können nur auf bereits existierende Schritte anderer Stränge verweisen.',
       parameters: {
         type: 'object',
         properties: {
@@ -32,27 +61,9 @@ export const TOOLS: ToolDef[] = [
               type: 'object',
               properties: {
                 description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt); beginne mit einer kurzen Kernaussage' },
-                timer_seconds: {
-                  type: 'number',
-                  description: 'Optionale Dauer in Sekunden. Der Timer läuft NACH dem Abschließen dieses Schritts; abhängige Schritte werden erst frei, wenn er abgelaufen ist.',
-                },
-                priority: {
-                  type: 'string',
-                  enum: ['normal', 'high'],
-                  description: '"high" für zeitkritische Schritte (z.B. etwas im Ofen): Karte steht in „Jetzt" oben und pulsiert. Ein "high"-Schritt darf höchstens EINE Abhängigkeit haben (den Schritt mit dem Timer). Sparsam verwenden.',
-                },
-                depends_on: {
-                  type: 'array',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      strang_id: { type: 'string' },
-                      step_index: { type: 'number', description: '0-basiert' },
-                    },
-                    required: ['strang_id', 'step_index'],
-                  },
-                  description: 'Optionale Abhängigkeiten (Schritte, die zuerst erledigt sein müssen)',
-                },
+                timer_seconds: timerSecondsSchema,
+                priority: prioritySchema,
+                depends_on: depRefSchema,
               },
               required: ['description'],
             },
@@ -67,33 +78,16 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'add_step',
-      description: 'Schritt an einen bestehenden Strang anhängen.',
+      description: 'Schritt an einen bestehenden Strang anhängen oder hinter einem bestimmten Schritt einfügen (after_step_id).',
       parameters: {
         type: 'object',
         properties: {
           strang_id: { type: 'string' },
           description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt); beginne mit einer kurzen Kernaussage' },
-          timer_seconds: {
-            type: 'number',
-            description: 'Optionale Dauer in Sekunden. Der Timer läuft NACH dem Abschließen dieses Schritts; abhängige Schritte werden erst frei, wenn er abgelaufen ist.',
-          },
-          priority: {
-            type: 'string',
-            enum: ['normal', 'high'],
-            description: '"high" für zeitkritische Schritte (z.B. etwas im Ofen): Karte steht in „Jetzt" oben und pulsiert. Ein "high"-Schritt darf höchstens EINE Abhängigkeit haben (den Schritt mit dem Timer). Sparsam verwenden.',
-          },
-          depends_on: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                strang_id: { type: 'string' },
-                step_index: { type: 'number', description: '0-basiert' },
-              },
-              required: ['strang_id', 'step_index'],
-            },
-            description: 'Optionale Abhängigkeiten (Schritte, die zuerst erledigt sein müssen)',
-          },
+          after_step_id: { type: 'string', description: 'Optional: stabile ID des Schritts, hinter dem eingefügt wird (sonst ans Ende)' },
+          timer_seconds: timerSecondsSchema,
+          priority: prioritySchema,
+          depends_on: depRefSchema,
         },
         required: ['strang_id', 'description'],
       },
@@ -102,15 +96,66 @@ export const TOOLS: ToolDef[] = [
   {
     type: 'function',
     function: {
-      name: 'complete_step',
-      description: 'Schritt abschließen (done). Laufender Timer des Schritts wird abgebrochen.',
+      name: 'update_step',
+      description: 'Schritt bearbeiten: Beschreibung, Abhängigkeiten, Timer-Dauer oder Priorität ändern (nur angegebene Felder).',
       parameters: {
         type: 'object',
         properties: {
           strang_id: { type: 'string' },
-          step_index: { type: 'number', description: '0-basiert' },
+          step_id: stepIdSchema('Der Schritt'),
+          description: { type: 'string', description: 'Neue Anweisung (Markdown erlaubt)' },
+          depends_on: depRefSchema,
+          timer_seconds: timerSecondsSchema,
+          priority: prioritySchema,
         },
-        required: ['strang_id', 'step_index'],
+        required: ['strang_id', 'step_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_step',
+      description: 'Schritt entfernen. Abhängigkeiten anderer Schritte auf ihn werden mit entfernt; frei gewordene Schritte werden aktiv.',
+      parameters: {
+        type: 'object',
+        properties: {
+          strang_id: { type: 'string' },
+          step_id: stepIdSchema('Der Schritt'),
+        },
+        required: ['strang_id', 'step_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'split_step',
+      description: 'Schritt in zwei aufteilen: Teil 1 bleibt an seiner Stelle (z.B. mit Timer), Teil 2 wird dahinter eingefügt, hängt von Teil 1 ab. Schritte, die auf den Original-Schritt zeigten, zeigen danach auf Teil 2. Nur für nicht-abgeschlossene Schritte.',
+      parameters: {
+        type: 'object',
+        properties: {
+          strang_id: { type: 'string' },
+          step_id: stepIdSchema('Der zu teilende Schritt'),
+          first_description: { type: 'string', description: 'Anweisung für Teil 1 (bleibt an der Stelle)' },
+          second_description: { type: 'string', description: 'Anweisung für Teil 2 (folgt danach)' },
+        },
+        required: ['strang_id', 'step_id', 'first_description', 'second_description'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'complete_step',
+      description: 'Schritt abschließen (done). Bei timer_seconds startet damit der Timer; abhängige Schritte warten bis Ablauf.',
+      parameters: {
+        type: 'object',
+        properties: {
+          strang_id: { type: 'string' },
+          step_id: stepIdSchema('Der Schritt'),
+        },
+        required: ['strang_id', 'step_id'],
       },
     },
   },
@@ -123,40 +168,9 @@ export const TOOLS: ToolDef[] = [
         type: 'object',
         properties: {
           strang_id: { type: 'string' },
-          step_index: { type: 'number', description: '0-basiert' },
+          step_id: stepIdSchema('Der Schritt'),
         },
-        required: ['strang_id', 'step_index'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'set_step',
-      description: 'Schritt eines Strangs setzen (vor oder zurück).',
-      parameters: {
-        type: 'object',
-        properties: {
-          strang_id: { type: 'string' },
-          step_index: { type: 'number', description: '0-basiert' },
-        },
-        required: ['strang_id', 'step_index'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'set_step_priority',
-      description: 'Priorität eines Schritts setzen: "high" für zeitkritische Schritte — Karte steht in „Jetzt" oben und pulsiert.',
-      parameters: {
-        type: 'object',
-        properties: {
-          strang_id: { type: 'string' },
-          step_index: { type: 'number', description: '0-basiert' },
-          priority: { type: 'string', enum: ['normal', 'high'] },
-        },
-        required: ['strang_id', 'step_index', 'priority'],
+        required: ['strang_id', 'step_id'],
       },
     },
   },
@@ -164,15 +178,15 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'start_timer',
-      description: 'Timer eines Schritts (neu) setzen — z.B. wenn der Nutzer eine andere Zeit will („das muss noch 5 Minuten"). Ersetzt einen laufenden Timer.',
+      description: 'Timer eines Schritts (neu) setzen oder verlängern — z.B. wenn der Nutzer eine andere Zeit will („das muss noch 5 Minuten"). Ersetzt einen laufenden Timer.',
       parameters: {
         type: 'object',
         properties: {
           strang_id: { type: 'string' },
-          step_index: { type: 'number', description: '0-basiert' },
-          seconds: { type: 'number' },
+          step_id: stepIdSchema('Der Schritt'),
+          seconds: { type: 'number', description: 'Dauer ab jetzt, in Sekunden' },
         },
-        required: ['strang_id', 'step_index', 'seconds'],
+        required: ['strang_id', 'step_id', 'seconds'],
       },
     },
   },
@@ -180,14 +194,14 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'cancel_timer',
-      description: 'Laufenden Timer eines Schritts abbrechen.',
+      description: 'Laufenden Timer eines Schritts abbrechen (abhängige Schritte werden frei).',
       parameters: {
         type: 'object',
         properties: {
           strang_id: { type: 'string' },
-          step_index: { type: 'number', description: '0-basiert' },
+          step_id: stepIdSchema('Der Schritt'),
         },
-        required: ['strang_id', 'step_index'],
+        required: ['strang_id', 'step_id'],
       },
     },
   },
@@ -195,7 +209,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'complete_strang',
-      description: 'Strang als fertig markieren.',
+      description: 'Strang als fertig markieren (alle Schritte done, alle Timer abgebrochen).',
       parameters: {
         type: 'object',
         properties: { strang_id: { type: 'string' } },
@@ -206,8 +220,59 @@ export const TOOLS: ToolDef[] = [
   {
     type: 'function',
     function: {
+      name: 'update_strang',
+      description: 'Strang bearbeiten: Name und/oder Emoji ändern.',
+      parameters: {
+        type: 'object',
+        properties: {
+          strang_id: { type: 'string' },
+          name: { type: 'string', description: 'Neuer Name' },
+          icon: { type: 'string', description: 'Neues Emoji (leer entfernt es)' },
+        },
+        required: ['strang_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_strang',
+      description: 'Strang löschen. Abhängigkeiten anderer Stränge auf seine Schritte werden entfernt.',
+      parameters: {
+        type: 'object',
+        properties: { strang_id: { type: 'string' } },
+        required: ['strang_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'reset_cook',
+      description: 'Alles verwerfen: alle Stränge und Zutaten löschen (z.B. „wir fangen neu an").',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'show_step',
+      description: 'Dem Nutzer gezielt einen Schritt zeigen: Fokus auf den Strang, Ansicht wechseln, Schritt in den sichtbaren Bereich scrollen und kurz pulsieren lassen.',
+      parameters: {
+        type: 'object',
+        properties: {
+          strang_id: { type: 'string' },
+          step_id: stepIdSchema('Der Schritt'),
+        },
+        required: ['strang_id', 'step_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'focus_strang',
-      description: 'Aktiven Strang wechseln (bestimmt, welche Karte der Nutzer sieht).',
+      description: 'Strang fokussieren (hebt die Spalte hervor), ohne einen einzelnen Schritt zu zeigen.',
       parameters: {
         type: 'object',
         properties: { strang_id: { type: 'string' } },
@@ -227,18 +292,6 @@ export const TOOLS: ToolDef[] = [
           amount: { type: 'string', description: 'Menge, z.B. "300 g" oder "2 Stück"' },
         },
         required: ['name'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'toggle_zutaten',
-      description: 'Zutat in der Liste abhaken oder wieder freischalten.',
-      parameters: {
-        type: 'object',
-        properties: { id: { type: 'string' } },
-        required: ['id'],
       },
     },
   },

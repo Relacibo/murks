@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, useContext } from 'solid-js'
 import { SolidMarkdown as Markdown } from 'solid-markdown'
 import { useConfig } from '../App'
-import { state, type Strang, type Step } from '../state/store'
+import { state, type Strang, type Step, type StepRef } from '../state/store'
 import { CookContext } from '../lib/cookEngine'
 import { fmtRemaining } from '../lib/tools'
 import { createAgentVoice } from '../lib/agentVoice'
@@ -62,24 +62,41 @@ export function Cook() {
     engine.executeTool('focus_strang', { strang_id: id })
   }
 
-  /* Desktop: Strang fokussieren + Spalte horizontal ins Bild scrollen */
-  function focusColumn(id: string) {
-    focusStrang(id)
+  /* ── Schritt anspringen: Fokus + Flow-View + Scroll + kurzer Puls ──── */
+  const [pulse, setPulse] = createSignal<{ key: string; nonce: number } | null>(null)
+  let pulseTimer: ReturnType<typeof setTimeout> | undefined
+  function revealStep(strangId: string, stepId: string) {
+    const s = strangs().find((x) => x.id === strangId)
+    if (!s || !s.steps.some((st) => st.id === stepId)) return
+    focusStrang(strangId)
+    setFlowView(strangId)
+    const key = `${strangId}:${stepId}`
+    const nonce = Date.now()
+    setPulse({ key, nonce })
+    clearTimeout(pulseTimer)
+    pulseTimer = setTimeout(() => setPulse((p) => (p && p.nonce === nonce ? null : p)), 1600)
     requestAnimationFrame(() => {
-      document
-        .querySelector(`[data-strang-id="${CSS.escape(id)}"]`)
-        ?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+      const el = Array.from(
+        document.querySelectorAll<HTMLElement>(`[data-card-key="${CSS.escape(key)}"]`),
+      ).find((n) => n.offsetParent !== null)
+      el?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
     })
   }
 
+  /* KI ruft show_step → gleiches Verhalten wie Titel-Tap */
+  createEffect(() => {
+    const t = engine.navTarget
+    if (t) revealStep(t.strangId, t.stepId)
+  })
+
   /* ── Schritt-Zustände (Modell B: Timer läuft nach Abschluss) ──────── */
-  function depStepOf(dep: { strang_id: string; step_index: number }): Step | undefined {
-    return strangs().find((x) => x.id === dep.strang_id)?.steps[dep.step_index]
+  function depStepOf(dep: StepRef): Step | undefined {
+    return strangs().find((x) => x.id === dep.strang_id)?.steps.find((st) => st.id === dep.step_id)
   }
-  function depDone(s: Strang, step: Step, dep: { strang_id: string; step_index: number }): boolean {
+  function depDone(s: Strang, step: Step, dep: StepRef): boolean {
     return depStepOf(dep)?.done === true
   }
-  function depPending(dep: { strang_id: string; step_index: number }): boolean {
+  function depPending(dep: StepRef): boolean {
     const d = depStepOf(dep)
     return !!d && d.done && d.timerEndsAt !== null && !d.timerExpired
   }
@@ -103,7 +120,7 @@ export function Cook() {
       x.steps.some(
         (st) =>
           st.done &&
-          st.dependsOn.some((d) => d.strang_id === s.id && d.step_index === i),
+          st.dependsOn.some((d) => d.strang_id === s.id && d.step_id === step.id),
       ),
     )
   }
@@ -113,7 +130,9 @@ export function Cook() {
       .filter((d) => !depDone(s, step, d))
       .map((d) => {
         const ts = strangs().find((x) => x.id === d.strang_id)
-        return `${ts?.icon ?? ''} ${ts?.name ?? '?'} · Schritt ${d.step_index + 1}`.trim()
+        const depStep = ts?.steps.find((st) => st.id === d.step_id)
+        const nr = depStep ? ts!.steps.indexOf(depStep) + 1 : '?'
+        return `${ts?.icon ?? ''} ${ts?.name ?? '?'} · Schritt ${nr}`.trim()
       })
   }
 
@@ -144,16 +163,8 @@ export function Cook() {
     ),
   )
 
-  function jumpToStep(s: Strang, i: number) {
-    focusStrang(s.id)
-    engine.executeTool('set_step', { strang_id: s.id, step_index: i })
-  }
-
-  function completeAndAdvance(s: Strang, i: number) {
-    engine.executeTool('complete_step', { strang_id: s.id, step_index: i }, { silent: true })
-    if (i < s.steps.length - 1) {
-      engine.executeTool('set_step', { strang_id: s.id, step_index: i + 1 })
-    }
+  function completeStep(s: Strang, i: number) {
+    engine.executeTool('complete_step', { strang_id: s.id, step_id: s.steps[i].id }, { silent: true })
   }
 
   /* ── View 1 (Mobile „Jetzt"): Prio-Queue, normale Queue, Blocked ──── */
@@ -228,13 +239,14 @@ export function Cook() {
       <div
         class="step-card"
         data-color={s().color}
-        data-card-key={`${s().id}:${i()}`}
+        data-card-key={`${s().id}:${st().id}`}
         classList={{
           'is-active': stateName() === 'active',
           'is-past': stateName() === 'done',
           'is-blocked': stateName() === 'blocked',
           'is-waiting': stateName() === 'waiting',
           'is-prio': st().priority === 'high' && stateName() === 'active',
+          'is-pulse': pulse()?.key === `${s().id}:${st().id}`,
         }}
       >
         <div class="step-card-band">
@@ -318,7 +330,7 @@ export function Cook() {
                         e.stopPropagation()
                         engine.executeTool(
                           'revert_step',
-                          { strang_id: s().id, step_index: i() },
+                          { strang_id: s().id, step_id: st().id },
                           { silent: true },
                         )
                       }}
@@ -341,7 +353,7 @@ export function Cook() {
                       aria-label="Schritt abschließen und weiter"
                       onClick={(e) => {
                         e.stopPropagation()
-                        completeAndAdvance(s(), i())
+                        completeStep(s(), i())
                       }}
                     >
                       <FiCheck size={18} />
@@ -354,7 +366,7 @@ export function Cook() {
                     aria-label="Schritt abschließen, Timer startet"
                     onClick={(e) => {
                       e.stopPropagation()
-                      completeAndAdvance(s(), i())
+                      completeStep(s(), i())
                     }}
                   >
                     <FiClock size={18} />
@@ -370,7 +382,7 @@ export function Cook() {
 
   /* ── „Jetzt"-Queue (Mobile-View 1 + Desktop-Spalte links) ────────── */
   function JetztQueue(props: {
-    onTitleClick: (id: string) => void
+    onTitleClick: (strangId: string, stepId: string) => void
     scrollerRef?: (el: HTMLDivElement) => void
     showBlocked?: boolean
   }) {
@@ -390,7 +402,7 @@ export function Cook() {
     const visibleKeys = () => {
       const list = [...jetztCards().prio, ...jetztCards().normal]
       if (showBlocked()) list.push(...jetztCards().blocked)
-      return list.map((c) => `${c.s.id}:${c.i}`).join('|')
+      return list.map((c) => `${c.s.id}:${c.st.id}`).join('|')
     }
     createEffect(() => {
       visibleKeys()
@@ -439,14 +451,20 @@ export function Cook() {
         class="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-2"
       >
         <For each={jetztCards().prio}>
-          {(c) => <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(c.s.id)} />}
+          {(c) => (
+            <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(c.s.id, c.st.id)} />
+          )}
         </For>
         <For each={jetztCards().normal}>
-          {(c) => <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(c.s.id)} />}
+          {(c) => (
+            <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(c.s.id, c.st.id)} />
+          )}
         </For>
         <Show when={showBlocked()}>
           <For each={jetztCards().blocked}>
-            {(c) => <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(c.s.id)} />}
+            {(c) => (
+              <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(c.s.id, c.st.id)} />
+            )}
           </For>
         </Show>
         <Show when={empty()}>
@@ -496,9 +514,9 @@ export function Cook() {
                 data-color={x.s.color}
                 classList={{
                   'is-urgent': stepUrgent(x.st),
-                  'is-active': x.s.id === active()?.id && x.i === x.s.stepIndex,
+                  'is-active': x.s.id === active()?.id,
                 }}
-                onClick={() => jumpToStep(x.s, x.i)}
+                onClick={() => revealStep(x.s.id, x.st.id)}
               >
                 <Show when={x.s.icon}>
                   <span class="text-base leading-none">{x.s.icon}</span>
@@ -556,7 +574,7 @@ export function Cook() {
               when={flowStrang()}
               fallback={
                 <JetztQueue
-                  onTitleClick={(id) => setFlowView(id)}
+                  onTitleClick={(strangId, stepId) => revealStep(strangId, stepId)}
                   scrollerRef={(el) => (jetztScroller = el)}
                 />
               }
@@ -597,7 +615,7 @@ export function Cook() {
                 Jetzt
               </div>
               <JetztQueue
-                onTitleClick={(id) => focusColumn(id)}
+                onTitleClick={(strangId, stepId) => revealStep(strangId, stepId)}
                 scrollerRef={(el) => (jetztScrollerDesktop = el)}
                 showBlocked={false}
               />

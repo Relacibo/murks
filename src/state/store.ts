@@ -27,7 +27,8 @@ const DEFAULT_SYSTEM_PROMPT = [
   'Deine Antworten werden vorgelesen: kurze Sätze, keine Markdown-Formatierung, keine Listen.',
   'Der Nutzer spricht per Spracherkennung, die Fehler machen kann. Bei offensichtlich verrauschtem oder unsinnigem Input frage höchstens einmal kurz und freundlich nach und übergehe es danach.',
   'Wenn keine Antwort nötig ist — z.B. reine Bestätigung, Geräusch oder verrauschtes Transkript — antworte ausschließlich mit „OK." und sonst nichts. Diese Antwort wird nicht vorgelesen und nicht angezeigt.',
-  'Du hast Werkzeuge, um die Kochoberfläche zu steuern: add_strang, add_step, set_step, complete_step, revert_step, set_step_priority, start_timer, cancel_timer, complete_strang, focus_strang, add_zutaten, toggle_zutaten, open_zutaten, close_zutaten, get_cook_state.',
+  'Du hast Werkzeuge, um die Kochoberfläche zu steuern: add_strang, add_step, update_step, delete_step, split_step, complete_step, revert_step, start_timer, cancel_timer, complete_strang, update_strang, delete_strang, reset_cook, show_step, focus_strang, add_zutaten, open_zutaten, close_zutaten, get_cook_state.',
+  'Schritte haben stabile ids — referenziere Abhängigkeiten immer über step_id. Du darfst Flows ad-hoc umbauen: Schritte einfügen (after_step_id), umbenennen (update_step), löschen (delete_step), teilen (split_step), Stränge umbenennen (update_strang) oder löschen (delete_strang). show_step zeigt dem Nutzer gezielt einen Schritt (Fokus + Puls).',
   'Rufe get_cook_state auf, wenn du den aktuellen Stand nicht kennst. Kommentiere Werkzeug-Aktionen nicht — die Oberfläche bestätigt sie selbst. Antworte nur „OK." oder sprich, wenn es inhaltlich etwas zu sagen gibt.',
   'Antworte so kurz wie möglich. Nutze verfügbare Werkzeuge, statt Dinge in Text zu beschreiben.',
 ].join(' ')
@@ -66,10 +67,11 @@ export type StrangColor = 'cyan' | 'violet' | 'amber' | 'emerald' | 'rose' | 'sk
 
 export interface StepRef {
   strang_id: string
-  step_index: number
+  step_id: string
 }
 
 export interface Step {
+  id: string // stabil — bleibt bei Einfügen/Löschen/Splitten gleich
   description: string
   done: boolean
   dependsOn: StepRef[]
@@ -86,7 +88,6 @@ export interface Strang {
   icon: string | null
   color: StrangColor
   steps: Step[]
-  stepIndex: number
   done: boolean
 }
 
@@ -199,94 +200,114 @@ function hydrate(data: unknown): AppState {
       agents,
       defaultAgentId,
       cook: {
-        strangs: Array.isArray(cook.strangs)
-          ? (
-              cook.strangs as {
-                id?: string
-                name?: string
-                icon?: string
-                color?: StrangColor
-                stepIndex?: number
-                done?: boolean
-                steps?: (
-                  | string
-                  | {
-                      description?: string
-                      summary?: string
-                      done?: boolean
-                      dependsOn?: StepRef[]
-                      timerSeconds?: number | null
-                      timerEndsAt?: number | null
-                      timerExpired?: boolean
-                      activatedAt?: number | null
-                      priority?: 'normal' | 'high'
-                    }
-                )[]
-                timerEndsAt?: number | null
-                timerExpired?: boolean
-              }[]
-            ).map((s) => {
-              const steps: Step[] = Array.isArray(s.steps)
-                ? s.steps.map((st) => ({
-                    description:
-                      typeof st === 'string'
-                        ? st
-                        : String(st?.description ?? '').trim() ||
-                          (typeof st?.summary === 'string' ? String(st.summary).trim() : ''),
-                    done: typeof st === 'string' ? false : st?.done === true,
-                    dependsOn:
-                      typeof st === 'string'
-                        ? []
-                        : Array.isArray(st?.dependsOn)
-                          ? (st.dependsOn as StepRef[]).map((d) => ({
-                              strang_id: String(d?.strang_id ?? ''),
-                              step_index: Number(d?.step_index ?? 0),
-                            }))
-                          : [],
-                    timerSeconds:
-                      typeof st === 'string'
-                        ? null
-                        : typeof st?.timerSeconds === 'number' && st.timerSeconds > 0
-                          ? st.timerSeconds
-                          : null,
-                    timerEndsAt: typeof st === 'string' ? null : (st?.timerEndsAt ?? null),
-                    timerExpired: typeof st === 'string' ? false : st?.timerExpired === true,
-                    activatedAt:
-                      typeof st === 'string'
-                        ? null
-                        : typeof st?.activatedAt === 'number'
-                          ? st.activatedAt
-                          : null,
-                    priority:
-                      typeof st === 'string' || st?.priority !== 'high' ? 'normal' : 'high',
-                  }))
-                : []
-              const stepIndex = typeof s.stepIndex === 'number' ? s.stepIndex : 0
-              // Migration: alter Strang-Timer → Timer des aktiven Schritts
-              if (
-                typeof s.timerEndsAt === 'number' &&
-                steps[stepIndex] &&
-                steps[stepIndex].timerEndsAt === null
-              ) {
-                steps[stepIndex] = {
-                  ...steps[stepIndex],
-                  timerEndsAt: s.timerEndsAt,
-                  timerExpired: s.timerExpired === true,
+        strangs: (() => {
+          const rawStrangs = (Array.isArray(cook.strangs) ? cook.strangs : []) as {
+            id?: string
+            name?: string
+            icon?: string
+            color?: StrangColor
+            stepIndex?: number
+            done?: boolean
+            steps?: (
+              | string
+              | {
+                  id?: string
+                  description?: string
+                  summary?: string
+                  done?: boolean
+                  dependsOn?: (StepRef | { strang_id?: string; step_index?: number })[]
+                  timerSeconds?: number | null
+                  timerEndsAt?: number | null
+                  timerExpired?: boolean
+                  activatedAt?: number | null
+                  priority?: 'normal' | 'high'
                 }
+            )[]
+            timerEndsAt?: number | null
+            timerExpired?: boolean
+          }[]
+          // Pass 1: Steps mit stabilen IDs versehen (alte Index-Refs sammeln)
+          const idxToId = new Map<string, Map<number, string>>()
+          const rawDepsByStep = new Map<string, (StepRef | { strang_id?: string; step_index?: number })[]>()
+          const strangs: Strang[] = rawStrangs.map((s) => {
+            const sid = String(s.id ?? '')
+            const map = new Map<number, string>()
+            idxToId.set(sid, map)
+            const steps: Step[] = (Array.isArray(s.steps) ? s.steps : []).map((st, i) => {
+              const o = typeof st === 'string' ? null : st
+              const id =
+                o && typeof o.id === 'string' && o.id !== '' ? o.id : crypto.randomUUID()
+              map.set(i, id)
+              if (o && Array.isArray(o.dependsOn)) {
+                rawDepsByStep.set(id, o.dependsOn as (StepRef | { strang_id?: string; step_index?: number })[])
               }
               return {
-                id: String(s.id ?? ''),
-                name: String(s.name ?? ''),
-                icon: typeof s.icon === 'string' && s.icon.trim() !== '' ? s.icon.trim() : null,
-                steps,
-                color: STRANG_COLORS.includes(s.color as StrangColor)
-                  ? (s.color as StrangColor)
-                  : STRANG_COLORS[0],
-                stepIndex,
-                done: s.done === true,
+                id,
+                description:
+                  typeof st === 'string'
+                    ? st
+                    : String(st?.description ?? '').trim() ||
+                      (typeof st?.summary === 'string' ? String(st.summary).trim() : ''),
+                done: typeof st === 'string' ? false : st?.done === true,
+                dependsOn: [],
+                timerSeconds:
+                  typeof st === 'string'
+                    ? null
+                    : typeof st?.timerSeconds === 'number' && st.timerSeconds > 0
+                      ? st.timerSeconds
+                      : null,
+                timerEndsAt: typeof st === 'string' ? null : (st?.timerEndsAt ?? null),
+                timerExpired: typeof st === 'string' ? false : st?.timerExpired === true,
+                activatedAt:
+                  typeof st === 'string'
+                    ? null
+                    : typeof st?.activatedAt === 'number'
+                      ? st.activatedAt
+                      : null,
+                priority: typeof st === 'string' || st?.priority !== 'high' ? 'normal' : 'high',
               }
             })
-          : [],
+            const stepIndex = typeof s.stepIndex === 'number' ? s.stepIndex : 0
+            // Migration: alter Strang-Timer → Timer des aktiven Schritts
+            if (typeof s.timerEndsAt === 'number' && steps[stepIndex] && steps[stepIndex].timerEndsAt === null) {
+              steps[stepIndex] = {
+                ...steps[stepIndex],
+                timerEndsAt: s.timerEndsAt,
+                timerExpired: s.timerExpired === true,
+              }
+            }
+            return {
+              id: sid,
+              name: String(s.name ?? ''),
+              icon: typeof s.icon === 'string' && s.icon.trim() !== '' ? s.icon.trim() : null,
+              steps,
+              color: STRANG_COLORS.includes(s.color as StrangColor)
+                ? (s.color as StrangColor)
+                : STRANG_COLORS[0],
+              done: s.done === true,
+            }
+          })
+          // Pass 2: dependsOn auflösen — neue step_id-Refs behalten, alte step_index-Refs mappen
+          for (const s of strangs) {
+            for (const st of s.steps) {
+              const rawDeps = rawDepsByStep.get(st.id)
+              if (!rawDeps) continue
+              st.dependsOn = rawDeps
+                .map((d) => {
+                  const sid = String(d?.strang_id ?? '')
+                  if (typeof (d as StepRef).step_id === 'string' && (d as StepRef).step_id !== '') {
+                    return { strang_id: sid, step_id: (d as StepRef).step_id }
+                  }
+                  const mapped = idxToId
+                    .get(sid)
+                    ?.get(Number((d as { step_index?: number }).step_index ?? 0))
+                  return mapped ? { strang_id: sid, step_id: mapped } : null
+                })
+                .filter((d): d is StepRef => d !== null)
+            }
+          }
+          return strangs
+        })(),
         zutaten: Array.isArray(cook.zutaten) ? (cook.zutaten as Zutat[]) : [],
         focusedStrangId: (cook.focusedStrangId as string | null) ?? null,
         zutatenOpen: cook.zutatenOpen === true,
