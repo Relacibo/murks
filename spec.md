@@ -308,6 +308,10 @@ Mehrere Karten stehen untereinander (Stapel).
   wo immer sie gerade sichtbar sind).
 - Dringlichkeit: Orange + Pulsieren < 2 min; bei Ablauf verschwindet der Topbar-Chip sofort
   (Bell bleibt nur auf der Schritt-Karte).
+- **Countdown-Anzeige timestamp-basiert** (absoluter Endzeitpunkt, `fmtRemaining` rundet die
+  verbleibenden Sekunden) — 15 min sind exakt 15 min, unabhängig von Tab-Drosselung.
+  Der Render-Tick richtet sich selbst an der Sekundengrenze aus (kein Drift, kein Zappeln;
+  verspätete Ticks korrigieren sich von selbst).
 - Bei Ablauf: KI navigiert aktiv zum betroffenen Schritt (`show_step`).
 - `complete_flow` bricht alle Schritt-Timer des Flows ab.
 

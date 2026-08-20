@@ -23,11 +23,20 @@ export function Cook(props: {
   const [flowView, setFlowView] = createSignal<string | null>(null)
   const [overviewOpen, setOverviewOpen] = createSignal(true)
   const [lastAgent, setLastAgent] = createSignal<{ text: string; at: number } | null>(null)
-  const interval = setInterval(() => {
-    setTick(Date.now())
-    engine.expireTimers()
-  }, 1000)
-  onCleanup(() => clearInterval(interval))
+  /* Render-Tick selbst-ausrichtend an der Sekundengrenze: die Countdown-
+     Anzeige (absoluter Endzeitpunkt + Math.round in fmtRemaining) wechselt
+     so exakt bei jedem vollen Sekundenwechsel — kein Drift, kein Zappeln,
+     ein verspäteter Tick korrigiert sich von selbst. */
+  let tickTimer: ReturnType<typeof setTimeout> | undefined
+  function scheduleTick() {
+    tickTimer = setTimeout(() => {
+      setTick(Date.now())
+      engine.expireTimers()
+      scheduleTick()
+    }, 1000 - (Date.now() % 1000) + 5)
+  }
+  scheduleTick()
+  onCleanup(() => clearTimeout(tickTimer))
 
   let lastAgentRef: { text: string } | undefined = state.agent.messages[state.agent.messages.length - 1]
   createEffect(() => {
