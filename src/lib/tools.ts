@@ -34,7 +34,7 @@ const prioritySchema = {
 const scoreSchema = {
   type: 'number',
   description:
-    'Optionaler Scheduling-Hinweis (Default 0): je höher, desto weiter oben in der aktiven Queue („mach das zuerst"). Kein Alarm — dafür ist priority "high". Setze hohe Werte für Schritte auf dem kritischen Pfad, deren Abschluss lange Wartezeiten freigibt (z.B. Teig ansetzen vor Zwiebeln schneiden, weil der Teig 30 min ruhen muss). Nur setzen, wenn der Default falsch wäre.',
+    'Optionaler Scheduling-Hinweis (Default 0): je höher, desto weiter oben in der aktiven Queue („mach das zuerst"). Kein Alarm — dafür ist priority "high". Setze den hohen Wert auf die Karte VOR der Wartezeit — deren Abschluss startet den Timer (z.B. „Mehl und Eier verrühren" hoch, weil der Teig danach 30 Minuten ruht; „Teig gehen lassen" selbst bekommt keinen, „Zwiebeln schneiden" bleibt niedrig). Nur setzen, wenn der Default falsch wäre.',
 }
 
 const stepIdSchema = (description: string) => ({

@@ -386,9 +386,13 @@ Mehrere Karten stehen untereinander (Stapel).
   (absteigend; Tiebreaker = bisherige Flow-/Schritt-Reihenfolge). Kein Puls, keine
   Ein-Dep-Regel — das ist `priority: high` vorbehalten (echter Alarm).
 - **Zweck:** optimale Arbeitsreihenfolge — lange Wartezeiten früh freigeben und mit
-  anderer Arbeit füllen. Beispiel: „Teig machen" (→ 30 min Ruhen) bekommt einen hohen
-  Score, „Zwiebeln schneiden" keinen — der Teig steht oben, die Zwiebeln werden während
-  der Ruhezeit geschnitten.
+  anderer Arbeit füllen. Beispiel: „Mehl und Eier verrühren" (→ 30 min Ruhen) bekommt
+  einen hohen Score, „Teig gehen lassen" keinen, „Zwiebeln schneiden" bleibt niedrig —
+  der Teig steht oben, die Zwiebeln werden während der Ruhezeit geschnitten.
+- **Platzierung:** Der Score sitzt auf der Karte **vor** der Wartezeit — deren Abschluss
+  startet den Timer. Wartende Karten zählen nicht mit: solange sie blocked/waiting sind,
+  konkurrieren sie nicht in der aktiven Queue; wenn sie aktiv werden, hängt keine lange
+  Wartezeit mehr an ihnen.
 - **Kein abgeleiteter Score:** Die Sortierung ist explizit und damit sichtbar und
   steuerbar. Die KI sieht den Graphen (`get_cook_state`) und übersetzt kritische Pfade
   selbst in Scores — auch Dinge, die nicht im Graphen stehen („Zwiebeln passen in die
