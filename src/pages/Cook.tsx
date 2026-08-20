@@ -2,11 +2,11 @@ import { For, Show, createEffect, createMemo, createSignal, onCleanup } from 'so
 import { SolidMarkdown as Markdown } from 'solid-markdown'
 import { useConfig } from '../App'
 import { state, expireTimers, type Strang, type Step } from '../state/store'
-import { executeTool, fmtRemaining } from '../lib/tools'
+import { executeTool, fmtRemaining, stepLabel } from '../lib/tools'
 import { createAgentVoice } from '../lib/agentVoice'
 import {
   FiMic, FiMicOff, FiMoreHorizontal, FiFileText, FiSettings,
-  FiCheck, FiBell, FiX, FiLock, FiChevronLeft,
+  FiCheck, FiBell, FiX, FiLock, FiChevronLeft, FiChevronRight,
 } from 'solid-icons/fi'
 
 export function Cook() {
@@ -82,8 +82,7 @@ export function Cook() {
       .filter((d) => !depDone(s, step, d))
       .map((d) => {
         const ts = strangs().find((x) => x.id === d.strang_id)
-        const label = ts?.steps[d.step_index]?.summary ?? '?'
-        return `${ts?.icon ?? ''} ${label}`.trim()
+        return `${ts?.icon ?? ''} ${ts?.name ?? '?'} · Schritt ${d.step_index + 1}`.trim()
       })
   }
 
@@ -118,22 +117,21 @@ export function Cook() {
     }
   }
 
-  /* ── Aktive Karten (Mobile „Jetzt") ───────────────────────────────── */
+  /* ── Aktive Karten (Mobile „Jetzt"): Reihenfolge = Auftauchen ───── */
   const flowsWithActive = createMemo(() =>
     strangs()
-      .map((s) => ({
-        s,
-        cards: s.steps
-          .map((st, i) => ({ st, i }))
+      .flatMap((s) =>
+        s.steps
+          .map((st, i) => ({ s, st, i }))
           .filter((x) => !strangDone(s) && stepState(s, x.st) === 'active'),
-      }))
-      .filter((f) => f.cards.length > 0),
+      )
+      .sort((a, b) => (a.st.activatedAt ?? 0) - (b.st.activatedAt ?? 0)),
   )
 
   const flowStrang = createMemo(() => strangs().find((x) => x.id === flowView()))
 
   /* ── Schritt-Karte (flach, klein, nie verschachtelt) ──────────────── */
-  function StepCard(props: { s: Strang; i: number }) {
+  function StepCard(props: { s: Strang; i: number; onTitleClick?: () => void }) {
     const s = () => props.s
     const i = () => props.i
     const st = () => s().steps[i()]
@@ -150,11 +148,27 @@ export function Cook() {
         }}
         onClick={() => jumpToStep(s(), i())}
       >
-        <div class="flex items-center gap-2">
-          <Show when={s().icon}>
-            <span class="text-base leading-none shrink-0">{s().icon}</span>
+        <div
+          class={props.onTitleClick ? 'step-card-band' : 'step-card-head'}
+        >
+          <Show
+            when={props.onTitleClick}
+            fallback={<span class="flex-1" />}
+          >
+            <button
+              class="step-card-title-btn"
+              onClick={(e) => {
+                e.stopPropagation()
+                props.onTitleClick?.()
+              }}
+            >
+              <Show when={s().icon}>
+                <span class="text-base leading-none shrink-0">{s().icon}</span>
+              </Show>
+              <span class="step-card-title truncate">{s().name}</span>
+              <FiChevronRight size={12} class="shrink-0 opacity-60" />
+            </button>
           </Show>
-          <span class="step-card-title text-sm flex-1 min-w-0 truncate">{st().summary}</span>
           <Show when={stateName() === 'blocked'}>
             <FiLock size={12} class="shrink-0 opacity-60" />
           </Show>
@@ -177,54 +191,34 @@ export function Cook() {
           </span>
         </div>
 
-        <Show when={st().description}>
-          <div class="step-description mt-2">
-            <Markdown>{st().description}</Markdown>
-          </div>
-        </Show>
+        <div class="step-card-body">
+          <Show when={st().description}>
+            <div class="step-description mt-2">
+              <Markdown>{st().description}</Markdown>
+            </div>
+          </Show>
 
-        <Show when={stateName() === 'blocked'}>
-          <p class="mt-2 text-xs opacity-70">Wartet auf: {blockedBy(s(), st()).join(', ')}</p>
-        </Show>
+          <Show when={stateName() === 'blocked'}>
+            <p class="mt-2 text-xs opacity-70">Wartet auf: {blockedBy(s(), st()).join(', ')}</p>
+          </Show>
 
-        <Show when={stateName() === 'active' && !strangDone(s())}>
-          <div class="flex justify-end mt-3">
-            <button
-              class="jump-btn"
-              onClick={(e) => {
-                e.stopPropagation()
-                completeAndAdvance(s(), i())
-              }}
-            >
-              ✓ Weiter
-            </button>
-          </div>
-        </Show>
+          <Show when={stateName() === 'active' && !strangDone(s())}>
+            <div class="flex justify-end mt-3">
+              <button
+                class="check-btn"
+                title="Schritt abschließen"
+                aria-label="Schritt abschließen und weiter"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  completeAndAdvance(s(), i())
+                }}
+              >
+                <FiCheck size={18} />
+              </button>
+            </div>
+          </Show>
+        </div>
       </div>
-    )
-  }
-
-  /* ── Flow-Leiste (Mobile „Jetzt"): alle Flows oben, wie B-Strips ── */
-  function FlowBar(props: { s: Strang; isFocused: boolean; onOpen: () => void }) {
-    const s = () => props.s
-    return (
-      <button
-        class="flow-bar"
-        data-color={s().color}
-        classList={{ 'is-active': props.isFocused, 'is-done': strangDone(s()) }}
-        onClick={props.onOpen}
-      >
-        <span class="flow-bar-mark" />
-        <Show when={s().icon}>
-          <span class="text-base leading-none shrink-0">{s().icon}</span>
-        </Show>
-        <span class="text-sm truncate" style={{ color: 'var(--strang-text)' }}>
-          {s().name}
-        </span>
-        <Show when={strangDone(s())}>
-          <FiCheck size={12} class="text-emerald-400 shrink-0" />
-        </Show>
-      </button>
     )
   }
 
@@ -270,7 +264,7 @@ export function Cook() {
                 <Show when={x.s.icon}>
                   <span class="text-base leading-none">{x.s.icon}</span>
                 </Show>
-                <span class="text-xs truncate max-w-24">{x.st.summary}</span>
+                <span class="text-xs truncate max-w-24">{stepLabel(x.st.description)}</span>
                 <span class="font-mono font-semibold tabular-nums">
                   {tick() && fmtRemaining(x.st.timerEndsAt!)}
                 </span>
@@ -283,7 +277,7 @@ export function Cook() {
                 <Show when={x.s.icon}>
                   <span class="text-base leading-none">{x.s.icon}</span>
                 </Show>
-                <span class="text-xs truncate max-w-24">{x.st.summary}</span>
+                <span class="text-xs truncate max-w-24">{stepLabel(x.st.description)}</span>
                 <FiBell size={12} />
               </button>
             )}
@@ -327,26 +321,10 @@ export function Cook() {
               when={flowStrang()}
               fallback={
                 <>
-                  {/* Flow-Leiste: alle Flows (wie B-Strips), Tap → Flow-View */}
-                  <div class="shrink-0 flex gap-2 px-3 py-2 overflow-x-auto border-b border-zinc-600">
-                    <For each={strangs()}>
-                      {(s) => (
-                        <FlowBar
-                          s={s}
-                          isFocused={s.id === active()?.id}
-                          onOpen={() => setFlowView(s.id)}
-                        />
-                      )}
-                    </For>
-                  </div>
-                  {/* Alle aktiven Karten — flacher Stapel, mehrere pro Flow möglich */}
+                  {/* Alle aktiven Karten — flacher Stapel, Reihenfolge = Auftauchen */}
                   <div class="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-2">
                     <For each={flowsWithActive()}>
-                      {(f) => (
-                        <For each={f.cards}>
-                          {(c) => <StepCard s={f.s} i={c.i} />}
-                        </For>
-                      )}
+                      {(c) => <StepCard s={c.s} i={c.i} onTitleClick={() => setFlowView(c.s.id)} />}
                     </For>
                     <Show when={flowsWithActive().length === 0}>
                       <p class="text-sm text-zinc-500 text-center py-8">Alles erledigt.</p>

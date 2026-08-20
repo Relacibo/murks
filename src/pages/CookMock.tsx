@@ -3,19 +3,18 @@ import { setState, type StepRef } from '../state/store'
 import { Cook } from './Cook'
 
 const step = (
-  summary: string,
   description: string,
   done = false,
   dependsOn: StepRef[] = [],
   timerEndsAt: number | null = null,
 ) => ({
-  summary,
   description,
   done,
   dependsOn,
   timerEndsAt,
   timerInstruction: null,
   timerExpired: false,
+  activatedAt: Date.now(),
 })
 
 const MOCK_STRANGS = [
@@ -25,17 +24,17 @@ const MOCK_STRANGS = [
     icon: '🥞',
     color: 'cyan' as const,
     steps: [
-      step('Mehl & Eier', 'Mehl und Eier in eine Schüssel geben.', true),
-      step('Milch einrühren', 'Milch nach und nach einrühren, bis der Teig glatt ist.', true, [
+      step('Mehl und Eier in eine Schüssel geben.', true),
+      step('Milch nach und nach einrühren, bis der Teig glatt ist.', true, [
         { strang_id: 's1', step_index: 0 },
       ]),
-      step('Teig quellen', 'Teig 15 Minuten ruhen lassen.', false, [
+      step('Teig 15 Minuten ruhen lassen.', false, [
         { strang_id: 's1', step_index: 1 },
       ], Date.now() + 240_000),
-      step('Pfanne erhitzen', 'Pfanne mit etwas Öl erhitzen.', false, [
+      step('Pfanne mit etwas Öl erhitzen.', false, [
         { strang_id: 's1', step_index: 2 },
       ]),
-      step('Ausbacken', 'Teig portionsweise von beiden Seiten goldbraun backen.', false, [
+      step('Teig portionsweise von beiden Seiten goldbraun backen.', false, [
         { strang_id: 's1', step_index: 3 },
       ]),
     ],
@@ -48,11 +47,11 @@ const MOCK_STRANGS = [
     icon: '🍅',
     color: 'rose' as const,
     steps: [
-      step('Zwiebeln dünsten', 'Zwiebeln fein würfeln und glasig andünsten.', false, [], Date.now() + 70_000),
-      step('Tomaten zugeben', 'Passierte Tomaten und Gewürze zugeben.', false, [
+      step('Zwiebeln fein würfeln und glasig andünsten.', false, [], Date.now() + 70_000),
+      step('Passierte Tomaten und Gewürze zugeben.', false, [
         { strang_id: 's1', step_index: 2 },
       ]),
-      step('Köcheln', 'Offen ~10 min köcheln, gelegentlich rühren.', false, [
+      step('Offen ~10 min köcheln, gelegentlich rühren.', false, [
         { strang_id: 's2', step_index: 1 },
       ]),
     ],
@@ -65,11 +64,11 @@ const MOCK_STRANGS = [
     icon: '🥗',
     color: 'emerald' as const,
     steps: [
-      step('Waschen', 'Salat waschen und trocken schleudern.', true),
-      step('Dressing', 'Öl, Essig, Senf und Gewürze verrühren.', true, [
+      step('Salat waschen und trocken schleudern.', true),
+      step('Öl, Essig, Senf und Gewürze verrühren.', true, [
         { strang_id: 's3', step_index: 0 },
       ]),
-      step('Mischen', 'Alles in einer Schüssel mischen.', true, [
+      step('Alles in einer Schüssel mischen.', true, [
         { strang_id: 's3', step_index: 1 },
       ]),
     ],

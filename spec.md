@@ -35,13 +35,13 @@ interface StepRef {
 }
 
 interface Step {
-  summary: string          // Kurzbezeichnung, reiner Text, 1 Zeile, max ~2 Wörter (System-Prompt)
-  description: string      // Volltext, Markdown-rendered
-  done: boolean            // Schritt einzeln abschließbar (✓ Weiter / complete_step)
+  description: string      // Volltext, Markdown-rendered; beginnt mit kurzer Kernaussage (Titel in Chips)
+  done: boolean            // Schritt einzeln abschließbar (✓-Button / complete_step)
   dependsOn: StepRef[]     // optionale Abhängigkeiten — eigener oder anderer Flow
   timerEndsAt: number | null
   timerInstruction: string | null
   timerExpired: boolean
+  activatedAt: number | null // Zeitpunkt des Aktiv-Werdens (Reihenfolge „Jetzt": neu → unten)
 }
 ```
 
@@ -52,13 +52,15 @@ interface Step {
 
 ### Abschluss-Regeln
 - **Navigation allein schließt nie ab** (◀▶, Dots, Klick auf Desktop-Karte, `set_step`).
-- **✓ Weiter** = expliziter Abschluss: `complete_step` (aktueller Schritt) + Navigation zum nächsten.
+- **✓ (runder Button, nur Häkchen)** = expliziter Abschluss: `complete_step` (aktueller Schritt) + Navigation zum nächsten.
 - `complete_strang` = alle Schritte `done` + Strang `done` + alle Schritt-Timer abbrechen.
 - `Strang.done` gilt zusätzlich als abgeleitet, wenn alle Schritte `done` sind.
 
-> **Migration:** `steps: string[]` → `steps: Step[]`. Alte Daten: `string` wird `summary`,
-> `description: ""`; alte Strang-Timer → Timer des aktiven Schritts.
-> Neue Felder defaulten: `done: false`, `dependsOn: []`.
+> **Migration:** `steps: string[]` → `steps: Step[]`. Alte Daten: `string` wird `description`;
+> altes `summary` wird übernommen, falls `description` leer ist.
+> Alte Strang-Timer → Timer des aktiven Schritts.
+> Neue Felder defaulten: `done: false`, `dependsOn: []`, `activatedAt: null`
+> (Altdaten: Reihenfolge wie bisher, neue Karten anhängen).
 > Offen: `dependsOn` referenziert per Index — Indizes verschieben sich bei `add_step`
 > (für v1 akzeptiert; später stabile Step-IDs).
 
@@ -74,8 +76,8 @@ Zwei Views:
 2. **„Flow"**: die Karten **eines** Flows — optisch identisch mit einer Desktop-Spalte
    (vertikaler Kartenstapel mit allen Zuständen: done/active/blocked).
 
-Wechsel: Tap auf den Flow-Header einer „Jetzt"-Karte → „Flow"-View dieses Flows;
-Zurück-Button → „Jetzt".
+Wechsel: Tap auf den Karten-Titel einer „Jetzt"-Karte → „Flow"-View dieses Flows;
+Zurück-Button → „Jetzt". Es gibt keine Flow-Chips-Leiste mehr.
 
 ### Aufbau „Jetzt"
 
@@ -84,28 +86,29 @@ Zurück-Button → „Jetzt".
 │ ⏱🍚04:00  ⏱🥗01:12      🎤  📄  ⚙ │  ← Topbar: Timer-Chips + Buttons (kein Logo)
 ├────────────────────────────────────┤
 │ ┌──────────────────────────────┐   │
-│ │ 🍝 SAUCE ▸           2/4     │   │  ← Flow-Header (Tap → Flow-View)
-│ ├──────────────────────────────┤   │
-│ │ Einreduzieren ⏱ 07:41  2/4   │   │  ← aktive Karte
-│ │ Hitze mittel, ~10 min        │   │
+│ │ 🍝 TOMATENSAUCE ▸ ⏱ 07:41  │   │  ← farbiges Titelband (Dekorator)
+│ ├──────────────────────────────┤   │     Farbe endet hier vertikal
+│ │ Hitze mittel, ~10 min  2/4   │   │  ← neutraler Body (zinc)
 │ │ köcheln.                     │   │
-│ │              [ ✓ Weiter ]    │   │
+│ │                    [ ✓ ]     │   │  ← runder Häkchen-Button
 │ └──────────────────────────────┘   │
 │ ┌──────────────────────────────┐   │
-│ │ 🍚 REIS ▸             3/5    │   │
+│ │ 🍚 REIS ▸           ⏱ 04:00 │   │
 │ ├──────────────────────────────┤   │
-│ │ Quellen lassen ⏱ 04:00  3/5  │   │
-│ │ …                            │   │
-│ │              [ ✓ Weiter ]    │   │
+│ │ Quellen lassen …       3/5   │   │
 │ └──────────────────────────────┘   │
 └────────────────────────────────────┘
 ```
 
-- **Reihenfolge: offen.** Kandidaten: Anlegereihenfolge, Timer-Dringlichkeit, KI-Priorität
-  (s. „Offene Fragen").
-- Karten voll ausgeklappt: Emoji + Summary + ⏱ Timer + x/y + Description (Markdown).
-- ✓ Weiter = `complete_step` + Navigation (Navigation allein schließt nie ab).
-- Blocked-Karte im Flow: ✓ Weiter deaktiviert + Hinweis auf fehlende Abhängigkeit.
+- **Reihenfolge = Reihenfolge des Auftauchens.** Karten erscheinen in der Reihenfolge,
+  in der sie aktiv wurden. Neu aktive Karten (KI legt Schritt an oder Abhängigkeit
+  erfüllt) werden **unten angehängt**. Die KI kann nicht umsortieren (append-only,
+  kein Reorder-Werkzeug).
+- Karten voll ausgeklappt: **farbiges Titelband** (Emoji + Flow-Name, caps, klickbar)
+  + ⏱ Timer + x/y; darunter neutraler Body (zinc) mit der Description (Markdown).
+  Der Body-Stil ist überall identisch — nur das Band unterscheidet pro Flow.
+- ✓ (rund) = `complete_step` + Navigation (Navigation allein schließt nie ab).
+- Blocked-Karte im Flow: ✓ deaktiviert + Hinweis auf fehlende Abhängigkeit.
 
 ### Aufbau „Flow" (≈ Desktop-Spalte)
 
@@ -144,11 +147,11 @@ Keine Browsing-Navigation nötig — alles sichtbar.
 
 - **Spaltenreihenfolge:** fix = Anlegereihenfolge.
 - **Spalte ist keine Karte** — nur Header (Emoji + Name, Klick = fokussieren) + Kartenstapel.
-- **Alle Schritt-Karten ausgeklappt** (Description sichtbar).
-- Karten-Header: `🍚 Summary · ⏱ Timer (nur wenn läuft) · x/y`.
-- **active:** hervorgehoben (gefetteter Rahmen, Strang-Farbe).
-- **done:** gedimmt + Summary durchgestrichen.
-- **blocked:** dezenter + 🔒 (Abhängigkeit offen), ✓ Weiter deaktiviert.
+- **Alle Schritt-Karten ausgeklappt** (Description sichtbar), **ohne eigenen Titel** —
+  der Flow-Name steht im Spalten-Header. Karten-Header: `⏱ Timer (nur wenn läuft) · x/y`.
+- **active:** hellere Outline in Strang-Farbe (Desktop: Spalten-Header farbig).
+- **done:** gedimmt.
+- **blocked:** dezenter + 🔒 (Abhängigkeit offen), ✓-Button deaktiviert.
 - **Mehrere Karten pro Strang können gleichzeitig Timer laufen lassen.**
 - Vertikales Scrollen pro Spalte. Kein horizontales Scrollen (bis auf die Spalten selbst).
 
@@ -160,36 +163,46 @@ Keine Browsing-Navigation nötig — alles sichtbar.
 Spalten- und Flow-Header sind reine Gliederung. Die Schritt-Karten bilden einen
 **flachen Stapel kleiner Karten**.
 
-**Karten klein halten:** Header (`🍚 Summary · ⏱ Timer · x/y`) + Description + ggf. ✓ Weiter.
+**Karten klein halten:** Header (`⏱ Timer · x/y`) + Description + ggf. ✓-Button.
 Mehrere Karten stehen untereinander (Stapel).
 
 > Fehlerhafte Vorgänger-Umsetzung: verschachtelte Karten (Spalte als Karte mit
 > Unterkarten) — Commit `e6a6011` (v0.4.0), verworfen.
 
-**Alle Karten sind immer voll ausgeklappt** (Summary + Description). Kein Ein-/Ausklappen mehr.
+**Alle Karten sind immer voll ausgeklappt** (Description sichtbar). Kein Ein-/Ausklappen mehr.
+
+### Dekorator-Prinzip
+- Karte = **farbiges Titelband oben** (Strang-Farbe, Farbe endet vertikal am Band-Ende)
+  + **neutraler Body** (zinc, monoton) + **farbige Outline** (Strang-Farbe).
+- Emoji bleibt farbig (visuelle Identität); der Body-Text trägt keine Strang-Farbe.
+- Desktop-Spalten: Der Spalten-Header ist das farbige Titelband, Karten darunter neutral.
 
 ### Karten-Header
-`🍚 Summary · ⏱ Timer (nur wenn läuft) · x/y`
+- Mobile „Jetzt": `🍚 FLOW-NAME ▸ · ⏱ Timer (nur wenn läuft) · x/y` — Titelband in
+  Strang-Farbe, Flow-Name caps + klein; Titel-Tap → Flow-View.
+- Desktop / Flow-View: `⏱ Timer (nur wenn läuft) · x/y` (Flow-Name steht im Spalten-/Flow-Header)
 
 ### Zustände
-- **active**: hervorgehoben (gefetteter Rahmen, Strang-Farbe)
-- **blocked**: dezenter, 🔒-Hinweis auf fehlende Abhängigkeit, ✓ Weiter deaktiviert
-- **done**: gedimmt, Summary durchgestrichen, Description bleibt sichtbar
+- **active**: hellere Outline (Strang-Farbe), Titelband heller
+- **blocked**: dezenter, 🔒-Hinweis auf fehlende Abhängigkeit, ✓-Button deaktiviert
+- **done**: gedimmt, Description bleibt sichtbar
 
 ### Karte (allgemein)
 ```
 ┌──────────────────────────────────┐
-│ 🍝 Einreduzieren ⏱ 07:41   2/4  │  ← Header (Summary · Timer · x/y)
+│ 🍝 TOMATENSAUCE ▸ ⏱ 07:41  2/4  │  ← farbiges Titelband (nur mobile „Jetzt")
+├──────────────────────────────────┤
+│ Hitze mittel, ~10 min köcheln.  │  ← neutraler Body (zinc, Markdown)
 │                                  │
-│ Hitze mittel, ~10 min köcheln.  │  ← Description (Markdown, immer sichtbar)
-│                                  │
-│              [ ✓ Weiter ]        │  ← expliziter Abschluss (+ Navigation)
+│                         [ ✓ ]    │  ← runder Häkchen-Button (Abschluss + Navigation)
 └──────────────────────────────────┘
 ```
 
-- Klick auf Karte (Desktop/Flow-View) = `set_step` — Navigation, kein Abschluss.
-- ✓ Weiter = `complete_step` + Navigation zum nächsten Schritt.
-- Mobile „Jetzt"-View: Karten einzeln untereinander, kein Klick-Navigation nötig.
+- Klick auf Karte (Desktop/Flow-View) = `set_step` — Navigation, kein Abschluss,
+  keine Toast-Bestätigung.
+- ✓ (rund, nur Häkchen) = `complete_step` + Navigation zum nächsten Schritt.
+- Mobile „Jetzt"-View: Karten einzeln untereinander, kein Klick-Navigation nötig;
+  Tap auf das Titelband öffnet die Flow-View.
 
 ---
 
@@ -206,7 +219,7 @@ Mehrere Karten stehen untereinander (Stapel).
 
 - Gehören zum **Schritt** (Karte), nicht zum Strang.
 - **Mehrere Schritte eines Strangs können gleichzeitig Timer laufen lassen** (parallele aktive Karten).
-- Sichtbar: in der Schritt-Karte (Header), Topbar-Timer-Chips (mit Zeit + Emoji/Summary).
+- Sichtbar: in der Schritt-Karte (Header), Topbar-Timer-Chips (mit Zeit + Emoji + Beschreibungsanfang).
 - Dringlichkeit: Orange + Pulsieren < 2 min, Bell-Icon + Rot bei Ablauf.
 - Bei Ablauf: KI navigiert aktiv zum betroffenen Schritt (`focus_strang` + `set_step`).
 - `complete_strang` / `complete_step` brechen den laufenden Timer des Schritts ab.
@@ -217,7 +230,7 @@ Mehrere Karten stehen untereinander (Stapel).
 
 - **Eine einzige Leiste** — keine zweite Timer-Leiste darunter.
 - Kein Logo/Schriftzug „MURKS".
-- Links: Timer-Chips (⏱ Emoji + Summary + Zeit), scrollbar; rechts: 🎤 📄 ⚙.
+- Links: Timer-Chips (⏱ Emoji + Beschreibungsanfang + Zeit), scrollbar; rechts: 🎤 📄 ⚙.
 - Chip-Dringlichkeit: gelb pulsierend < 2 min, rot (Bell) bei Ablauf. Klick = zu Schritt springen.
 
 ---
@@ -236,7 +249,7 @@ Mehrere Karten stehen untereinander (Stapel).
 | Tool | Änderung |
 |---|---|
 | `add_strang` | `steps: Step[]` statt `steps: string[]`; zusätzlich `icon` (Emoji, LLM vergibt); Steps optional mit `depends_on` |
-| `add_step` | `summary` + `description` statt `text`; optional `depends_on` |
+| `add_step` | `description` statt `text`; optional `depends_on` |
 | `set_step` | unverändert (reine Navigation, schließt nie ab) |
 | `complete_step` | **neu**: Schritt abschließen (`done`), Timer des Schritts abbrechen |
 | `focus_strang` | unverändert |
@@ -251,7 +264,6 @@ Mehrere Karten stehen untereinander (Stapel).
 
 ## Offene Fragen
 
-- Reihenfolge der „Jetzt"-View (Anlegereihenfolge vs. Timer-Dringlichkeit vs. KI-Priorität)?
 - `dependsOn` referenziert per Index — Indizes verschieben sich bei `add_step` (stabile Step-IDs später)?
 - Schritt-spezifische Zutaten?
 - Swipe-Schwellwert / Achsenerkennung bei nassen Händen?

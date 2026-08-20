@@ -98,54 +98,57 @@
     @apply flex flex-col gap-2 p-1 flex-1 min-h-0 overflow-y-auto;
   }
 
-  /* ── Flow-Leiste (Mobile „Jetzt"): alle Flows, wie B-Strips ─────── */
-  .flow-bar {
-    @apply shrink-0 flex items-center gap-2 min-h-[40px] pl-2 pr-3 rounded-xl border transition-colors;
-    background-color: var(--strang-bg);
-    border-color: var(--strang-border);
-  }
-  .flow-bar:hover {
-    background-color: var(--strang-bg-active);
-  }
-  .flow-bar.is-active {
-    background-color: var(--strang-bg-active);
-    border-color: var(--strang-border-active);
-  }
-  .flow-bar.is-done {
-    @apply opacity-60;
-  }
-  .flow-bar-mark {
-    @apply w-1.5 self-stretch rounded-full shrink-0 my-2;
-    background-color: var(--strang-border-active);
-  }
-
   /* ── Schritt-Karte: flach, klein, nie verschachtelt ─────────────── */
+  /* Dekorator-Muster: farbiges Titelband oben, neutraler Body, farbige Outline */
   .step-card {
-    @apply w-full text-left rounded-xl border px-3 py-2.5 transition-colors hover:brightness-125 cursor-pointer;
-    background-color: var(--strang-bg);
+    @apply w-full text-left rounded-xl border overflow-hidden transition-colors hover:brightness-125 cursor-pointer bg-zinc-900 text-zinc-300;
     border-color: var(--strang-border);
-    color: var(--strang-text);
   }
   .step-card.is-active {
-    background-color: var(--strang-bg-active);
     border-color: var(--strang-border-active);
-    color: var(--strang-text-active);
   }
   .step-card.is-past {
     @apply opacity-55;
-  }
-  .step-card.is-past .step-card-title {
-    @apply line-through;
   }
   .step-card.is-blocked {
     @apply opacity-70;
     border-style: dashed;
   }
+  /* Kopfzeile: Desktop/Flow-View (meta rechts, neutral) */
+  .step-card-head {
+    @apply flex items-center gap-2 px-3 pt-2;
+  }
+  /* Titelband: Mobile „Jetzt" — Farbe endet hier vertikal */
+  .step-card-band {
+    @apply flex items-center gap-2 px-3 py-1.5 border-b;
+    background-color: var(--strang-bg);
+    border-color: var(--strang-border);
+    color: var(--strang-text);
+  }
+  .step-card.is-active .step-card-band {
+    background-color: var(--strang-bg-active);
+    border-color: var(--strang-border-active);
+    color: var(--strang-text-active);
+  }
+  .step-card-body {
+    @apply px-3 pb-2.5;
+  }
+  .step-card-title-btn {
+    @apply flex items-center gap-1 flex-1 min-w-0 text-left;
+  }
+  .step-card-title-btn:hover {
+    @apply underline;
+  }
+  /* Titel = Flow-Name im Band: caps, klein */
+  .step-card-title {
+    @apply text-xs uppercase tracking-widest;
+  }
 
   /* ── Markdown (Step-Description) ───────────────────────────────── */
+  /* Body ist monoton zinc — Akzente neutral, nicht strang-farbig */
   .step-description {
     @apply text-sm leading-relaxed;
-    color: var(--strang-text, theme('colors.zinc.200'));
+    color: theme('colors.zinc.300');
   }
   .step-description p {
     @apply mb-2 last:mb-0;
@@ -158,13 +161,13 @@
   }
   .step-description strong {
     @apply font-semibold;
-    color: var(--strang-text-active, theme('colors.zinc.100'));
+    color: theme('colors.zinc.100');
   }
   .step-description h1,
   .step-description h2,
   .step-description h3 {
     @apply font-semibold mb-1 mt-3 first:mt-0;
-    color: var(--strang-text-active, theme('colors.zinc.100'));
+    color: theme('colors.zinc.100');
   }
   .step-description code {
     @apply text-xs bg-zinc-800 px-1 py-0.5 rounded;
@@ -174,8 +177,14 @@
   .icon-btn {
     @apply w-9 h-9 flex items-center justify-center rounded-full border border-zinc-600 bg-zinc-700 text-zinc-400 hover:bg-zinc-600 hover:text-zinc-100 transition-colors;
   }
-  .jump-btn {
-    @apply px-4 py-2.5 rounded-xl border border-zinc-300 text-sm text-zinc-100 transition-colors min-h-[44px] hover:bg-zinc-700 shrink-0;
+  .check-btn {
+    @apply w-11 h-11 flex items-center justify-center rounded-full border transition-colors shrink-0;
+    background-color: var(--strang-bg-active);
+    border-color: var(--strang-border-active);
+    color: var(--strang-text-active);
+  }
+  .check-btn:hover {
+    @apply brightness-125;
   }
   .mic-btn {
     @apply relative w-9 h-9 rounded-full flex items-center justify-center text-base transition-all disabled:opacity-40;

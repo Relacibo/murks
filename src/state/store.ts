@@ -2,7 +2,7 @@ import { createEffect, createSignal } from 'solid-js'
 import { createStore } from 'solid-js/store'
 import { showToast } from '../lib/toast'
 import { dbGet, dbPut } from '../lib/db'
-import { TOOLS, executeTool } from '../lib/tools'
+import { TOOLS, executeTool, stepLabel } from '../lib/tools'
 
 export interface AgentProfile {
   id: string
@@ -15,7 +15,7 @@ export interface AgentProfile {
 const DEFAULT_SYSTEM_PROMPT = [
   'Du bist MURKS, die KI einer Rezeptkochsoftware. Dein Name ist Murks — du reagierst auf diese Anrede.',
   'Du hilfst beim Kochen: Gerichte planen, Schritte koordinieren, Timer setzen, parallele Kochstränge im Blick behalten.',
-  'Jeder Schritt hat eine summary (max. 2 Wörter, z.B. „Teig anrühren") und eine description (vollständige, eigenständig ausführbare Anweisung mit Zutaten, Mengen und Methode; Markdown erlaubt).',
+  'Jeder Schritt hat eine description (vollständige, eigenständig ausführbare Anweisung mit Zutaten, Mengen und Methode; Markdown erlaubt). Beginne mit einer kurzen Kernaussage — sie erscheint als Titel in Timer-Chips.',
   'Schritte können optional Abhängigkeiten haben (depends_on): Verweise auf andere Schritte (eigener oder anderer Strang), die zuerst erledigt sein müssen. Ein Schritt ist erst aktiv, wenn alle Abhängigkeiten erledigt sind.',
   'Vergib beim Anlegen eines Strangs ein passendes Emoji als icon (z.B. 🍚 für Reis) — es identifiziert den Strang visuell.',
   'Wir sprechen per Stimme: Der Nutzer diktiert seine Eingaben, deine Antworten werden vorgelesen. Sprich natürlich wie ein Gesprächspartner, nicht wie ein Textprogramm.',
@@ -69,13 +69,13 @@ export interface StepRef {
 }
 
 export interface Step {
-  summary: string
   description: string
   done: boolean
   dependsOn: StepRef[]
   timerEndsAt: number | null
   timerInstruction: string | null
   timerExpired: boolean
+  activatedAt: number | null
 }
 
 export interface Strang {
@@ -199,21 +199,38 @@ function hydrate(data: unknown): AppState {
       cook: {
         strangs: Array.isArray(cook.strangs)
           ? (
-              cook.strangs as (Partial<Strang> & {
-                steps?: (string | Partial<Step>)[]
+              cook.strangs as {
+                id?: string
+                name?: string
+                icon?: string
+                color?: StrangColor
+                stepIndex?: number
+                done?: boolean
+                steps?: (
+                  | string
+                  | {
+                      description?: string
+                      summary?: string
+                      done?: boolean
+                      dependsOn?: StepRef[]
+                      timerEndsAt?: number | null
+                      timerInstruction?: string | null
+                      timerExpired?: boolean
+                      activatedAt?: number | null
+                    }
+                )[]
                 timerEndsAt?: number | null
                 timerInstruction?: string | null
                 timerExpired?: boolean
-              })[]
+              }[]
             ).map((s) => {
               const steps: Step[] = Array.isArray(s.steps)
                 ? s.steps.map((st) => ({
-                    summary:
+                    description:
                       typeof st === 'string'
                         ? st
-                        : String(st?.summary ?? '').trim(),
-                    description:
-                      typeof st === 'string' ? '' : String(st?.description ?? '').trim(),
+                        : String(st?.description ?? '').trim() ||
+                          (typeof st?.summary === 'string' ? String(st.summary).trim() : ''),
                     done: typeof st === 'string' ? false : st?.done === true,
                     dependsOn:
                       typeof st === 'string'
@@ -228,6 +245,12 @@ function hydrate(data: unknown): AppState {
                     timerInstruction:
                       typeof st === 'string' ? null : (st?.timerInstruction ?? null),
                     timerExpired: typeof st === 'string' ? false : st?.timerExpired === true,
+                    activatedAt:
+                      typeof st === 'string'
+                        ? null
+                        : typeof st?.activatedAt === 'number'
+                          ? st.activatedAt
+                          : null,
                   }))
                 : []
               const stepIndex = typeof s.stepIndex === 'number' ? s.stepIndex : 0
@@ -369,7 +392,7 @@ export function expireTimers() {
         ),
       )
       showToast(
-        `⏰ Timer abgelaufen: ${s.name} — ${step.summary}${step.timerInstruction ? ` (${step.timerInstruction})` : ''}`,
+        `⏰ Timer abgelaufen: ${s.name} — ${stepLabel(step.description)}${step.timerInstruction ? ` (${step.timerInstruction})` : ''}`,
       )
     })
   }

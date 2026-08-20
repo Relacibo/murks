@@ -9,7 +9,7 @@ Desktop: eine Spalte pro Strang (nur Gliederung — **keine Karte**), alle Schri
 - [x] Spalten-Header: Emoji + Name (+ ✓ bei done) — reine Gliederung, keine Karte
 - [x] Schritt-Karten vertikal gestapelt, **nie verschachtelt**
 - [x] Alle Karten ausgeklappt (Description immer sichtbar)
-- [x] Karten-Header: Emoji + Summary + ⏱ Timer + x/y
+- [x] Karten-Header: ⏱ Timer + x/y (kein Titel — Flow-Name steht im Spalten-Header)
 - [x] Zustände: active (hervorgehoben), done (gedimmt, durchgestrichen), blocked (dashed + 🔒 + „Wartet auf …")
 - [x] Mehrere Karten pro Strang können gleichzeitig Timer laufen lassen
 - [x] Klick auf Karte = set_step (Navigation, kein Abschluss)

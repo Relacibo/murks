@@ -34,8 +34,7 @@ export const TOOLS: ToolDef[] = [
             items: {
               type: 'object',
               properties: {
-                summary: { type: 'string', description: 'Kurzbezeichnung, max. 2 Wörter, z.B. "Teig anrühren"' },
-                description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt)' },
+                description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt); beginne mit einer kurzen Kernaussage — sie erscheint als Titel in Timer-Chips' },
                 depends_on: {
                   type: 'array',
                   items: {
@@ -49,7 +48,7 @@ export const TOOLS: ToolDef[] = [
                   description: 'Optionale Abhängigkeiten (Schritte, die zuerst erledigt sein müssen)',
                 },
               },
-              required: ['summary', 'description'],
+              required: ['description'],
             },
             description: 'Schrittfolge',
           },
@@ -67,8 +66,7 @@ export const TOOLS: ToolDef[] = [
         type: 'object',
         properties: {
           strang_id: { type: 'string' },
-          summary: { type: 'string', description: 'Kurzbezeichnung, max. 2 Wörter, z.B. "Abschmecken"' },
-          description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt)' },
+          description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt); beginne mit einer kurzen Kernaussage — sie erscheint als Titel in Timer-Chips' },
           depends_on: {
             type: 'array',
             items: {
@@ -82,7 +80,7 @@ export const TOOLS: ToolDef[] = [
             description: 'Optionale Abhängigkeiten (Schritte, die zuerst erledigt sein müssen)',
           },
         },
-        required: ['strang_id', 'summary', 'description'],
+        required: ['strang_id', 'description'],
       },
     },
   },
@@ -247,6 +245,28 @@ function fmtRemaining(endsAt: number): string {
 
 export { fmtRemaining }
 
+export function stepLabel(description: string, max = 40): string {
+  const first =
+    description
+      .split('\n')
+      .map((l) => l.trim())
+      .find((l) => l !== '') ?? ''
+  const text = first.replace(/\s+/g, ' ')
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text
+}
+
+// Monoton wachsende Sequenz (Basis Date.now, damit Werte nach Reload > gespeicherte sind).
+let actSeq = Date.now()
+function nextAct(): number {
+  return ++actSeq
+}
+
+function depsDone(deps: { strang_id: string; step_index: number }[]): boolean {
+  return deps.every(
+    (d) => state.cook.strangs.find((x) => x.id === d.strang_id)?.steps[d.step_index]?.done === true,
+  )
+}
+
 export function executeTool(name: string, args: Record<string, unknown>): string {
   try {
     switch (name) {
@@ -257,10 +277,9 @@ export function executeTool(name: string, args: Record<string, unknown>): string
         const icon = String(args.icon ?? '').trim()
         const steps = Array.isArray(args.steps)
           ? args.steps.map((st) => {
-              if (typeof st === 'string') return { summary: st, description: '', dependsOn: [] }
+              if (typeof st === 'string') return { description: st, dependsOn: [] }
               const o = (st ?? {}) as Record<string, unknown>
               return {
-                summary: String(o.summary ?? '').trim(),
                 description: String(o.description ?? '').trim(),
                 dependsOn: Array.isArray(o.depends_on)
                   ? (o.depends_on as Record<string, unknown>[]).map((d) => ({
@@ -272,8 +291,8 @@ export function executeTool(name: string, args: Record<string, unknown>): string
             })
           : []
         if (!strangName) return JSON.stringify({ error: 'name fehlt' })
-        if (steps.length === 0 || steps.some((s) => s.summary === '')) {
-          return JSON.stringify({ error: 'steps brauchen mindestens eine summary' })
+        if (steps.length === 0 || steps.some((s) => s.description === '')) {
+          return JSON.stringify({ error: 'steps brauchen mindestens eine description' })
         }
         const id = crypto.randomUUID()
         const color = STRANG_COLORS[state.cook.strangs.length % STRANG_COLORS.length]
@@ -285,13 +304,13 @@ export function executeTool(name: string, args: Record<string, unknown>): string
             icon: icon || null,
             color,
             steps: steps.map((st) => ({
-              summary: st.summary,
-              description: st.description || st.summary,
+              description: st.description,
               done: false,
               dependsOn: st.dependsOn,
               timerEndsAt: null,
               timerInstruction: null,
               timerExpired: false,
+              activatedAt: depsDone(st.dependsOn) ? nextAct() : null,
             })),
             stepIndex: 0,
             done: false,
@@ -303,11 +322,10 @@ export function executeTool(name: string, args: Record<string, unknown>): string
       }
       case 'add_step': {
         const id = String(args.strang_id ?? '')
-        const summary = String(args.summary ?? '').trim()
         const description = String(args.description ?? '').trim()
         const strang = findStrang(id)
         if (!strang) return JSON.stringify({ error: 'Unbekannter Strang' })
-        if (!summary) return JSON.stringify({ error: 'summary fehlt' })
+        if (!description) return JSON.stringify({ error: 'description fehlt' })
         const dependsOn = Array.isArray(args.depends_on)
           ? (args.depends_on as Record<string, unknown>[]).map((d) => ({
               strang_id: String(d?.strang_id ?? '').trim(),
@@ -315,16 +333,16 @@ export function executeTool(name: string, args: Record<string, unknown>): string
             }))
           : []
         const step = {
-          summary,
-          description: description || summary,
+          description,
           done: false,
           dependsOn,
           timerEndsAt: null,
           timerInstruction: null,
           timerExpired: false,
+          activatedAt: depsDone(dependsOn) ? nextAct() : null,
         }
         patchStrang(id, { steps: [...strang.steps, step] })
-        showToast(`${strang.name}: + „${summary}"`)
+        showToast(`${strang.name}: + „${stepLabel(description)}"`)
         return JSON.stringify({ ok: true, step_index: strang.steps.length })
       }
       case 'complete_step': {
@@ -342,7 +360,17 @@ export function executeTool(name: string, args: Record<string, unknown>): string
         )
         const allDone = steps.every((st) => st.done)
         patchStrang(id, { steps, done: allDone ? true : strang.done })
-        showToast(`${strang.name}: „${strang.steps[stepIdx].summary}" fertig`)
+        // Abhängigkeiten prüfen: blockierte Schritte, die jetzt frei werden, tauchen
+        // unten in der „Jetzt“-View auf (Reihenfolge = Reihenfolge des Auftauchens).
+        for (const s2 of state.cook.strangs) {
+          s2.steps.forEach((st2, j) => {
+            if (st2.done || st2.activatedAt !== null) return
+            if (!st2.dependsOn.some((d) => d.strang_id === id && d.step_index === stepIdx)) return
+            if (!depsDone(st2.dependsOn)) return
+            patchStep(s2.id, j, { activatedAt: nextAct() })
+          })
+        }
+        showToast(`${strang.name}: „${stepLabel(strang.steps[stepIdx].description)}" fertig`)
         return JSON.stringify({ ok: true })
       }
       case 'set_step': {
@@ -354,7 +382,6 @@ export function executeTool(name: string, args: Record<string, unknown>): string
           return JSON.stringify({ error: `step_index muss 0..${strang.steps.length - 1} sein` })
         }
         patchStrang(id, { stepIndex: idx })
-        showToast(`${strang.name}: Schritt ${idx + 1}/${strang.steps.length}`)
         return JSON.stringify({ ok: true })
       }
       case 'start_timer': {
@@ -375,7 +402,7 @@ export function executeTool(name: string, args: Record<string, unknown>): string
           timerExpired: false,
           timerInstruction: args.on_expire_instruction ? String(args.on_expire_instruction) : null,
         })
-        showToast(`⏱ Timer: ${fmtRemaining(endsAt)} (${strang.name}: ${strang.steps[stepIdx].summary})`)
+        showToast(`⏱ Timer: ${fmtRemaining(endsAt)} (${strang.name}: ${stepLabel(strang.steps[stepIdx].description)})`)
         return JSON.stringify({ ok: true, endsAt })
       }
       case 'cancel_timer': {
