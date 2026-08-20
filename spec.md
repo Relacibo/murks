@@ -166,7 +166,7 @@ Zurück-Button → „Jetzt". Es gibt keine Flow-Chips-Leiste mehr.
   caps, klickbar) + ⏱ Timer + x/y; darunter neutraler Body (zinc) mit der Description
   (Markdown, 2 Zeilen). Der Body-Stil ist überall identisch — nur das Band unterscheidet
   pro Flow.
-- ⏱ (grün, wenn eine getimte Kante auf den Schritt zeigt) bzw. ✓ (rund) = `complete_step` + Navigation;
+- ⏱ (Kartenfarbe, wenn eine getimte Kante auf den Schritt zeigt) bzw. ✓ (rund) = `complete_step` + Navigation;
   auf waiting-Karten = früh abschließen. Navigation allein schließt nie ab.
 - Blocked-Karte: 🔒 + Hinweis auf fehlende Abhängigkeit, kein ✓-Button.
 
@@ -286,7 +286,7 @@ Mehrere Karten stehen untereinander (Stapel).
 - **Karten sind nicht klickbar** und haben **keine Hover-Effekte** (kein Aufhellen,
   kein Cursor-Pointer). Nur der **Titel** ist klickbar: springt gezielt zu diesem Schritt
   (Fokus + Flow-View/Scroll + kurzer Puls) — dasselbe wie das KI-Tool `show_step`.
-- ⏱ (grün, Schritt mit getimter Kante auf ihn) oder ✓ (rund, nur Häkchen) = `complete_step`;
+- ⏱ (Kartenfarbe, Schritt mit getimter Kante auf ihn) oder ✓ (rund, nur Häkchen) = `complete_step`;
   auf waiting-Karten überspringt ✓ die Wartezeit. Keine Navigations-Sprünge mehr.
 - Mobile „Jetzt"-View: Karten einzeln untereinander, nicht klickbar;
   Tap auf das Titelband springt zum Schritt (Flow-View + Scroll + Puls).
@@ -344,7 +344,7 @@ Mehrere Karten stehen untereinander (Stapel).
   Restzeit ein bzw. setzen fort (Pausendauer wandert in `pauseOffsetMs`); pausierte Timer
   laufen nie ab. `cancel_timer` bricht ab bzw. resettet die Wartezeit-Anpassung.
 - **Waiting-Karten** sind in „Jetzt" sichtbar (gedimmt wie blocked/done, Countdown in Flow-Farbe, ab < 30 s amber);
-  der Button öffnet das Warte-Menü (kein Direkt-Abschluss mehr).
+  ihr Button ist ein Uhr-Symbol (Kartenfarbe, pulsiert solange der Timer läuft) und öffnet das Warte-Menü (kein Direkt-Abschluss mehr).
 - **Sortierung:** waiting-Karten stehen **unter** den aktiven und **über** den blocked;
   Reihenfolge nach Freiwerden (Timer-Ende), Tiebreaker `high` oben.
 - **Revert:** `revert_step` verwirft `doneAt` und den Timer und macht Abhängige wieder

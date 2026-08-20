@@ -607,50 +607,33 @@ export function Cook(props: {
               </p>
             </div>
             <div class="shrink-0 w-11 h-11 flex items-center justify-center">
-              <Show
-                when={
-                  (stateName() === 'active' || stateName() === 'waiting') &&
-                  !flowDone(s())
-                }
-                fallback={
-                  <Show when={stateName() === 'done' && canRevert(s(), i())}>
-                    <button
-                      class="revert-btn"
-                      title="Schritt zurücknehmen"
-                      aria-label="Schritt zurücknehmen"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        engine.executeTool(
-                          'revert_step',
-                          { flow_id: s().id, step_id: st().id },
-                          { silent: true },
-                        )
-                      }}
-                    >
-                      <FiRotateCcw size={18} />
-                    </button>
-                  </Show>
-                }
-              >
+              {/* Wartende Karte: Uhr-Symbol öffnet das Warte-Menü — pulsiert, solange der Timer läuft */}
+              <Show when={stateName() === 'waiting'}>
+                <button
+                  class="clock-btn"
+                  classList={{ 'is-running': st().timer?.pausedAt === null }}
+                  title="Timer-Optionen"
+                  aria-label="Timer-Optionen öffnen"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setWaitMenu({ flowId: s().id, stepId: st().id })
+                  }}
+                >
+                  <FiClock size={18} />
+                </button>
+              </Show>
+              {/* Aktive Karte: abschließen — Uhr, wenn der Abschluss einen Timer startet */}
+              <Show when={stateName() === 'active' && !flowDone(s())}>
                 <Show
                   when={hasTimedDependent(s(), st())}
                   fallback={
                     <button
                       class="check-btn"
-                      classList={{ 'is-muted': stateName() === 'waiting' }}
-                      title={
-                        stateName() === 'waiting'
-                          ? 'Wartezeit-Optionen'
-                          : 'Schritt abschließen'
-                      }
+                      title="Schritt abschließen"
                       aria-label="Schritt abschließen und weiter"
                       onClick={(e) => {
                         e.stopPropagation()
-                        if (stateName() === 'waiting') {
-                          setWaitMenu({ flowId: s().id, stepId: st().id })
-                        } else {
-                          completeStep(s(), i())
-                        }
+                        completeStep(s(), i())
                       }}
                     >
                       <FiCheck size={18} />
@@ -659,23 +642,33 @@ export function Cook(props: {
                 >
                   <button
                     class="clock-btn"
-                    classList={{ 'is-muted': stateName() === 'waiting' }}
-                    title={
-                      stateName() === 'waiting' ? 'Wartezeit-Optionen' : 'Abschließen — Timer startet'
-                    }
+                    title="Abschließen — Timer startet"
                     aria-label="Schritt abschließen, Timer startet"
                     onClick={(e) => {
                       e.stopPropagation()
-                      if (stateName() === 'waiting') {
-                        setWaitMenu({ flowId: s().id, stepId: st().id })
-                      } else {
-                        completeStep(s(), i())
-                      }
+                      completeStep(s(), i())
                     }}
                   >
                     <FiClock size={18} />
                   </button>
                 </Show>
+              </Show>
+              <Show when={stateName() === 'done' && canRevert(s(), i())}>
+                <button
+                  class="revert-btn"
+                  title="Schritt zurücknehmen"
+                  aria-label="Schritt zurücknehmen"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    engine.executeTool(
+                      'revert_step',
+                      { flow_id: s().id, step_id: st().id },
+                      { silent: true },
+                    )
+                  }}
+                >
+                  <FiRotateCcw size={18} />
+                </button>
               </Show>
             </div>
           </div>

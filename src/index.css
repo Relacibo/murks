@@ -28,6 +28,17 @@
   }
 }
 
+/* Sanfter Puls für laufende Timer (langsamer, halbtransparent) */
+@keyframes timer-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--flow-border-active) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--flow-border-active) 40%, transparent);
+  }
+}
+
 @layer components {
   /* ── Flow-Farben (CSS-Variablen per data-color) ─────────────── */
   [data-color='cyan'] {
@@ -258,12 +269,16 @@
   }
   .clock-btn {
     @apply w-11 h-11 flex items-center justify-center rounded-full border transition-colors shrink-0;
-    border-color: theme('colors.emerald.700');
-    background-color: theme('colors.emerald.900');
-    color: theme('colors.emerald.300');
+    background-color: var(--flow-bg-active);
+    border-color: var(--flow-border-active);
+    color: var(--flow-text-active);
   }
   .clock-btn:hover {
     @apply brightness-125;
+  }
+  /* Laufender Timer auf einer wartenden Karte: Uhr pulsiert sanft */
+  .clock-btn.is-running {
+    animation: timer-pulse 2.4s ease-in-out infinite;
   }
   .mic-btn {
     @apply relative w-9 h-9 rounded-full flex items-center justify-center text-base transition-all disabled:opacity-40;
