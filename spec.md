@@ -41,12 +41,16 @@ interface Step {
   id: string               // stabil (crypto.randomUUID)
   description: string      // Volltext, Markdown-rendered; beginnt mit kurzer Kernaussage
   done: boolean            // Schritt einzeln abschließbar (✓-Button / complete_step)
-  doneAt: number | null    // Abschlusszeitpunkt — Basis der impliziten Kanten-Timer
+  doneAt: number | null    // Abschlusszeitpunkt — Basis der Verzögerungen an den Kanten
   dependsOn: StepRef[]     // Abhängigkeiten liegen im abhängigen Step → m:n ergibt sich von selbst
-  timerEndsAt: number | null   // nur Ad-hoc-Timer (start_timer) — kein Kanten-Timer
+  timerEndsAt: number | null   // nur Timer (start_timer) — Basis-Endzeit
+  timerPausedAt: number | null // Pause-Beginn (Restzeit friert ein, solange gesetzt)
+  timerOffsetMs: number        // akkumulierte Pausendauer; effektive Endzeit =
+                               // timerEndsAt + timerOffsetMs + (pausiert ? jetzt − timerPausedAt : 0)
   timerExpired: boolean
   activatedAt: number | null // Zeitpunkt des Eintritts in „Jetzt" (innerhalb seiner Queue: neu → hinten)
   priority: 'normal' | 'high' // high: bei active in der Prio-Queue oben (FIFO) + pulsierend
+  score: number               // Scheduling-Hinweis der KI (Default 0): höher = weiter oben
 }
 ```
 
@@ -59,7 +63,7 @@ interface Step {
 ### Abgeleitete Schritt-Zustände
 - **blocked**: mind. eine Abhängigkeit nicht `done`
 - **waiting**: alle Abhängigkeiten `done`, aber mind. ein Gate läuft noch (Kanten-Verzögerung
-  oder Ad-hoc-Timer einer Abhängigkeit) → wird in „Jetzt" angezeigt (gedimmt wie blocked/done,
+  oder Timer einer Abhängigkeit) → wird in „Jetzt" angezeigt (gedimmt wie blocked/done,
   Countdown in Flow-Farbe, amber ab < 30 s), ✓ = früh abschließen (Wartezeit überspringen)
 - **active**: alle Abhängigkeiten `done` und alle Gates abgelaufen (bzw. keines deklariert)
 - **done**: explizit abgeschlossen
@@ -71,14 +75,14 @@ Abhängigkeiten abgeschlossen sind (deshalb zeigt nur waiting, nicht blocked, ei
 ### Abschluss-Regeln
 - **Navigation allein schließt nie ab** (`show_step`, Titel-Tap, Timer-Chip).
 - **⏱-Button (Schritt mit getimter Kante auf ihn) bzw. ✓** = expliziter Abschluss: `complete_step`.
-  Mit dem Abschluss laufen die Kanten-Timer los (`doneAt`); abhängige Karten bleiben waiting,
+  Mit dem Abschluss laufen die Verzögerungen an den Kanten los (`doneAt`); abhängige Karten bleiben waiting,
   bis ihre Gates abgelaufen sind.
 - **↺ Zurücknehmen** (`revert_step`) = abgeschlossenen Schritt wieder auf nicht-erledigt setzen —
   **nur möglich, wenn keine Karte, die diesen Schritt als Abhängigkeit hat, selbst abgeschlossen ist**
   (sonst ↺ ausgeblendet bzw. Tool-Fehler). Der revertierte Schritt erscheint wieder hinten in
-  seiner „Jetzt"-Queue (`activatedAt` neu); `doneAt` und Ad-hoc-Timer werden verworfen, ein
+  seiner „Jetzt"-Queue (`activatedAt` neu); `doneAt` und Timer werden verworfen, ein
   gesetzter `Flow.done` gelöscht; Abhängige werden wieder blocked (rücken in die Vorschau).
-- `complete_flow` = alle Schritte `done` (+ `doneAt`) + Flow `done` + alle Ad-hoc-Timer abbrechen.
+- `complete_flow` = alle Schritte `done` (+ `doneAt`) + Flow `done` + alle Timer abbrechen.
 - `Flow.done` gilt zusätzlich als abgeleitet, wenn alle Schritte `done` sind.
 
 > **Migration:** `steps: string[]` → `steps: Step[]`. Alte Daten: `string` wird `description`;
@@ -318,15 +322,23 @@ Mehrere Karten stehen untereinander (Stapel).
   Kante ist `doneAt + timer_seconds`. Mehrere Karten können mit unterschiedlichen Offsets an
   derselben Karte hängen.
 - **Mehrere Gates:** Der zuletzt ablaufende entscheidet, wann die Karte frei wird (Maximum).
-- **Kein Timer-UI:** Neusetzen läuft über die KI — `start_timer` setzt einen Ad-hoc-Timer auf
+- **Kein Timer-UI:** Neusetzen läuft über die KI — `start_timer` setzt einen Timer auf
   dem Schritt (z.B. „das muss noch 5 Minuten"); wartende Karten bleiben bis zum späteren Ende
-  geblockt. `cancel_timer` bricht den Ad-hoc-Timer ab.
+  geblockt. `cancel_timer` bricht den Timer ab.
+- **Timer sind zur Laufzeit manipulierbar:** `timerEndsAt` (Basis) + `timerPausedAt` +
+  `timerOffsetMs`; effektive Endzeit = Basis + Offset + (pausiert: jetzt − Pausenbeginn).
+  - `pause_timer` friert die Restzeit ein (der Timer läuft nie ab, solange er pausiert ist);
+    `resume_timer` setzt fort (Pausendauer wandert in den Offset).
+  - `start_timer` kann statt `seconds` auch `offset_seconds` + `offset_base` nehmen:
+    `base "now"` = „noch X Minuten ab jetzt", `base "end"` = „noch X Minuten länger"
+    (ab dem aktuellen Ende; negativ = verkürzen). Eine laufende Pause bleibt pausiert.
+  - Topbar-Chip zeigt bei pausiertem Timer ein ⏸.
 - **Waiting-Karten** sind in „Jetzt" sichtbar (gedimmt wie blocked/done, Countdown in Flow-Farbe, ab < 30 s amber) und
   können mit ✓
   **vor Ablauf abgeschlossen** werden — das cancelt die Gates anderer Karten nicht.
 - **Sortierung:** waiting-Karten stehen **unter** den aktiven und **über** den blocked;
   Reihenfolge nach Freiwerden (Timer-Ende), Tiebreaker `high` oben.
-- **Revert:** `revert_step` verwirft `doneAt` und den Ad-hoc-Timer und macht Abhängige wieder
+- **Revert:** `revert_step` verwirft `doneAt` und den Timer und macht Abhängige wieder
   blocked (sie rücken in die Vorschau).
 - Sichtbar: **Countdown im Kartenband nur auf den wartenden Karten** (die den Timer als
   Bedingung haben). Die Karte, die den Timer auslöst, zeigt keinen Countdown im Band —
@@ -338,7 +350,7 @@ Mehrere Karten stehen untereinander (Stapel).
   wo immer sie gerade sichtbar sind).
 - Dringlichkeit: Amber + Pulsieren < 30 s; bei Ablauf verschwindet der Topbar-Chip sofort.
 - Bei Ablauf: KI navigiert aktiv zum betroffenen Schritt (`show_step`).
-- `complete_flow` bricht alle Ad-hoc-Timer des Flows ab (Kanten-Timer laufen implizit aus).
+- `complete_flow` bricht alle Timer des Flows ab (Verzögerungen an den Kanten laufen implizit aus).
 
 ---
 
@@ -364,6 +376,25 @@ Mehrere Karten stehen untereinander (Stapel).
   ✓ = überspringen).
 - Prio hängt nicht vom Timer ab und unterbricht nichts — Hervorhebung **plus** Aufmerksamkeits-
   Trigger beim Aktiv-Werden (Auto-Wechsel in „Jetzt" + Scroll nach oben).
+
+---
+
+## Scheduling (Score)
+
+- `score: number` am Schritt (Default 0, optional, LLM-vergeben — `add_flow`/`add_step`/
+  `update_step`). **Stilles** Signal: sortiert die aktiven Karten der normalen Queue
+  (absteigend; Tiebreaker = bisherige Flow-/Schritt-Reihenfolge). Kein Puls, keine
+  Ein-Dep-Regel — das ist `priority: high` vorbehalten (echter Alarm).
+- **Zweck:** optimale Arbeitsreihenfolge — lange Wartezeiten früh freigeben und mit
+  anderer Arbeit füllen. Beispiel: „Teig machen" (→ 30 min Ruhen) bekommt einen hohen
+  Score, „Zwiebeln schneiden" keinen — der Teig steht oben, die Zwiebeln werden während
+  der Ruhezeit geschnitten.
+- **Kein abgeleiteter Score:** Die Sortierung ist explizit und damit sichtbar und
+  steuerbar. Die KI sieht den Graphen (`get_cook_state`) und übersetzt kritische Pfade
+  selbst in Scores — auch Dinge, die nicht im Graphen stehen („Zwiebeln passen in die
+  Ruhezeit-Lücke").
+- „X ist vor Y fertig" als harte Constraint gibt es nicht — dafür bräuchte es einen
+  Scheduler. Score ist die weiche Steuerung.
 
 ---
 
@@ -404,16 +435,18 @@ umbenennen/löschen/teilen, Timer neu setzen oder verlängern.
 | Tool | Semantik |
 |---|---|
 | `get_cook_state` | kompletter Zustand (Flows, Steps mit IDs, Timer, Ingredients) |
-| `add_flow` | neuer Flow: `name`, `icon`, `steps[]` mit `description`, `depends_on` (nur auf existierende Steps; Einträge optional mit `timer_seconds`), `priority` |
-| `add_step` | Step anhängen oder hinter `after_step_id` einfügen; optional `depends_on` (inkl. `timer_seconds` an den Kanten), `priority` |
-| `update_step` | `description` / `depends_on` (inkl. Kanten-`timer_seconds`) / `priority` ändern (nur angegebene Felder); Queue-Status wird neu bewertet |
+| `add_flow` | neuer Flow: `name`, `icon`, `steps[]` mit `description`, `depends_on` (nur auf existierende Steps; Einträge optional mit `timer_seconds`), `priority`, `score` |
+| `add_step` | Step anhängen oder hinter `after_step_id` einfügen; optional `depends_on` (inkl. `timer_seconds` an den Kanten), `priority`, `score` |
+| `update_step` | `description` / `depends_on` (inkl. Kanten-`timer_seconds`) / `priority` / `score` ändern (nur angegebene Felder); Queue-Status wird neu bewertet |
 | `delete_step` | Step entfernen; Refs auf ihn werden entfernt, frei gewordene Steps werden aktiv |
 | `split_step` | Step teilen: Teil 1 bleibt (mit Prio), Teil 2 folgt danach und hängt von Teil 1 ab; Verweise auf den Original-Step zeigen auf Teil 2. Nur nicht-done |
-| `complete_step` | `done` (+ `doneAt`); Kanten-Timer der Dependents laufen ab hier; Abhängige kommen in „Jetzt" (waiting/active) |
-| `revert_step` | zurücknehmen — nur wenn keine abhängige Karte abgeschlossen ist; verwirft `doneAt`/Ad-hoc-Timer, Abhängige werden wieder blocked |
-| `start_timer` | `seconds` — Ad-hoc-Timer neu setzen **oder verlängern** (ersetzt laufenden; KI-Override, z.B. „noch 5 Minuten") |
-| `cancel_timer` | Ad-hoc-Timer abbrechen (Abhängige werden frei, sofern keine Kanten-Verzögerung läuft) |
-| `complete_flow` | alle Steps `done` (+ `doneAt`) + Flow `done` + alle Ad-hoc-Timer abbrechen |
+| `complete_step` | `done` (+ `doneAt`); Verzögerungen der Dependents laufen ab hier; Abhängige kommen in „Jetzt" (waiting/active) |
+| `revert_step` | zurücknehmen — nur wenn keine abhängige Karte abgeschlossen ist; verwirft `doneAt`/Timer, Abhängige werden wieder blocked |
+| `start_timer` | Timer neu setzen („seconds" = Dauer ab jetzt, ersetzt laufenden) **oder verschieben** (`offset_seconds` + `offset_base`: „now" = ab jetzt, „end" = „noch X Minuten länger"; negativ = verkürzen) |
+| `pause_timer` | laufenden Timer pausieren (Restzeit friert ein) |
+| `resume_timer` | pausierten Timer fortsetzen |
+| `cancel_timer` | Timer abbrechen (Abhängige werden frei, sofern keine Kanten-Verzögerung läuft) |
+| `complete_flow` | alle Steps `done` (+ `doneAt`) + Flow `done` + alle Timer abbrechen |
 | `update_flow` | `name` / `icon` ändern |
 | `delete_flow` | Flow löschen; Refs anderer Flows auf seine Steps werden entfernt |
 | `reset_cook` | alles verwerfen: alle Flows + Ingredients löschen |

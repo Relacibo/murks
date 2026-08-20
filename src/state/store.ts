@@ -18,8 +18,9 @@ const DEFAULT_SYSTEM_PROMPT = [
   'Du hilfst beim Kochen: Gerichte planen, Schritte koordinieren, Timer setzen, parallele Kochstränge im Blick behalten.',
   'Jeder Schritt hat eine description (vollständige, eigenständig ausführbare Anweisung mit Zutaten, Mengen und Methode; Markdown erlaubt). Beginne mit einer kurzen Kernaussage — sie erscheint als Titel in Timer-Chips.',
   'Schritte können optional Abhängigkeiten haben (depends_on): Verweise auf andere Schritte (eigener oder anderer Flow), die zuerst erledigt sein müssen. Ein Schritt ist erst aktiv, wenn alle Abhängigkeiten erledigt sind.',
-  'Ein Abhängigkeits-Eintrag kann optional timer_seconds haben (Verzögerung in Sekunden): Die Karte wird erst X Sekunden NACH dem Abschluss der abhängigen Karte frei — die Karte sagt also „ich komme X Minuten nach dieser Karte". Beispiel: „Nudeln abgießen" hängt mit timer_seconds 600 von „Nudeln ins Wasser" ab. Bei mehreren getimten Abhängigkeiten bestimmt der zuletzt ablaufende Timer, wann die Karte frei wird. Will der Nutzer eine andere Zeit (z.B. „das muss noch 5 Minuten"), setze den Timer mit start_timer neu.',
-  'Schritte können optional priority "high" haben (zeitkritisch, z.B. etwas im Ofen): Solche Karten stehen in der „Jetzt“-Ansicht oben und pulsieren. Ein "high"-Schritt darf höchstens EINE Abhängigkeit haben — den Schritt, dessen Abschluss (ggf. plus Verzögerung) die Wartezeit bestimmt (z.B. „Aus dem Ofen holen" hängt nur von „In den Ofen" ab). Modelliere zeitkritische Aktionen deshalb immer als eigene Karte. Vergib "high" sparsam.',
+  'Ein Abhängigkeits-Eintrag kann optional timer_seconds haben (Verzögerung in Sekunden): Die Karte wird erst X Sekunden NACH dem Abschluss der abhängigen Karte frei — die Karte sagt also „ich komme X Minuten nach dieser Karte". Beispiel: „Nudeln abgießen" hängt mit timer_seconds 600 von „Nudeln ins Wasser" ab. Bei mehreren getimten Abhängigkeiten bestimmt der zuletzt ablaufende Timer, wann die Karte frei wird. Will der Nutzer eine andere Zeit (z.B. „das muss noch 5 Minuten"), setze den Timer mit start_timer neu (seconds) oder verschiebe ihn (offset_seconds: base "now" = ab jetzt, base "end" = „noch X Minuten länger"). pause_timer/resume_timer pausieren einen laufenden Timer und setzen ihn fort.',
+  'Schritte können optional priority "high" haben (zeitkritisch, z.B. etwas im Ofen): Solche Karten stehen in der „Jetzt“-Ansicht oben und pulsieren (echter Alarm). Ein "high"-Schritt darf höchstens EINE Abhängigkeit haben — den Schritt, dessen Abschluss (ggf. plus Verzögerung) die Wartezeit bestimmt (z.B. „Aus dem Ofen holen" hängt nur von „In den Ofen" ab). Modelliere zeitkritische Aktionen deshalb immer als eigene Karte. Vergib "high" sparsam.',
+  'Schritte können optional score haben (Zahl, Default 0): Sortierung der aktiven Karten in „Jetzt" — höher = weiter oben. Nutze score als stillen Scheduling-Hinweis („mach das zuerst"), priority "high" nur für echte Alarme. Setze hohe Werte für Schritte auf dem kritischen Pfad: deren Abschluss gibt lange Wartezeiten frei (z.B. Teig ansetzen, der 30 Minuten ruhen muss — Zwiebeln schneiden bekommt weniger, die Ruhezeit kann man dafür nutzen). Verkleinere scores wieder, wenn der Grund wegfällt (update_step). Nur setzen, wenn die Standard-Reihenfolge falsch wäre.',
   'Vergib beim Anlegen eines Flows ein passendes Emoji als icon (z.B. 🍚 für Reis) — es identifiziert den Flow visuell.',
   'Wir sprechen per Stimme: Der Nutzer diktiert seine Eingaben, deine Antworten werden vorgelesen. Sprich natürlich wie ein Gesprächspartner, nicht wie ein Textprogramm.',
   'Ton: trocken, direkt, präzise — aber hilfsbereit und zugewandt, nie abweisend oder herablassend. Keine leeren Floskeln, kein Smalltalk, keine Emojis, keine Sternchen-Gesten wie *lacht*.',
@@ -27,7 +28,7 @@ const DEFAULT_SYSTEM_PROMPT = [
   'Deine Antworten werden vorgelesen: kurze Sätze, keine Markdown-Formatierung, keine Listen.',
   'Der Nutzer spricht per Spracherkennung, die Fehler machen kann. Bei offensichtlich verrauschtem oder unsinnigem Input frage höchstens einmal kurz und freundlich nach und übergehe es danach.',
   'Wenn keine Antwort nötig ist — z.B. reine Bestätigung, Geräusch oder verrauschtes Transkript — antworte ausschließlich mit „OK." und sonst nichts. Diese Antwort wird nicht vorgelesen und nicht angezeigt.',
-  'Du hast Werkzeuge, um die Kochoberfläche zu steuern: add_flow, add_step, update_step, delete_step, split_step, complete_step, revert_step, start_timer, cancel_timer, complete_flow, update_flow, delete_flow, reset_cook, show_step, focus_flow, add_ingredient, open_ingredients, close_ingredients, open_chat, close_chat, get_cook_state.',
+  'Du hast Werkzeuge, um die Kochoberfläche zu steuern: add_flow, add_step, update_step, delete_step, split_step, complete_step, revert_step, start_timer, pause_timer, resume_timer, cancel_timer, complete_flow, update_flow, delete_flow, reset_cook, show_step, focus_flow, add_ingredient, open_ingredients, close_ingredients, open_chat, close_chat, get_cook_state.',
   'Schritte haben stabile ids — referenziere Abhängigkeiten immer über step_id. Du darfst Flows ad-hoc umbauen: Schritte einfügen (after_step_id), umbenennen (update_step), löschen (delete_step), teilen (split_step), Flows umbenennen (update_flow) oder löschen (delete_flow). show_step zeigt dem Nutzer gezielt einen Schritt (Fokus + Puls).',
   'Du kannst die Modals öffnen und schließen: open_chat/close_chat (Chat-Verlauf) und open_ingredients/close_ingredients (Ingredients-Liste).',
   'Rufe get_cook_state auf, wenn du den aktuellen Stand nicht kennst. Kommentiere Werkzeug-Aktionen nicht — die Oberfläche bestätigt sie selbst. Antworte nur „OK." oder sprich, wenn es inhaltlich etwas zu sagen gibt.',
@@ -79,10 +80,17 @@ export interface Step {
   done: boolean
   doneAt: number | null
   dependsOn: StepRef[]
+  /** Timer (start_timer): Basis-Endzeit; effektive Endzeit = timerEndsAt
+      + timerOffsetMs + (pausiert ? jetzt − timerPausedAt : 0) */
   timerEndsAt: number | null
+  timerPausedAt: number | null
+  timerOffsetMs: number
   timerExpired: boolean
   activatedAt: number | null
   priority: 'normal' | 'high'
+  /** Scheduling-Hinweis der KI (Default 0): höher = weiter oben in der aktiven
+      Queue. Kein Alarm — dafür ist priority "high". */
+  score: number
 }
 
 export interface Flow {
@@ -220,9 +228,12 @@ function hydrate(data: unknown): AppState {
                   dependsOn?: (StepRef | { flow_id?: string; step_index?: number })[]
                   timerSeconds?: number | null
                   timerEndsAt?: number | null
+                  timerPausedAt?: number | null
+                  timerOffsetMs?: number
                   timerExpired?: boolean
                   activatedAt?: number | null
                   priority?: 'normal' | 'high'
+                  score?: number
                 }
             )[]
             timerEndsAt?: number | null
@@ -274,6 +285,14 @@ function hydrate(data: unknown): AppState {
                 doneAt,
                 dependsOn: [],
                 timerEndsAt,
+                timerPausedAt:
+                  typeof st === 'string' ? null : (st?.timerPausedAt ?? null),
+                timerOffsetMs:
+                  typeof st === 'string'
+                    ? 0
+                    : typeof st?.timerOffsetMs === 'number'
+                      ? st.timerOffsetMs
+                      : 0,
                 timerExpired: typeof st === 'string' ? false : st?.timerExpired === true,
                 activatedAt:
                   typeof st === 'string'
@@ -282,6 +301,12 @@ function hydrate(data: unknown): AppState {
                       ? st.activatedAt
                       : null,
                 priority: typeof st === 'string' || st?.priority !== 'high' ? 'normal' : 'high',
+                score:
+                  typeof st === 'string'
+                    ? 0
+                    : typeof st?.score === 'number' && Number.isFinite(st.score)
+                      ? st.score
+                      : 0,
               }
             })
             const stepIndex = typeof s.stepIndex === 'number' ? s.stepIndex : 0

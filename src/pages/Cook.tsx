@@ -2,7 +2,7 @@ import { For, Show, createEffect, createMemo, createSignal, onCleanup, useContex
 import { SolidMarkdown as Markdown } from 'solid-markdown'
 import { useConfig } from '../App'
 import { state, type Flow, type Step, type StepRef } from '../state/store'
-import { CookContext } from '../lib/cookEngine'
+import { CookContext, timerEffectiveEnd } from '../lib/cookEngine'
 import { fmtRemaining } from '../lib/tools'
 import { createAgentVoice } from '../lib/agentVoice'
 import {
@@ -135,14 +135,14 @@ export function Cook(props: {
     if (t) revealStep(t.flowId, t.stepId)
   })
 
-  /* ── Schritt-Zustände (implizite Kanten-Timer: Karte sagt „ich komme X nach Y") ── */
+  /* ── Schritt-Zustände (implizite Verzögerungen: Karte sagt „ich komme X nach Y") ── */
   function depStepOf(dep: StepRef): Step | undefined {
     return flows().find((x) => x.id === dep.flow_id)?.steps.find((st) => st.id === dep.step_id)
   }
   function depDone(s: Flow, step: Step, dep: StepRef): boolean {
     return depStepOf(dep)?.done === true
   }
-  /* Läuft das Gate dieser Kante noch? Ad-hoc-Timer der Abhängigkeit oder
+  /* Läuft das Gate dieser Kante noch? Timer der Abhängigkeit oder
      Kanten-Verzögerung (doneAt + timer_seconds). tick()-Read, damit ablaufende
      Gates die abgeleiteten Zustände pro Sekunde aktualisieren. */
   function depPending(dep: StepRef): boolean {
@@ -213,7 +213,7 @@ export function Cook(props: {
       const dep = depStepOf(d)
       if (!dep?.done) continue
       let end: number | null = null
-      if (dep.timerEndsAt !== null && !dep.timerExpired) end = dep.timerEndsAt
+      if (dep.timerEndsAt !== null && !dep.timerExpired) end = timerEffectiveEnd(dep)
       if (d.timer_seconds && dep.doneAt !== null) {
         const e = dep.doneAt + d.timer_seconds * 1000
         if (end === null || e > end) end = e
@@ -233,7 +233,7 @@ export function Cook(props: {
   }
 
   /* Topbar-Chips: ein Chip pro Trigger-Karte, auf die mindestens eine offene
-     Karte wartet. Endzeit = spätester Gate (Ad-hoc-Timer und/oder Kanten-Delays). */
+     Karte wartet. Endzeit = spätester Gate (Timer und/oder Kanten-Delays). */
   const chipTimers = createMemo(() => {
     tick()
     const now = Date.now()
@@ -241,7 +241,7 @@ export function Cook(props: {
     for (const s of flows()) {
       for (const st of s.steps) {
         const ends: number[] = []
-        if (st.timerEndsAt !== null && !st.timerExpired) ends.push(st.timerEndsAt)
+        if (st.timerEndsAt !== null && !st.timerExpired) ends.push(timerEffectiveEnd(st)!)
         if (st.done && st.doneAt !== null) {
           for (const f of flows()) {
             for (const card of f.steps) {
@@ -299,8 +299,9 @@ export function Cook(props: {
 
   /* ── View 1 (Mobile „Jetzt"): Prio-Queue, normale Queue, Blocked ──── */
   /* Prio-Queue: active high-Steps in Auftauch-Reihenfolge (FIFO)       */
-  /* Normale Queue: gruppiert nach Flow (Anlegereihenfolge),            */
-  /*                innerhalb des Flows nach Schrittnummer              */
+  /* Normale Queue: nach Scheduling-Score (absteigend),                 */
+  /*                Tiebreaker Flow-/Schritt-Reihenfolge                */
+  /* Waiting: nach Freiwerden (Timer-Ende), Tiebreaker prio             */
   /* Blocked: als Vorschau unten, grau, in Anlage-Reihenfolge           */
   const jetztCards = createMemo(() => {
     const prio: { s: Flow; st: Step; i: number }[] = []
@@ -319,6 +320,9 @@ export function Cook(props: {
       })
     }
     prio.sort((a, b) => (a.st.activatedAt ?? 0) - (b.st.activatedAt ?? 0))
+    /* Aktive Karten: Scheduling-Score absteigend; stabile Sortierung —
+       bei Gleichstand bleibt die Flow-/Schritt-Reihenfolge */
+    normal.sort((a, b) => b.st.score - a.st.score)
     /* Wartende Karten: nach Freiwerden (Timer-Ende), Tiebreaker prio oben */
     waiting.sort((a, b) => {
       const ta = pendingUntil(a.s, a.st) ?? Infinity
@@ -703,6 +707,9 @@ export function Cook(props: {
               >
                 <Show when={x.s.icon}>
                   <span class="text-base leading-none">{x.s.icon}</span>
+                </Show>
+                <Show when={x.st.timerPausedAt !== null}>
+                  <span class="text-sm leading-none text-amber-300">⏸</span>
                 </Show>
                 <span class="font-mono font-semibold tabular-nums">
                   {fmtCountdown(x.endsAt)}

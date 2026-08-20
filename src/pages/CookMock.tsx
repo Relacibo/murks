@@ -18,16 +18,19 @@ const step = (
   doneAt,
   dependsOn,
   timerEndsAt: null,
+  timerPausedAt: null,
+  timerOffsetMs: 0,
   timerExpired: false,
   activatedAt: Date.now(),
   priority,
+  score: 0,
 })
 
 const s1_0 = step('Mehl und Eier in eine Schüssel geben.', true)
 const s1_1 = step('Milch nach und nach einrühren, bis der Teig glatt ist.', true, [
   { flow_id: 's1', step_id: s1_0.id },
 ])
-// Vor 11 Minuten abgeschlossen — Kanten-Timer 15 min läuft noch ~4 Minuten
+// Vor 11 Minuten abgeschlossen — Verzögerung 15 min läuft noch ~4 Minuten
 const s1_2 = step(
   'Teig 15 Minuten gehen lassen.',
   true,
@@ -135,7 +138,7 @@ export function CookMock() {
         <button
           class={mockBtn}
           onClick={() => {
-            // Kanten-Timer überspringen: Abschlusszeitpunkt weit in die Vergangenheit
+            // Verzögerung überspringen: Abschlusszeitpunkt weit in die Vergangenheit
             setCook((c) => ({
               ...c,
               flows: c.flows.map((s) => ({

@@ -5,6 +5,20 @@ import { fmtRemaining, stepLabel } from './tools'
 
 export const FLOW_COLORS: FlowColor[] = ['cyan', 'violet', 'amber', 'emerald', 'rose', 'sky']
 
+/**
+ * Effektive Endzeit eines Timers: Basis-Endzeit + akkumulierte Pausen
+ * + (pausiert: jetzt − Pausenbeginn). Während einer Pause wandert die effektive
+ * Endzeit mit der Uhr mit — die Restzeit friert ein und der Timer läuft nie ab.
+ */
+export function timerEffectiveEnd(step: Step, now = Date.now()): number | null {
+  if (step.timerEndsAt === null) return null
+  return (
+    step.timerEndsAt +
+    step.timerOffsetMs +
+    (step.timerPausedAt !== null ? now - step.timerPausedAt : 0)
+  )
+}
+
 /** Navigation/Puls-Event an die UI (ephemer, wird nicht persistiert) */
 export interface NavTarget {
   flowId: string
@@ -79,13 +93,13 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
       ?.steps.find((st) => st.id === ref.step_id)
   }
 
-  // Endzeit eines einzelnen Gates: Ad-hoc-Timer der Abhängigkeit oder Kanten-Verzögerung
+  // Endzeit eines einzelnen Gates: Timer der Abhängigkeit oder Kanten-Verzögerung
   // (doneAt + timer_seconds). Null, wenn keines von beiden (noch) läuft.
   function gateEndsAt(d: StepRef): number | null {
     const dep = depStep(d)
     if (!dep?.done) return null
     let end: number | null = null
-    if (dep.timerEndsAt !== null && !dep.timerExpired) end = dep.timerEndsAt
+    if (dep.timerEndsAt !== null && !dep.timerExpired) end = timerEffectiveEnd(dep)
     if (d.timer_seconds && dep.doneAt !== null) {
       const e = dep.doneAt + d.timer_seconds * 1000
       if (end === null || e > end) end = e
@@ -178,6 +192,10 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
     return raw === 'high' ? 'high' : 'normal'
   }
 
+  function parseScore(raw: unknown): number {
+    return typeof raw === 'number' && Number.isFinite(raw) ? raw : 0
+  }
+
   // Toasts nur bei KI-Aktionen / Engine-Events (Timer abgelaufen) — nicht bei
   // Nutzer-Aktionen aus der UI (der Nutzer sieht die Karte ja direkt).
   let silentToasts = false
@@ -203,6 +221,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               description: typeof st === 'string' ? st : String(o.description ?? '').trim(),
               dependsOn: typeof st === 'string' ? [] : parseDepRefs(o.depends_on),
               priority: typeof st === 'string' ? 'normal' as const : parsePriority(o.priority),
+              score: typeof st === 'string' ? 0 : parseScore(o.score),
             }
           })
           if (parsed.some((s) => s.description === '')) {
@@ -237,9 +256,12 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
                   doneAt: null,
                   dependsOn: st.dependsOn,
                   timerEndsAt: null,
+                  timerPausedAt: null,
+                  timerOffsetMs: 0,
                   timerExpired: false,
                   activatedAt: depsDone(st.dependsOn) ? nextAct() : null,
                   priority: st.priority,
+                  score: st.score,
                 })),
                 done: false,
               },
@@ -260,6 +282,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             return JSON.stringify({ error: 'Unbekannte Abhängigkeit' })
           }
           const priority = parsePriority(args.priority)
+          const score = parseScore(args.score)
           if (priority === 'high' && dependsOn.length > 1) {
             return JSON.stringify({
               error: 'Ein Schritt mit priority "high" darf höchstens eine Abhängigkeit haben',
@@ -272,9 +295,12 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             doneAt: null,
             dependsOn,
             timerEndsAt: null,
+            timerPausedAt: null,
+            timerOffsetMs: 0,
             timerExpired: false,
             activatedAt: depsDone(dependsOn) ? nextAct() : null,
             priority,
+            score,
           }
           const afterId = typeof args.after_step_id === 'string' ? args.after_step_id : null
           const steps = [...flow.steps]
@@ -311,6 +337,9 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           }
           if (args.priority === 'high' || args.priority === 'normal') {
             patch.priority = args.priority
+          }
+          if (typeof args.score === 'number') {
+            patch.score = parseScore(args.score)
           }
           const merged: Step = { ...step, ...patch }
           if (merged.priority === 'high' && merged.dependsOn.length > 1) {
@@ -363,9 +392,12 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             doneAt: null,
             dependsOn: [{ flow_id: id, step_id: orig.id }],
             timerEndsAt: null,
+            timerPausedAt: null,
+            timerOffsetMs: 0,
             timerExpired: false,
             activatedAt: null,
             priority: 'normal',
+            score: 0,
           }
           const steps = flow.steps.map((st) =>
             st.id === stepId ? { ...st, description: first } : st,
@@ -403,7 +435,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               ? {
                   ...st,
                   done: true,
-                  // Kanten-Timer der Dependents laufen ab diesem Zeitpunkt (implizit)
+                  // Verzögerungen der Dependents laufen ab diesem Zeitpunkt (implizit)
                   doneAt: Date.now(),
                 }
               : st,
@@ -430,12 +462,14 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               error: 'Abhängige Karte ist bereits abgeschlossen — Schritt kann nicht zurückgenommen werden',
             })
           }
-          // Eigener Ad-hoc-Timer entfällt; Abhängige werden wieder blocked
+          // Eigener Timer entfällt; Abhängige werden wieder blocked
           patchStep(id, stepId, {
             done: false,
             doneAt: null,
             activatedAt: nextAct(),
             timerEndsAt: null,
+            timerPausedAt: null,
+            timerOffsetMs: 0,
             timerExpired: false,
           })
           patchFlow(id, { done: false })
@@ -446,20 +480,79 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
         case 'start_timer': {
           const id = String(args.flow_id ?? '')
           const stepId = String(args.step_id ?? '')
-          const seconds = Number(args.seconds)
           const flow = findFlow(id)
           if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
           const stepIdx = stepIndexOf(id, stepId)
           if (stepIdx < 0) return JSON.stringify({ error: 'Unbekannter Schritt' })
-          if (!Number.isFinite(seconds) || seconds <= 0) {
-            return JSON.stringify({ error: 'seconds muss positiv sein' })
+          const step = flow.steps[stepIdx]
+          const now = Date.now()
+          let endsAt: number
+          if (typeof args.offset_seconds === 'number') {
+            // Verschieben statt neu setzen: ab jetzt oder ab dem aktuellen Ende
+            const delta = Number(args.offset_seconds)
+            if (!Number.isFinite(delta)) {
+              return JSON.stringify({ error: 'offset_seconds muss eine Zahl sein' })
+            }
+            const running = step.timerEndsAt !== null && !step.timerExpired
+            const base = args.offset_base === 'end' ? (timerEffectiveEnd(step, now) ?? now) : now
+            endsAt = base + delta * 1000
+            // Normalisieren; eine laufende Pause bleibt pausiert (neue Referenz jetzt)
+            patchStep(id, stepId, {
+              timerEndsAt: endsAt,
+              timerOffsetMs: 0,
+              timerPausedAt: step.timerPausedAt !== null ? now : null,
+              timerExpired: false,
+            })
+          } else {
+            const seconds = Number(args.seconds)
+            if (!Number.isFinite(seconds) || seconds <= 0) {
+              return JSON.stringify({ error: 'seconds muss positiv sein' })
+            }
+            endsAt = now + seconds * 1000
+            patchStep(id, stepId, {
+              timerEndsAt: endsAt,
+              timerPausedAt: null,
+              timerOffsetMs: 0,
+              timerExpired: false,
+            })
           }
-          const endsAt = Date.now() + seconds * 1000
-          patchStep(id, stepId, {
-            timerEndsAt: endsAt,
-            timerExpired: false,
-          })
-          toast(`⏱ Timer: ${fmtRemaining(endsAt)} (${flow.name}: ${stepLabel(flow.steps[stepIdx].description)})`)
+          toast(`⏱ Timer: ${fmtRemaining(endsAt)} (${flow.name}: ${stepLabel(step.description)})`)
+          return JSON.stringify({ ok: true, endsAt })
+        }
+        case 'pause_timer': {
+          const id = String(args.flow_id ?? '')
+          const stepId = String(args.step_id ?? '')
+          const flow = findFlow(id)
+          if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
+          const stepIdx = stepIndexOf(id, stepId)
+          if (stepIdx < 0) return JSON.stringify({ error: 'Unbekannter Schritt' })
+          const step = flow.steps[stepIdx]
+          if (step.timerEndsAt === null || step.timerExpired) {
+            return JSON.stringify({ error: 'Kein laufender Timer' })
+          }
+          if (step.timerPausedAt !== null) {
+            return JSON.stringify({ error: 'Timer ist bereits pausiert' })
+          }
+          patchStep(id, stepId, { timerPausedAt: Date.now() })
+          toast(`⏸ Timer pausiert: ${flow.name} — ${stepLabel(step.description)}`)
+          return JSON.stringify({ ok: true })
+        }
+        case 'resume_timer': {
+          const id = String(args.flow_id ?? '')
+          const stepId = String(args.step_id ?? '')
+          const flow = findFlow(id)
+          if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
+          const stepIdx = stepIndexOf(id, stepId)
+          if (stepIdx < 0) return JSON.stringify({ error: 'Unbekannter Schritt' })
+          const step = flow.steps[stepIdx]
+          if (step.timerPausedAt === null) {
+            return JSON.stringify({ error: 'Timer ist nicht pausiert' })
+          }
+          const now = Date.now()
+          const offsetMs = step.timerOffsetMs + (now - step.timerPausedAt)
+          patchStep(id, stepId, { timerOffsetMs: offsetMs, timerPausedAt: null })
+          const endsAt = step.timerEndsAt! + offsetMs
+          toast(`▶ Timer läuft weiter: ${fmtRemaining(endsAt)} (${flow.name}: ${stepLabel(step.description)})`)
           return JSON.stringify({ ok: true, endsAt })
         }
         case 'cancel_timer': {
@@ -468,7 +561,12 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           const flow = findFlow(id)
           if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
           if (stepIndexOf(id, stepId) < 0) return JSON.stringify({ error: 'Unbekannter Schritt' })
-          patchStep(id, stepId, { timerEndsAt: null, timerExpired: false })
+          patchStep(id, stepId, {
+            timerEndsAt: null,
+            timerPausedAt: null,
+            timerOffsetMs: 0,
+            timerExpired: false,
+          })
           toast('⏱ Timer abgebrochen')
           return JSON.stringify({ ok: true })
         }
@@ -483,6 +581,8 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               done: true,
               doneAt: st.done ? st.doneAt : Date.now(),
               timerEndsAt: null,
+              timerPausedAt: null,
+              timerOffsetMs: 0,
               timerExpired: false,
             })),
           })
@@ -611,13 +711,20 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
   function expireTimers(): void {
     const now = Date.now()
     for (const s of getCook().flows) {
-      // Ad-hoc-Timer (start_timer) — wie bisher persistiert
+      // Timer (start_timer) — effektive Endzeit (Pausen frieren ein)
       s.steps.forEach((step) => {
-        if (step.timerExpired || step.timerEndsAt === null || step.timerEndsAt > now) return
-        patchStep(s.id, step.id, { timerEndsAt: null, timerExpired: true })
+        if (step.timerExpired || step.timerEndsAt === null) return
+        const e = timerEffectiveEnd(step, now)
+        if (e === null || e > now) return
+        patchStep(s.id, step.id, {
+          timerEndsAt: null,
+          timerPausedAt: null,
+          timerOffsetMs: 0,
+          timerExpired: true,
+        })
         showToast(`⏰ Timer abgelaufen: ${s.name} — ${stepLabel(step.description)}`)
       })
-      // Implizite Kanten-Timer: Karte wird frei, wenn ihr letzter Gate abläuft
+      // Implizite Verzögerungen: Karte wird frei, wenn ihr letzter Gate abläuft
       s.steps.forEach((step) => {
         if (step.done || !depsDone(step.dependsOn)) return
         const end = pendingUntilOf(step)

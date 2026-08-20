@@ -28,7 +28,13 @@ const depRefSchema = {
 const prioritySchema = {
   type: 'string',
   enum: ['normal', 'high'],
-  description: '"high" für zeitkritische Schritte (z.B. etwas im Ofen): Karte steht in „Jetzt" oben und pulsiert. Ein "high"-Schritt darf höchstens EINE Abhängigkeit haben (den Schritt, dessen Abschluss — ggf. plus Verzögerung — die Wartezeit bestimmt). Sparsam verwenden.',
+  description: '"high" für zeitkritische Schritte (z.B. etwas im Ofen): Karte steht in „Jetzt" oben und pulsiert (echter Alarm). Ein "high"-Schritt darf höchstens EINE Abhängigkeit haben (den Schritt, dessen Abschluss — ggf. plus Verzögerung — die Wartezeit bestimmt). Sparsam verwenden.',
+}
+
+const scoreSchema = {
+  type: 'number',
+  description:
+    'Optionaler Scheduling-Hinweis (Default 0): je höher, desto weiter oben in der aktiven Queue („mach das zuerst"). Kein Alarm — dafür ist priority "high". Setze hohe Werte für Schritte auf dem kritischen Pfad, deren Abschluss lange Wartezeiten freigibt (z.B. Teig ansetzen vor Zwiebeln schneiden, weil der Teig 30 min ruhen muss). Nur setzen, wenn der Default falsch wäre.',
 }
 
 const stepIdSchema = (description: string) => ({
@@ -62,6 +68,7 @@ export const TOOLS: ToolDef[] = [
               properties: {
                 description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt); beginne mit einer kurzen Kernaussage' },
                 priority: prioritySchema,
+                score: scoreSchema,
                 depends_on: depRefSchema,
               },
               required: ['description'],
@@ -85,6 +92,7 @@ export const TOOLS: ToolDef[] = [
           description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt); beginne mit einer kurzen Kernaussage' },
           after_step_id: { type: 'string', description: 'Optional: stabile ID des Schritts, hinter dem eingefügt wird (sonst ans Ende)' },
           priority: prioritySchema,
+          score: scoreSchema,
           depends_on: depRefSchema,
         },
         required: ['flow_id', 'description'],
@@ -95,7 +103,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'update_step',
-      description: 'Schritt bearbeiten: Beschreibung, Abhängigkeiten (inkl. Verzögerung an den Kanten) oder Priorität ändern (nur angegebene Felder).',
+      description: 'Schritt bearbeiten: Beschreibung, Abhängigkeiten (inkl. Verzögerung an den Kanten), Priorität oder Score ändern (nur angegebene Felder).',
       parameters: {
         type: 'object',
         properties: {
@@ -104,6 +112,7 @@ export const TOOLS: ToolDef[] = [
           description: { type: 'string', description: 'Neue Anweisung (Markdown erlaubt)' },
           depends_on: depRefSchema,
           priority: prioritySchema,
+          score: scoreSchema,
         },
         required: ['flow_id', 'step_id'],
       },
@@ -175,15 +184,55 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'start_timer',
-      description: 'Ad-hoc-Timer eines Schritts (neu) setzen oder verlängern — z.B. wenn der Nutzer eine andere Zeit will („das muss noch 5 Minuten"). Wartende Karten bleiben blockiert bis zum späteren Ende (Ad-hoc-Timer oder Kanten-Verzögerung). Ersetzt einen laufenden Timer.',
+      description:
+        'Timer eines Schritts (neu) setzen, verlängern oder verschieben. "seconds": Dauer ab jetzt — ersetzt einen laufenden Timer. Alternativ "offset_seconds" + "offset_base": laufenden Timer um X Sekunden verschieben — base "now" = „noch X Minuten ab jetzt" (z.B. „das muss noch 5 Minuten"), base "end" = „noch X Minuten länger" (ab aktuellem Ende). Wartende Karten bleiben blockiert bis zum späteren Ende (Timer oder Kanten-Verzögerung).',
       parameters: {
         type: 'object',
         properties: {
           flow_id: { type: 'string' },
           step_id: stepIdSchema('Der Schritt'),
-          seconds: { type: 'number', description: 'Dauer ab jetzt, in Sekunden' },
+          seconds: { type: 'number', description: 'Dauer ab jetzt, in Sekunden (ersetzt einen laufenden Timer)' },
+          offset_seconds: {
+            type: 'number',
+            description: 'Optional statt seconds: laufenden Timer um diese Sekunden verschieben (negativ = verkürzen)',
+          },
+          offset_base: {
+            type: 'string',
+            enum: ['now', 'end'],
+            description: 'Bezug von offset_seconds: "now" = ab jetzt, "end" = ab dem aktuellen Ende des Timers. Default "end".',
+          },
         },
-        required: ['flow_id', 'step_id', 'seconds'],
+        required: ['flow_id', 'step_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'pause_timer',
+      description: 'Laufenden Timer eines Schritts pausieren — die Restzeit friert ein, bis er mit resume_timer fortgesetzt wird.',
+      parameters: {
+        type: 'object',
+        properties: {
+          flow_id: { type: 'string' },
+          step_id: stepIdSchema('Der Schritt'),
+        },
+        required: ['flow_id', 'step_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'resume_timer',
+      description: 'Pausierten Timer eines Schritts fortsetzen.',
+      parameters: {
+        type: 'object',
+        properties: {
+          flow_id: { type: 'string' },
+          step_id: stepIdSchema('Der Schritt'),
+        },
+        required: ['flow_id', 'step_id'],
       },
     },
   },
@@ -191,7 +240,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'cancel_timer',
-      description: 'Laufenden Ad-hoc-Timer eines Schritts abbrechen (abhängige Karten werden frei, sofern keine Kanten-Verzögerung mehr läuft).',
+      description: 'Laufenden Timer eines Schritts abbrechen (abhängige Karten werden frei, sofern keine Kanten-Verzögerung mehr läuft).',
       parameters: {
         type: 'object',
         properties: {
