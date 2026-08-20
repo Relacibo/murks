@@ -1,8 +1,8 @@
 # Todos
 
 - [ ] **Schritttexte vorlesen** — der aktive Schritt wird vom TTS vorgelesen (ggf. beim Aktiv-Werden). Möglicherweise vorgenerieren (pre-render der Sprachausgabe, damit sie sofort da ist).
-- [ ] **Mute-Button** — schaltet die Sprachausgabe stumm; solange gemutet wird kein TTS gemacht (STT/Voice-Erkennung bleibt unberührt).
-- [ ] **Timer-Ablauf-Sound** — wenn ein Timer abläuft, ertönt ein Sound (zusätzlich zum Toast; respektiert vermutlich den Mute-Button).
+- [x] **Mute-Button** — schaltet die Sprachausgabe stumm; solange gemutet wird kein TTS gemacht (STT/Voice-Erkennung bleibt unberührt). Mute betrifft NUR TTS — Timer-Alarmtöne bleiben an (Alarm = Sicherheitsnetz, Stimme = Komfort).
+- [ ] **Timer-Ablauf-Sound** — wenn ein Timer abläuft, ertönt ein Sound (zusätzlich zum Toast). Läuft NICHT über den Mute-Button — Alarme bleiben immer an.
 - [ ] **Desktop: Flow-Name-Klick blendet Übersicht ein** — klickt man im Desktop-Modus auf einen Flow-Namen und die Übersicht (Flow-Spalten) ist ausgeblendet, muss sie eingeblendet werden.
 - [ ] **Timer-System überarbeiten** — **Implizite Kanten-Timer sind umgesetzt** (`timer_seconds` am `depends_on`-Eintrag, `Step.doneAt`; Karte sagt „ich komme X nach Abschluss dieser Karte"). Offen:
   - [x] Mehrere getimte Bedingungen: den **maximalen Timer** nehmen (der zuletzt ablaufende bestimmt, wann die Karte frei wird); Countdown zeigt den Maximalwert. Gilt auch für die implizite Variante.

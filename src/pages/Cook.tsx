@@ -8,7 +8,9 @@ import { createAgentVoice } from '../lib/agentVoice'
 import {
   FiMic, FiMicOff, FiMoreHorizontal, FiFileText, FiSettings, FiMessageSquare,
   FiCheck, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw, FiClock, FiSidebar,
+  FiVolume2, FiVolumeX,
 } from 'solid-icons/fi'
+import { toggleMuted } from '../lib/tts'
 
 export function Cook(props: {
   voice?: ReturnType<typeof createAgentVoice>
@@ -266,6 +268,41 @@ export function Cook(props: {
     }
     out.sort((a, b) => a.endsAt - b.endsAt)
     return out
+  })
+
+  /* Chips zusammenstauchen, wenn sie nicht in die Zeile passen: erst Emojis
+     ausblenden (kompakt); horizontales Scrollen bleibt letzte Reserve.
+     Kompakt bleibt klebrig, bis weniger Chips da sind oder Platz wächst. */
+  const [chipsCompact, setChipsCompact] = createSignal(false)
+  let chipsRow: HTMLDivElement | undefined
+  let chipsFloor = Infinity
+  let chipsLastWidth = 0
+  const measureChips = () => {
+    const el = chipsRow
+    if (!el) return
+    if (!chipsCompact() && el.scrollWidth > el.clientWidth) setChipsCompact(true)
+  }
+  createEffect(() => {
+    const n = chipTimers().length
+    if (n < chipsFloor) {
+      chipsFloor = n
+      setChipsCompact(false)
+    }
+    requestAnimationFrame(measureChips)
+  })
+  createEffect(() => {
+    const el = chipsRow
+    if (!el) return
+    const ro = new ResizeObserver(() => {
+      if (el.clientWidth > chipsLastWidth && chipsCompact()) {
+        setChipsCompact(false)
+        requestAnimationFrame(measureChips)
+      }
+      chipsLastWidth = el.clientWidth
+      measureChips()
+    })
+    ro.observe(el)
+    onCleanup(() => ro.disconnect())
   })
 
   /* Exit-Animation: abgeschlossene Karte fliegt weg (Desktop: links, mobil: oben) + Fade */
@@ -688,7 +725,11 @@ export function Cook(props: {
     <div class="h-screen bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
       {/* ── Topbar: Timer-Chips + Buttons (eine Leiste, kein Logo) ────── */}
       <header class="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-zinc-600">
-        <div class="flex-1 min-w-0 flex items-center gap-2 overflow-x-auto">
+        <div
+          ref={(el) => (chipsRow = el)}
+          class="chip-row flex-1 min-w-0 flex items-center gap-2 overflow-x-auto"
+          classList={{ 'is-compact': chipsCompact() }}
+        >
           <For each={chipTimers()}>
             {(x) => (
               <button
@@ -702,7 +743,7 @@ export function Cook(props: {
                 title="Abhängige Karten markieren"
               >
                 <Show when={x.s.icon}>
-                  <span class="text-base leading-none">{x.s.icon}</span>
+                  <span class="chip-icon text-base leading-none shrink-0">{x.s.icon}</span>
                 </Show>
                 <Show when={x.st.timerPausedAt !== null}>
                   <span class="text-sm leading-none text-amber-300">⏸</span>
@@ -715,6 +756,21 @@ export function Cook(props: {
           </For>
         </div>
         <div class="flex items-center gap-2 shrink-0">
+          <button
+            class="mic-btn"
+            classList={{ 'is-on': !state.tts.muted, 'is-off': state.tts.muted }}
+            onClick={() => toggleMuted()}
+            title={
+              state.tts.muted
+                ? 'Sprachausgabe stumm — Timer-Alarme bleiben an'
+                : 'Sprachausgabe stummschalten'
+            }
+            aria-label="Sprachausgabe stummschalten"
+          >
+            <Show when={state.tts.muted} fallback={<FiVolume2 size={20} />}>
+              <FiVolumeX size={20} />
+            </Show>
+          </button>
           <button
             class="mic-btn"
             classList={{ 'is-on': voice.listening(), 'is-off': !voice.listening() }}

@@ -100,6 +100,13 @@
     text-decoration: line-through;
     opacity: 0.6;
   }
+  /* Zu wenig Platz: Emojis ausblenden, engere Chips */
+  .chip-row.is-compact .chip .chip-icon {
+    display: none;
+  }
+  .chip-row.is-compact .chip {
+    @apply px-2 gap-1;
+  }
 
   /* ── Flow-Spalte (Desktop + Mobile-Flow-View): nur Gliederung ── */
   .column {

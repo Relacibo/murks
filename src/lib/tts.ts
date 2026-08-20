@@ -1,4 +1,4 @@
-import { state } from '../state/store'
+import { state, setTts } from '../state/store'
 import type { DownloadProgress } from './modelProgress'
 import { showToast } from './toast'
 
@@ -177,6 +177,8 @@ function speakWebSpeech(text: string) {
 
 export async function speak(text: string) {
   stopSpeaking()
+  // Mute betrifft nur die Sprachausgabe — Alarmtöne (Timer) bleiben unberührt
+  if (state.tts.muted) return
   const myToken = ++token
   const clean = text.trim()
   if (!clean) return
@@ -195,6 +197,14 @@ export async function speak(text: string) {
   } catch (e) {
     showToast(`TTS: ${e instanceof Error ? e.message : String(e)}`)
   }
+}
+
+/** Sprachausgabe stumm- bzw. wieder einschalten (nur TTS, nicht Alarmtöne) */
+export function toggleMuted(): boolean {
+  const muted = !state.tts.muted
+  setTts({ muted })
+  if (muted) stopSpeaking()
+  return muted
 }
 
 export async function isTtsModelCached(): Promise<boolean> {

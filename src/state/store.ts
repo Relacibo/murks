@@ -57,6 +57,8 @@ export interface TtsConfig {
   endpoint: string
   key: string
   voice: string
+  /** Sprachausgabe stumm — betrifft NUR TTS, Alarmtöne (Timer) bleiben an */
+  muted: boolean
 }
 
 export interface AgentMessage {
@@ -145,6 +147,7 @@ const defaults: AppState = {
     endpoint: '',
     key: '',
     voice: '',
+    muted: false,
   },
   agents: [],
   defaultAgentId: null,
@@ -205,6 +208,7 @@ function hydrate(data: unknown): AppState {
         voice: (raw.tts as Record<string, unknown> | null)?.voice
           ? String((raw.tts as Record<string, unknown>).voice)
           : '',
+        muted: (raw.tts as Record<string, unknown> | null)?.muted === true,
       },
       agents,
       defaultAgentId,

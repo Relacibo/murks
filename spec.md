@@ -406,7 +406,8 @@ Mehrere Karten stehen untereinander (Stapel).
 
 - **Eine einzige Leiste** — keine zweite Timer-Leiste darunter.
 - Kein Logo/Schriftzug „MURKS".
-- Links: Timer-Chips (Emoji + Zeit — keine Beschreibung), scrollbar; rechts: 🎤 + eine
+- Links: Timer-Chips (Emoji + Zeit — keine Beschreibung), scrollbar; rechts: 🔇 **Mute**
+  (schaltet nur die Sprachausgabe stumm — Timer-Alarmtöne bleiben an) + 🎤 + eine
   **Buttongruppe** [📄 Zutaten · 💬 Chat · ⚙ Konfiguration] als Segmente (gemeinsamer
   Rahmen, Trennlinien) + Desktop-Übersicht-Toggle.
 - Chip-Dringlichkeit: gelb pulsierend < 2 min. **Bei Ablauf verschwindet der Chip sofort**
