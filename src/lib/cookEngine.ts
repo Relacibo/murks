@@ -25,6 +25,7 @@ export interface NavTarget {
   flowId: string
   stepId: string
   nonce: number
+  view?: 'jetzt' | 'flow'
 }
 
 /** Modal öffnen/schließen (Chat, Ingredients) — UI spiegelt das in die URL */
@@ -753,14 +754,21 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           return JSON.stringify({ ok: true })
         }
         case 'show_step': {
-          const flowId = String(args.flow_id ?? '')
+          // flow_id optional — step_id (UUID) reicht zur Identifikation
           const stepId = String(args.step_id ?? '')
+          let flowId = String(args.flow_id ?? '')
+          if (!flowId) {
+            const found = getCook().flows.find((f) => f.steps.some((st) => st.id === stepId))
+            if (!found) return JSON.stringify({ error: 'Unbekannter Schritt' })
+            flowId = found.id
+          }
           const flow = findFlow(flowId)
           if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
           const step = flow.steps.find((st) => st.id === stepId)
           if (!step) return JSON.stringify({ error: 'Unbekannter Schritt' })
           setCook((c) => ({ ...c, focusedFlowId: flowId }))
-          setNavTarget({ flowId, stepId, nonce: Date.now() })
+          const view = args.view === 'jetzt' ? 'jetzt' : 'flow'
+          setNavTarget({ flowId, stepId, nonce: Date.now(), view })
           if (args.speak === true) speak(step.description)
           return JSON.stringify({ ok: true })
         }

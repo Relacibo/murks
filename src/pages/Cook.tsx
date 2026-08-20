@@ -94,11 +94,12 @@ export function Cook(props: {
     clearTimeout(pulseTimer)
     pulseTimer = setTimeout(() => setPulses((p) => (p && p.nonce === nonce ? null : p)), 1600)
   }
-  function revealStep(flowId: string, stepId: string) {
+  function revealStep(flowId: string, stepId: string, view?: 'jetzt' | 'flow') {
     const s = flows().find((x) => x.id === flowId)
     if (!s || !s.steps.some((st) => st.id === stepId)) return
     focusFlow(flowId)
-    setFlowView(flowId)
+    if (view !== 'jetzt') setFlowView(flowId)   // 'flow' oder undefined → Detailansicht
+    else setFlowView(null)                        // 'jetzt' → Queue bleibt sichtbar
     const key = `${flowId}:${stepId}`
     pulseCards([key])
     requestAnimationFrame(() => {
@@ -145,7 +146,7 @@ export function Cook(props: {
   /* KI ruft show_step → gleiches Verhalten wie Titel-Tap */
   createEffect(() => {
     const t = engine.navTarget
-    if (t) revealStep(t.flowId, t.stepId)
+    if (t) revealStep(t.flowId, t.stepId, t.view)
   })
 
   /* ── Schritt-Zustände (implizite Verzögerungen: Karte sagt „ich komme X nach Y") ── */
