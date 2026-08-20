@@ -231,7 +231,7 @@ export function Cook(props: {
 
   /* Exit-Animation: abgeschlossene Karte fliegt weg (Desktop: links, mobil: oben) + Fade */
   const [leaving, setLeaving] = createSignal<
-    { id: string; html: string; top: number; container: HTMLElement }[]
+    { id: string; html: string; top: number; left: number; width: number; container: HTMLElement }[]
   >([])
 
   function completeStep(s: Flow, i: number) {
@@ -248,6 +248,8 @@ export function Cook(props: {
           id: `${key}-${Date.now()}`,
           html: el.outerHTML,
           top: rect.top - contRect.top + cont.scrollTop,
+          left: rect.left - contRect.left + cont.scrollLeft,
+          width: rect.width,
           container: cont,
         }
         setLeaving((l) => [...l, ghost])
@@ -521,12 +523,14 @@ export function Cook(props: {
         const now = next.get(k)
         if (now === undefined) continue
         if (prev === undefined) {
+          // fill backwards: während des kleinen Delays unsichtbar (kein Morph),
+          // erst fliegt der Ghost raus, dann kommt die neue Karte rein
           el.animate(
             [
               { transform: 'translateX(48px)', opacity: 0 },
               { transform: 'translateX(0)', opacity: 1 },
             ],
-            { duration: 300, easing: 'ease-out' },
+            { duration: 320, easing: 'ease-out', delay: 120, fill: 'backwards' },
           )
         } else if (Math.abs(prev - now) > 1) {
           el.animate(
@@ -545,29 +549,38 @@ export function Cook(props: {
           props.scrollerRef?.(el)
         }}
         data-card-list
-        class={`relative flex-1 min-h-0 overflow-y-auto flex flex-col gap-2 ${props.dense ? 'p-1' : 'p-3'}`}
+        class={`relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col gap-2 ${props.dense ? 'p-1' : 'p-3'}`}
       >
         <For each={leaving().filter((g) => g.container === listRef)}>
           {(g) => (
             <div
               data-ghost
               innerHTML={g.html}
-              class="absolute left-0 right-0 pointer-events-none z-40"
-              style={{ top: `${g.top}px` }}
+              class="absolute pointer-events-none z-40"
+              style={{
+                top: `${g.top}px`,
+                left: `${g.left}px`,
+                width: `${g.width}px`,
+              }}
               ref={(el) => {
-                const desktop = window.matchMedia('(min-width: 640px)').matches
-                const anim = el.animate(
-                  [
-                    { transform: 'translateX(0)', opacity: 1 },
-                    {
-                      transform: desktop ? 'translateX(-64px)' : 'translateY(-32px)',
-                      opacity: 0,
-                    },
-                  ],
-                  { duration: 260, easing: 'ease-in' },
-                )
-                anim.onfinish = () => setLeaving((l) => l.filter((x) => x !== g))
-                setTimeout(() => setLeaving((l) => l.filter((x) => x !== g)), 1000)
+                // ref feuert vor der DOM-Einfügung — Animation erst im nächsten
+                // Frame, wenn das Element sicher verbunden ist
+                requestAnimationFrame(() => {
+                  if (!el.isConnected) return
+                  const desktop = window.matchMedia('(min-width: 640px)').matches
+                  const anim = el.animate(
+                    [
+                      { transform: 'translateX(0)', opacity: 1 },
+                      {
+                        transform: desktop ? 'translateX(-64px)' : 'translateY(-32px)',
+                        opacity: 0,
+                      },
+                    ],
+                    { duration: 200, easing: 'ease-in' },
+                  )
+                  anim.onfinish = () => setLeaving((l) => l.filter((x) => x !== g))
+                  setTimeout(() => setLeaving((l) => l.filter((x) => x !== g)), 600)
+                })
               }}
             />
           )}
