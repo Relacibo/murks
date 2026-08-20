@@ -37,28 +37,34 @@ interface StepRef {
   timer_seconds?: number | null // Verzögerung: Karte wird X s NACH Abschluss der Abhängigkeit frei
 }
 
+interface StepTimer {
+  startAt: number          // Startzeitpunkt (Basis) — „neu setzen" setzt ihn zurück
+  durationMs: number       // Dauer — „+1 Min" erhöht sie
+  pausedAt: number | null  // Pause-Beginn (Restzeit friert ein, Timer läuft nie ab)
+  pauseOffsetMs: number    // akkumulierte Pausendauer
+  gatesSelf: boolean       // true = Timer übersteuert die Wartezeit DIESER Karte,
+                           // false = er steuert die Wartezeit der Dependents (z.B. Brat-Timer)
+}
+
 interface Step {
   id: string               // stabil (crypto.randomUUID)
   description: string      // Volltext, Markdown-rendered; beginnt mit kurzer Kernaussage
   done: boolean            // Schritt einzeln abschließbar (✓-Button / complete_step)
   doneAt: number | null    // Abschlusszeitpunkt — Basis der Verzögerungen an den Kanten
   dependsOn: StepRef[]     // Abhängigkeiten liegen im abhängigen Step → m:n ergibt sich von selbst
-  timerEndsAt: number | null   // nur Timer (start_timer) — Basis-Endzeit
-  timerPausedAt: number | null // Pause-Beginn (Restzeit friert ein, solange gesetzt)
-  timerOffsetMs: number        // akkumulierte Pausendauer; effektive Endzeit =
-                               // timerEndsAt + timerOffsetMs + (pausiert ? jetzt − timerPausedAt : 0)
-  timerExpired: boolean
+  timer: StepTimer | null  // Laufzeit-Timer — ein Objekt, gehört genau einem Step
   activatedAt: number | null // Zeitpunkt des Eintritts in „Jetzt" (innerhalb seiner Queue: neu → hinten)
   priority: 'normal' | 'high' // high: bei active in der Prio-Queue oben (FIFO) + pulsierend
   score: number               // Scheduling-Hinweis der KI (Default 0): höher = weiter oben
 }
 ```
 
-> **Implizite Timer:** Die Verzögerung liegt an der **Kante** (`StepRef.timer_seconds`),
-> nicht am Schritt — eine Karte sagt „ich komme X Minuten nach Abschluss dieser Karte".
-> Zwei Karten können so mit **unterschiedlichen Offsets** an derselben Abhängigkeit hängen
-> (Soße +0, Spaghetti +10). Der Schritt, auf den getimte Kanten zeigen, bekommt den
-> ⏱-Button; nach seinem Abschluss zeigen die wartenden Karten den Countdown.
+> **Implizite Verzögerung an der Kante:** `StepRef.timer_seconds` — eine Karte sagt
+> „ich komme X Minuten nach Abschluss dieser Karte". Zwei Karten können so mit
+> **unterschiedlichen Offsets** an derselben Abhängigkeit hängen (Soße +0, Spaghetti +10).
+> Der Schritt, auf den getimte Kanten zeigen, bekommt den
+> ⏱-Button; wartende Karten zeigen den Countdown und bekommen einen eigenen
+> **Spiegel-Timer** (`timer.gatesSelf`), auf dem Warte-Menü und Timer-Chips agieren.
 
 ### Abgeleitete Schritt-Zustände
 - **blocked**: mind. eine Abhängigkeit nicht `done`
@@ -322,31 +328,34 @@ Mehrere Karten stehen untereinander (Stapel).
   Kante ist `doneAt + timer_seconds`. Mehrere Karten können mit unterschiedlichen Offsets an
   derselben Karte hängen.
 - **Mehrere Gates:** Der zuletzt ablaufende entscheidet, wann die Karte frei wird (Maximum).
-- **Kein Timer-UI:** Neusetzen läuft über die KI — `start_timer` setzt einen Timer auf
-  dem Schritt (z.B. „das muss noch 5 Minuten"); wartende Karten bleiben bis zum späteren Ende
-  geblockt. `cancel_timer` bricht den Timer ab.
-- **Timer sind zur Laufzeit manipulierbar:** `timerEndsAt` (Basis) + `timerPausedAt` +
-  `timerOffsetMs`; effektive Endzeit = Basis + Offset + (pausiert: jetzt − Pausenbeginn).
-  - `pause_timer` friert die Restzeit ein (der Timer läuft nie ab, solange er pausiert ist);
-    `resume_timer` setzt fort (Pausendauer wandert in den Offset).
-  - `start_timer` kann statt `seconds` auch `offset_seconds` + `offset_base` nehmen:
-    `base "now"` = „noch X Minuten ab jetzt", `base "end"` = „noch X Minuten länger"
-    (ab dem aktuellen Ende; negativ = verkürzen). Eine laufende Pause bleibt pausiert.
-  - Topbar-Chip zeigt bei pausiertem Timer ein ⏸.
-- **Waiting-Karten** sind in „Jetzt" sichtbar (gedimmt wie blocked/done, Countdown in Flow-Farbe, ab < 30 s amber) und
-  können mit ✓
-  **vor Ablauf abgeschlossen** werden — das cancelt die Gates anderer Karten nicht.
+- **Ein Timer-Objekt pro Step** (`Step.timer`): `startAt` + `durationMs` + Pause-Felder —
+  losgelöst vom Abschluss des Steps. Wartende Karten bekommen automatisch einen
+  **Spiegel-Timer** (`gatesSelf: true`), der ihre abgeleitete Wartezeit materialisiert —
+  darauf agieren Warte-Menü und Chips. Ein Timer gehört genau einem Step (Besitzer-Suche
+  über Referenz-Gleichheit).
+- **Warte-Menü** (öffnet am Button der wartenden Karte): Pausieren/Fortsetzen,
+  +1/+5 Min (aufschlagen), „Neu: 5 Min" (Startzeitpunkt komplett zurücksetzen),
+  **⏩ Vorspulen** (= früh abschließen, Wartezeit überspringen), ↺ Reset (eigene
+  Anpassung verwerfen → zurück zur abgeleiteten Wartezeit).
+- **Timer-Tools:** `start_timer` — `seconds` = neu setzen ab jetzt (Startzeitpunkt
+  zurückgesetzt), `offset_seconds` + `offset_base` — `"now"` = „noch X Minuten ab jetzt",
+  `"end"` = „noch X Minuten länger" (negativ = verkürzen). Auf einer wartenden Karte
+  wirken die Tools auf deren Wartezeit selbst. `pause_timer`/`resume_timer` frieren die
+  Restzeit ein bzw. setzen fort (Pausendauer wandert in `pauseOffsetMs`); pausierte Timer
+  laufen nie ab. `cancel_timer` bricht ab bzw. resettet die Wartezeit-Anpassung.
+- **Waiting-Karten** sind in „Jetzt" sichtbar (gedimmt wie blocked/done, Countdown in Flow-Farbe, ab < 30 s amber);
+  der Button öffnet das Warte-Menü (kein Direkt-Abschluss mehr).
 - **Sortierung:** waiting-Karten stehen **unter** den aktiven und **über** den blocked;
   Reihenfolge nach Freiwerden (Timer-Ende), Tiebreaker `high` oben.
 - **Revert:** `revert_step` verwirft `doneAt` und den Timer und macht Abhängige wieder
   blocked (sie rücken in die Vorschau).
 - Sichtbar: **Countdown im Kartenband nur auf den wartenden Karten** (die den Timer als
-  Bedingung haben). Die Karte, die den Timer auslöst, zeigt keinen Countdown im Band —
-  vorher nur der ⏱-Button; nach dem Abschluss trägt sie ein **einfaches ✓ wie jede andere
-  erledigte Karte** (kein 🔔). Topbar-Timer-Chips (nur Emoji + Zeit)
-  zeigen nur Timer, auf die eine offene Karte wartet — Timer ohne abhängige Karten
+  Bedingung haben); ⏸ im Band und im Chip, solange pausiert. Die Karte, die den Timer
+  auslöst, zeigt keinen Countdown im Band — vorher nur der ⏱-Button; nach dem Abschluss
+  trägt sie ein **einfaches ✓ wie jede andere erledigte Karte** (kein 🔔). Topbar-Timer-Chips
+  (nur Emoji + Zeit) sind ein Chip pro Timer-Objekt — Timer ohne wartende Karten
   erscheinen dort nicht.
-- **Klick auf einen Timer-Chip markiert alle abhängigen Karten** (kurzer Puls,
+- **Klick auf einen Timer-Chip markiert die wartenden Karten** (kurzer Puls,
   wo immer sie gerade sichtbar sind).
 - Dringlichkeit: Amber + Pulsieren < 30 s; bei Ablauf verschwindet der Topbar-Chip sofort.
 - Bei Ablauf: KI navigiert aktiv zum betroffenen Schritt (`show_step`).
@@ -447,10 +456,10 @@ umbenennen/löschen/teilen, Timer neu setzen oder verlängern.
 | `split_step` | Step teilen: Teil 1 bleibt (mit Prio), Teil 2 folgt danach und hängt von Teil 1 ab; Verweise auf den Original-Step zeigen auf Teil 2. Nur nicht-done |
 | `complete_step` | `done` (+ `doneAt`); Verzögerungen der Dependents laufen ab hier; Abhängige kommen in „Jetzt" (waiting/active) |
 | `revert_step` | zurücknehmen — nur wenn keine abhängige Karte abgeschlossen ist; verwirft `doneAt`/Timer, Abhängige werden wieder blocked |
-| `start_timer` | Timer neu setzen („seconds" = Dauer ab jetzt, ersetzt laufenden) **oder verschieben** (`offset_seconds` + `offset_base`: „now" = ab jetzt, „end" = „noch X Minuten länger"; negativ = verkürzen) |
-| `pause_timer` | laufenden Timer pausieren (Restzeit friert ein) |
+| `start_timer` | Timer neu setzen („seconds" = Dauer ab jetzt, Startzeitpunkt wird zurückgesetzt) **oder aufschlagen** (`offset_seconds` + `offset_base`: „now" = ab jetzt, „end" = „noch X Minuten länger"; negativ = verkürzen). Auf einer wartenden Karte: deren Wartezeit selbst |
+| `pause_timer` | laufenden Timer pausieren (Restzeit friert ein); auf wartender Karte ohne eigenen Timer: Wartezeit einfrieren |
 | `resume_timer` | pausierten Timer fortsetzen |
-| `cancel_timer` | Timer abbrechen (Abhängige werden frei, sofern keine Kanten-Verzögerung läuft) |
+| `cancel_timer` | Timer abbrechen (Abhängige werden frei, sofern keine Kanten-Verzögerung läuft); auf wartender Karte: Reset auf die ursprüngliche Wartezeit |
 | `complete_flow` | alle Steps `done` (+ `doneAt`) + Flow `done` + alle Timer abbrechen |
 | `update_flow` | `name` / `icon` ändern |
 | `delete_flow` | Flow löschen; Refs anderer Flows auf seine Steps werden entfernt |

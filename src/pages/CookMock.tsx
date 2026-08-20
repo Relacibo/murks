@@ -17,10 +17,7 @@ const step = (
   done,
   doneAt,
   dependsOn,
-  timerEndsAt: null,
-  timerPausedAt: null,
-  timerOffsetMs: 0,
-  timerExpired: false,
+  timer: null,
   activatedAt: Date.now(),
   priority,
   score: 0,
@@ -138,13 +135,18 @@ export function CookMock() {
         <button
           class={mockBtn}
           onClick={() => {
-            // Verzögerung überspringen: Abschlusszeitpunkt weit in die Vergangenheit
+            // Verzögerung überspringen: Abschlusszeitpunkt weit in die Vergangenheit,
+            // Spiegel-Timer der wartenden Karten entfernen
             setCook((c) => ({
               ...c,
               flows: c.flows.map((s) => ({
                 ...s,
                 steps: s.steps.map((st) =>
-                  st.id === s1_2.id ? { ...st, doneAt: Date.now() - 901_000 } : st,
+                  st.id === s1_2.id
+                    ? { ...st, doneAt: Date.now() - 901_000 }
+                    : st.id === s1_3.id || st.id === s2_1.id
+                      ? { ...st, timer: null }
+                      : st,
                 ),
               })),
             }))
@@ -161,7 +163,11 @@ export function CookMock() {
               flows: c.flows.map((s) => ({
                 ...s,
                 steps: s.steps.map((st) =>
-                  st.id === s1_2.id ? { ...st, doneAt: Date.now() - 901_000 } : st,
+                  st.id === s1_2.id
+                    ? { ...st, doneAt: Date.now() - 901_000 }
+                    : st.id === s1_3.id || st.id === s2_1.id
+                      ? { ...st, timer: null }
+                      : st,
                 ),
               })),
             }))

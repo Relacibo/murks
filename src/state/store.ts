@@ -18,7 +18,7 @@ const DEFAULT_SYSTEM_PROMPT = [
   'Du hilfst beim Kochen: Gerichte planen, Schritte koordinieren, Timer setzen, parallele Kochstränge im Blick behalten.',
   'Jeder Schritt hat eine description (vollständige, eigenständig ausführbare Anweisung mit Zutaten, Mengen und Methode; Markdown erlaubt). Beginne mit einer kurzen Kernaussage — sie erscheint als Titel in Timer-Chips.',
   'Schritte können optional Abhängigkeiten haben (depends_on): Verweise auf andere Schritte (eigener oder anderer Flow), die zuerst erledigt sein müssen. Ein Schritt ist erst aktiv, wenn alle Abhängigkeiten erledigt sind.',
-  'Ein Abhängigkeits-Eintrag kann optional timer_seconds haben (Verzögerung in Sekunden): Die Karte wird erst X Sekunden NACH dem Abschluss der abhängigen Karte frei — die Karte sagt also „ich komme X Minuten nach dieser Karte". Beispiel: „Nudeln abgießen" hängt mit timer_seconds 600 von „Nudeln ins Wasser" ab. Bei mehreren getimten Abhängigkeiten bestimmt der zuletzt ablaufende Timer, wann die Karte frei wird. Will der Nutzer eine andere Zeit (z.B. „das muss noch 5 Minuten"), setze den Timer mit start_timer neu (seconds) oder verschiebe ihn (offset_seconds: base "now" = ab jetzt, base "end" = „noch X Minuten länger"). pause_timer/resume_timer pausieren einen laufenden Timer und setzen ihn fort.',
+  'Ein Abhängigkeits-Eintrag kann optional timer_seconds haben (Verzögerung in Sekunden): Die Karte wird erst X Sekunden NACH dem Abschluss der abhängigen Karte frei — die Karte sagt also „ich komme X Minuten nach dieser Karte". Beispiel: „Nudeln abgießen" hängt mit timer_seconds 600 von „Nudeln ins Wasser" ab. Bei mehreren getimten Abhängigkeiten bestimmt der zuletzt ablaufende Timer, wann die Karte frei wird. Auf einer wartenden Karte wirken start_timer/pause_timer/cancel_timer auf deren Wartezeit selbst: seconds = neu setzen ab jetzt (Startzeitpunkt zurückgesetzt), offset_seconds + offset_base "end" = aufschlagen („noch X Minuten länger"), cancel_timer = Reset auf die ursprüngliche Wartezeit.',
   'Schritte können optional priority "high" haben (zeitkritisch, z.B. etwas im Ofen): Solche Karten stehen in der „Jetzt“-Ansicht oben und pulsieren (echter Alarm). Ein "high"-Schritt darf höchstens EINE Abhängigkeit haben — den Schritt, dessen Abschluss (ggf. plus Verzögerung) die Wartezeit bestimmt (z.B. „Aus dem Ofen holen" hängt nur von „In den Ofen" ab). Modelliere zeitkritische Aktionen deshalb immer als eigene Karte. Vergib "high" sparsam.',
   'Schritte können optional score haben (Zahl, Default 0): Sortierung der aktiven Karten in „Jetzt" — höher = weiter oben. Nutze score als stillen Scheduling-Hinweis („mach das zuerst"), priority "high" nur für echte Alarme. Setze den hohen Wert auf die Karte VOR der Wartezeit — deren Abschluss startet den Timer, die Wartezeit kann dann mit anderer Arbeit gefüllt werden. Beispiel: „Mehl und Eier verrühren" bekommt einen hohen Score (danach ruht der Teig 30 Minuten), „Teig gehen lassen" selbst bekommt keinen (die Karte wartet nur — ihr Score zählt erst, wenn sie aktiv wird), „Zwiebeln schneiden" bleibt niedrig (füllt die Ruhezeit). Verkleinere scores wieder, wenn der Grund wegfällt (update_step). Nur setzen, wenn die Standard-Reihenfolge falsch wäre.',
   'Vergib beim Anlegen eines Flows ein passendes Emoji als icon (z.B. 🍚 für Reis) — es identifiziert den Flow visuell.',
@@ -76,18 +76,32 @@ export interface StepRef {
   timer_seconds?: number | null
 }
 
+/**
+ * Laufzeit-Timer einer Karte — ein eigenes Objekt, losgelöst vom Abschluss
+ * der Karte (doneAt) und von den Kanten-Verzögerungen. Das Warte-Menü agiert
+ * ausschließlich auf diesem Objekt.
+ */
+export interface StepTimer {
+  /** Startzeitpunkt (Basis). Restzeit = durationMs − (jetzt − startAt) + Pausen */
+  startAt: number
+  /** Dauer in ms — „+1 Min" = durationMs erhöhen, „neu setzen" = startAt/durationMs neu */
+  durationMs: number
+  /** Pause aktiv seit … (Restzeit friert ein, der Timer läuft nie ab) */
+  pausedAt: number | null
+  /** Akkumulierte Pausendauer (wandert beim Fortsetzen hierher) */
+  pauseOffsetMs: number
+  /** true = Timer übersteuert die Wartezeit DIESER Karte (Warte-Menü),
+      false = er steuert die Wartezeit der Dependents (z.B. Brat-Timer) */
+  gatesSelf: boolean
+}
+
 export interface Step {
   id: string // stabil — bleibt bei Einfügen/Löschen/Splitten gleich
   description: string
   done: boolean
   doneAt: number | null
   dependsOn: StepRef[]
-  /** Timer (start_timer): Basis-Endzeit; effektive Endzeit = timerEndsAt
-      + timerOffsetMs + (pausiert ? jetzt − timerPausedAt : 0) */
-  timerEndsAt: number | null
-  timerPausedAt: number | null
-  timerOffsetMs: number
-  timerExpired: boolean
+  timer: StepTimer | null
   activatedAt: number | null
   priority: 'normal' | 'high'
   /** Scheduling-Hinweis der KI (Default 0): höher = weiter oben in der aktiven
@@ -231,10 +245,12 @@ function hydrate(data: unknown): AppState {
                   doneAt?: number | null
                   dependsOn?: (StepRef | { flow_id?: string; step_index?: number })[]
                   timerSeconds?: number | null
+                  timer?: Partial<StepTimer> | null
                   timerEndsAt?: number | null
                   timerPausedAt?: number | null
                   timerOffsetMs?: number
                   timerExpired?: boolean
+                  timerGatesSelf?: boolean
                   activatedAt?: number | null
                   priority?: 'normal' | 'high'
                   score?: number
@@ -278,6 +294,35 @@ function hydrate(data: unknown): AppState {
                     ? timerEndsAt - timerSeconds * 1000
                     : 0
               }
+              // Timer-Objekt: neue Form direkt, alte Einzelfelder migrieren
+              let timer: StepTimer | null = null
+              if (o && typeof o.timer === 'object' && o.timer !== null) {
+                const t = o.timer
+                if (
+                  typeof t.startAt === 'number' &&
+                  typeof t.durationMs === 'number' &&
+                  t.durationMs > 0
+                ) {
+                  timer = {
+                    startAt: t.startAt,
+                    durationMs: t.durationMs,
+                    pausedAt: typeof t.pausedAt === 'number' ? t.pausedAt : null,
+                    pauseOffsetMs: typeof t.pauseOffsetMs === 'number' ? t.pauseOffsetMs : 0,
+                    gatesSelf: t.gatesSelf === true,
+                  }
+                }
+              } else if (o && typeof o.timerEndsAt === 'number' && o.timerExpired !== true) {
+                const pausedAt = typeof o.timerPausedAt === 'number' ? o.timerPausedAt : null
+                const offsetMs = typeof o.timerOffsetMs === 'number' ? o.timerOffsetMs : 0
+                const effEnd = o.timerEndsAt + offsetMs + (pausedAt !== null ? Date.now() - pausedAt : 0)
+                timer = {
+                  startAt: Date.now(),
+                  durationMs: Math.max(0, effEnd - Date.now()),
+                  pausedAt,
+                  pauseOffsetMs: offsetMs,
+                  gatesSelf: o.timerGatesSelf === true,
+                }
+              }
               return {
                 id,
                 description:
@@ -288,16 +333,7 @@ function hydrate(data: unknown): AppState {
                 done,
                 doneAt,
                 dependsOn: [],
-                timerEndsAt,
-                timerPausedAt:
-                  typeof st === 'string' ? null : (st?.timerPausedAt ?? null),
-                timerOffsetMs:
-                  typeof st === 'string'
-                    ? 0
-                    : typeof st?.timerOffsetMs === 'number'
-                      ? st.timerOffsetMs
-                      : 0,
-                timerExpired: typeof st === 'string' ? false : st?.timerExpired === true,
+                timer,
                 activatedAt:
                   typeof st === 'string'
                     ? null
@@ -315,11 +351,16 @@ function hydrate(data: unknown): AppState {
             })
             const stepIndex = typeof s.stepIndex === 'number' ? s.stepIndex : 0
             // Migration: alter Flow-Timer → Timer des aktiven Schritts
-            if (typeof s.timerEndsAt === 'number' && steps[stepIndex] && steps[stepIndex].timerEndsAt === null) {
+            if (typeof s.timerEndsAt === 'number' && steps[stepIndex] && steps[stepIndex].timer === null) {
               steps[stepIndex] = {
                 ...steps[stepIndex],
-                timerEndsAt: s.timerEndsAt,
-                timerExpired: s.timerExpired === true,
+                timer: {
+                  startAt: Date.now(),
+                  durationMs: Math.max(0, s.timerEndsAt - Date.now()),
+                  pausedAt: null,
+                  pauseOffsetMs: 0,
+                  gatesSelf: false,
+                },
               }
             }
             return {
@@ -411,6 +452,8 @@ async function init() {
   } catch (e) {
     console.error('IndexedDB laden fehlgeschlagen', e)
   }
+  // Spiegel-Timer für wartende Karten aus dem persistierten Zustand
+  cookEngine.syncTimers()
   setReady(true)
 }
 init()

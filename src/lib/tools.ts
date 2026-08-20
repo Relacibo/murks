@@ -185,7 +185,7 @@ export const TOOLS: ToolDef[] = [
     function: {
       name: 'start_timer',
       description:
-        'Timer eines Schritts (neu) setzen, verlängern oder verschieben. "seconds": Dauer ab jetzt — ersetzt einen laufenden Timer. Alternativ "offset_seconds" + "offset_base": laufenden Timer um X Sekunden verschieben — base "now" = „noch X Minuten ab jetzt" (z.B. „das muss noch 5 Minuten"), base "end" = „noch X Minuten länger" (ab aktuellem Ende). Wartende Karten bleiben blockiert bis zum späteren Ende (Timer oder Kanten-Verzögerung).',
+        'Timer eines Schritts neu setzen, aufschlagen oder verschieben. "seconds": Dauer ab jetzt — setzt den Startzeitpunkt komplett zurück und ersetzt einen laufenden Timer. Alternativ "offset_seconds" + "offset_base": laufenden Timer um X Sekunden verschieben — base "now" = „noch X Minuten ab jetzt", base "end" = „noch X Minuten länger" (negativ = verkürzen). Auf einer wartenden Karte (alle Abhängigkeiten erledigt) betrifft der Timer die Wartezeit der Karte selbst; sonst die Wartezeit ihrer abhängigen Karten.',
       parameters: {
         type: 'object',
         properties: {
@@ -210,7 +210,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'pause_timer',
-      description: 'Laufenden Timer eines Schritts pausieren — die Restzeit friert ein, bis er mit resume_timer fortgesetzt wird.',
+      description: 'Laufenden Timer eines Schritts pausieren — die Restzeit friert ein, bis er mit resume_timer fortgesetzt wird. Auf einer wartenden Karte ohne eigenen Timer friert pause_timer deren Wartezeit ein.',
       parameters: {
         type: 'object',
         properties: {
@@ -240,7 +240,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'cancel_timer',
-      description: 'Laufenden Timer eines Schritts abbrechen (abhängige Karten werden frei, sofern keine Kanten-Verzögerung mehr läuft).',
+      description: 'Timer eines Schritts abbrechen (abhängige Karten werden frei, sofern keine Kanten-Verzögerung läuft). Auf einer wartenden Karte: eigene Anpassung verwerfen — zurück zur ursprünglichen Wartezeit (Reset).',
       parameters: {
         type: 'object',
         properties: {
