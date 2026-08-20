@@ -44,11 +44,16 @@ export function createAgentVoice(opts?: {
   const [transcribing, setTranscribing] = createSignal(false)
   const [sttReady, setSttReady] = createSignal(false)
   const [lastTranscript, setLastTranscript] = createSignal<{ text: string; at: number } | null>(null)
+  /* Agent spricht gerade (TTS) — solange wird nicht zugehört (Echo-Schutz) */
+  const [ttsSpeaking, setTtsSpeaking] = createSignal(false)
 
   let vad: MicVAD | null = null
   let recognition: ReturnType<typeof createWebSpeechRecognition> = null
   let lastSpoken: { text: string } | undefined = state.agent.messages[state.agent.messages.length - 1]
   let sttCheckToken = 0
+  /* Gesprächsmodus gewünscht: Nutzer hat das Mic eingeschaltet — es bleibt
+     (auch über Agent-Antworten hinweg) an, bis er es manuell ausmacht */
+  let wanted = false
 
   createEffect(() => {
     const mode = state.stt.mode
@@ -68,7 +73,27 @@ export function createAgentVoice(opts?: {
     const last = messages[messages.length - 1]
     if (last && last.role === 'agent' && !last.silent && last !== lastSpoken) {
       lastSpoken = last
-      speak(last.text)
+      setTtsSpeaking(true)
+      void speak(last.text).finally(() => setTtsSpeaking(false))
+    }
+  })
+
+  /* Gesprächsmodus (WebSpeech): weiterhören, sobald der Agent fertig ist —
+     egal ob die Antwort gesprochen wurde (ttsSpeaking) oder nur der Request
+     (busy) beendet ist. wanted = Nutzer hat das Mic selbst eingeschaltet. */
+  createEffect(() => {
+    state.agent.busy
+    ttsSpeaking()
+    state.stt.mode
+    if (
+      wanted &&
+      state.stt.mode === 'webspeech' &&
+      !state.agent.busy &&
+      !ttsSpeaking() &&
+      !listening()
+    ) {
+      recognition?.start()
+      setListening(true)
     }
   })
 
@@ -92,6 +117,7 @@ export function createAgentVoice(opts?: {
   }
 
   async function startVoice() {
+    wanted = true
     if (state.stt.mode === 'webspeech') {
       recognition = createWebSpeechRecognition(
         (transcript, isFinal) => {
@@ -99,8 +125,13 @@ export function createAgentVoice(opts?: {
         },
         pushError,
         () => {
-          recognition = null
+          // Äußerung zu Ende: Gesprächsmodus — solange der Agent nicht
+          // antwortet, direkt weiterhören; sonst übernimmt der Restart-Effekt
           setListening(false)
+          if (wanted && !state.agent.busy && !ttsSpeaking()) {
+            recognition?.start()
+            setListening(true)
+          }
         },
       )
       if (recognition) {
@@ -147,6 +178,7 @@ export function createAgentVoice(opts?: {
   }
 
   async function stopVoice() {
+    wanted = false
     setListening(false)
     setSpeaking(false)
     recognition?.stop()

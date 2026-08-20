@@ -8,7 +8,7 @@ import { createAgentVoice } from '../lib/agentVoice'
 import {
   FiMic, FiMicOff, FiMoreHorizontal, FiFileText, FiSettings, FiMessageSquare,
   FiCheck, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw, FiClock, FiSidebar,
-  FiVolume2, FiVolumeX, FiPause, FiPlay, FiPlus, FiFastForward, FiSend, FiChevronDown,
+  FiVolume2, FiVolumeX, FiPause, FiPlay, FiPlus, FiFastForward, FiSend, FiX,
 } from 'solid-icons/fi'
 import { toggleMuted, stopSpeaking, speak, pregenCard } from '../lib/tts'
 
@@ -81,6 +81,10 @@ export function Cook(props: {
     stopSpeaking()
     sendMessage(text)
     setComposerInput('')
+  }
+  function collapseComposer() {
+    setComposerOpen(false)
+    composerInputRef?.blur()
   }
 
   const flows = () => engine.cook.flows
@@ -1285,15 +1289,6 @@ export function Cook(props: {
           <form class="composer-row" onSubmit={submitComposer}>
             <button
               type="button"
-              class="composer-collapse"
-              onClick={() => setComposerOpen(false)}
-              title="Eingabe einklappen"
-              aria-label="Eingabe einklappen"
-            >
-              <FiChevronDown size={16} />
-            </button>
-            <button
-              type="button"
               class="composer-mic"
               classList={{
                 'is-listening': voice.listening() && !voice.transcribing(),
@@ -1321,16 +1316,35 @@ export function Cook(props: {
               placeholder="Nachricht …"
               value={composerInput()}
               onInput={(e) => setComposerInput(e.currentTarget.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') collapseComposer()
+              }}
             />
-            <button
-              type="submit"
-              class="composer-send"
-              disabled={state.agent.busy || !composerInput().trim()}
-              title="Senden"
-              aria-label="Nachricht senden"
+            {/* Leeres Feld: ✕ klappt ein (ersetzt den Senden-Button — kein Extra-Platz) */}
+            <Show
+              when={composerInput().trim() !== ''}
+              fallback={
+                <button
+                  type="button"
+                  class="composer-x"
+                  onClick={collapseComposer}
+                  title="Eingabe einklappen"
+                  aria-label="Eingabe einklappen"
+                >
+                  <FiX size={16} />
+                </button>
+              }
             >
-              <FiSend size={18} />
-            </button>
+              <button
+                type="submit"
+                class="composer-send"
+                disabled={state.agent.busy}
+                title="Senden"
+                aria-label="Nachricht senden"
+              >
+                <FiSend size={18} />
+              </button>
+            </Show>
           </form>
           </Show>
         </div>

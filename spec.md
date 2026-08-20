@@ -324,7 +324,8 @@ Mehrere Karten stehen untereinander (Stapel).
   Bildschirmrand (Mikro + Textfeld + Senden; mobile Tastatur schiebt sie hoch,
   safe-area berücksichtigt). **Ein-/ausklappbar:** eingeklappt nur ein runder
   Sprechblasen-Button (sticky unten rechts), der die Bar aufklappt und das Textfeld
-  fokussiert; ausgeklappt zusätzlich ein Einklapp-Chevron. Darüber erscheinen
+  fokussiert; ausgeklappt ersetzt bei leerem Eingabefeld ein ✕ den Senden-Button
+  (einklappen, kein Extra-Platz), Escape klappt ebenfalls ein. Darüber erscheinen
   kurze Strips: das STT-Transkript für ~10 s, die letzte Agent-Antwort (TTS-Text)
   solange gesprochen wird und danach noch ~12 s — auch wenn der Composer
   eingeklappt ist. Ein dritter Strip zeigt nur während Hören/Transkribieren/Denken
@@ -448,6 +449,12 @@ Mehrere Karten stehen untereinander (Stapel).
 - Mic-Button immer erreichbar in der Topbar.
 - Erkannte Eingabe (STT-Text) als eigener Streifen, fade-out nach 10s.
 - Letzter KI-Text: max. 4 Zeilen, fade-out nach 12s.
+- **Gesprächsmodus:** Einmal eingeschaltet bleibt das Mic an — über Agent-Antworten
+  hinweg, bis der Nutzer es manuell ausmacht. VAD-Modi (lokal/server) hören nach
+  jedem Transkript weiter. WebSpeech (Browser-Erkennung, one-shot) wird nach jeder
+  Äußerung neu gestartet (Restart statt `continuous=true` — unzuverlässig in Chrome);
+  solange der Agent antwortet (busy) oder spricht (TTS), wird nicht zugehört
+  (Echo-Schutz), danach startet die Erkennung automatisch wieder.
 
 ## Toasts (Meldung unten)
 
