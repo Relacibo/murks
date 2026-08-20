@@ -1,14 +1,14 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, useContext } from 'solid-js'
 import { SolidMarkdown as Markdown } from 'solid-markdown'
 import { useConfig } from '../App'
-import { state, type Flow, type Step, type StepRef } from '../state/store'
+import { state, type Flow, type Step, type StepRef, type StepTimer } from '../state/store'
 import { CookContext, timerEffectiveEnd } from '../lib/cookEngine'
 import { fmtRemaining } from '../lib/tools'
 import { createAgentVoice } from '../lib/agentVoice'
 import {
   FiMic, FiMicOff, FiMoreHorizontal, FiFileText, FiSettings, FiMessageSquare,
   FiCheck, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw, FiClock, FiSidebar,
-  FiVolume2, FiVolumeX,
+  FiVolume2, FiVolumeX, FiPause, FiPlay, FiPlus, FiFastForward, FiRefreshCw,
 } from 'solid-icons/fi'
 import { toggleMuted } from '../lib/tts'
 
@@ -144,24 +144,38 @@ export function Cook(props: {
   function depDone(s: Flow, step: Step, dep: StepRef): boolean {
     return depStepOf(dep)?.done === true
   }
-  /* Läuft das Gate dieser Kante noch? Timer der Abhängigkeit oder
-     Kanten-Verzögerung (doneAt + timer_seconds). tick()-Read, damit ablaufende
-     Gates die abgeleiteten Zustände pro Sekunde aktualisieren. */
-  function depPending(dep: StepRef): boolean {
+
+  /* Wann wird die Karte frei? Maximaler Gate-Endzeitpunkt über alle
+     abgeschlossenen Abhängigkeiten (deren Timer oder Kanten-Verzögerung)
+     plus ggf. der eigene Warte-Timer (timer.gatesSelf). tick()-Read, damit
+     ablaufende Gates die abgeleiteten Zustände pro Sekunde aktualisieren. */
+  function pendingUntil(s: Flow, step: Step): number | null {
     tick()
-    const d = depStepOf(dep)
-    if (!d || !d.done) return false
-    if (d.timerEndsAt !== null && !d.timerExpired) return true
-    if (dep.timer_seconds && d.doneAt !== null) {
-      return d.doneAt + dep.timer_seconds * 1000 > Date.now()
+    let max: number | null = null
+    for (const d of step.dependsOn) {
+      const dep = depStepOf(d)
+      if (!dep?.done) continue
+      let end: number | null = null
+      if (dep.timer) end = timerEffectiveEnd(dep.timer)
+      if (d.timer_seconds && dep.doneAt !== null) {
+        const e = dep.doneAt + d.timer_seconds * 1000
+        if (end === null || e > end) end = e
+      }
+      if (end !== null && (max === null || end > max)) max = end
     }
-    return false
+    if (step.timer?.gatesSelf) {
+      const e = timerEffectiveEnd(step.timer)
+      if (max === null || e > max) max = e
+    }
+    return max
   }
 
   function stepState(s: Flow, step: Step): 'done' | 'blocked' | 'waiting' | 'active' {
     if (step.done) return 'done'
     if (step.dependsOn.some((d) => !depDone(s, step, d))) return 'blocked'
-    if (step.dependsOn.some((d) => depPending(d))) return 'waiting'
+    /* gatesSelf-Timer wird von syncWaitTimers/expireTimers imperativ gepflegt —
+       kein tick()-Read nötig, dadurch bleibt jetztCards() tick-unabhängig */
+    if (step.timer?.gatesSelf === true) return 'waiting'
     return 'active'
   }
 
@@ -206,25 +220,6 @@ export function Cook(props: {
       })
   }
 
-  /* Wann wird die Karte frei? Maximaler Gate-Endzeitpunkt über alle
-     abgeschlossenen Abhängigkeiten (der zuletzt ablaufende Timer entscheidet) */
-  function pendingUntil(s: Flow, step: Step): number | null {
-    tick()
-    let max: number | null = null
-    for (const d of step.dependsOn) {
-      const dep = depStepOf(d)
-      if (!dep?.done) continue
-      let end: number | null = null
-      if (dep.timerEndsAt !== null && !dep.timerExpired) end = timerEffectiveEnd(dep)
-      if (d.timer_seconds && dep.doneAt !== null) {
-        const e = dep.doneAt + d.timer_seconds * 1000
-        if (end === null || e > end) end = e
-      }
-      if (end !== null && (max === null || end > max)) max = end
-    }
-    return max
-  }
-
   /* ── Timer ─────────────────────────────────────────────────────────── */
   /* Tick lesen + formatieren als Funktionsaufruf, nicht als {tick() && fmt…}
      in JSX: der Compiler memo-isiert die &&-Bedingung und würde die
@@ -234,36 +229,32 @@ export function Cook(props: {
     return fmtRemaining(endsAt)
   }
 
-  /* Topbar-Chips: ein Chip pro Trigger-Karte, auf die mindestens eine offene
-     Karte wartet. Endzeit = spätester Gate (Timer und/oder Kanten-Delays). */
+  /* Topbar-Chips: ein Chip pro Timer-Objekt (ein Timer gehört genau einem Step —
+     Besitzer ergibt sich beim Iterieren, dedupe über Referenz-Gleichheit).
+     gatesSelf = Warte-Timer der Karte selbst, sonst Timer für die Dependents. */
   const chipTimers = createMemo(() => {
     tick()
     const now = Date.now()
-    const out: { s: Flow; st: Step; endsAt: number }[] = []
+    const out: { t: StepTimer; s: Flow; st: Step; endsAt: number }[] = []
+    const seen = new Set<StepTimer>()
     for (const s of flows()) {
       for (const st of s.steps) {
-        const ends: number[] = []
-        if (st.timerEndsAt !== null && !st.timerExpired) ends.push(timerEffectiveEnd(st)!)
-        if (st.done && st.doneAt !== null) {
-          for (const f of flows()) {
-            for (const card of f.steps) {
-              if (card.done) continue
-              for (const d of card.dependsOn) {
-                if (d.flow_id !== s.id || d.step_id !== st.id || !d.timer_seconds) continue
-                ends.push(st.doneAt + d.timer_seconds * 1000)
-              }
-            }
-          }
-        }
-        const hasDependent = flows().some((f) =>
-          f.steps.some(
-            (c) => !c.done && c.dependsOn.some((d) => d.flow_id === s.id && d.step_id === st.id),
-          ),
-        )
-        if (!hasDependent) continue
-        const running = ends.filter((e) => e > now)
-        if (running.length === 0) continue
-        out.push({ s, st, endsAt: Math.max(...running) })
+        const t = st.timer
+        if (!t || seen.has(t)) continue
+        seen.add(t)
+        const end = timerEffectiveEnd(t)
+        if (end <= now) continue
+        const relevant = t.gatesSelf
+          ? !st.done
+          : flows().some((f) =>
+              f.steps.some(
+                (c) =>
+                  !c.done &&
+                  c.dependsOn.some((d) => d.flow_id === s.id && d.step_id === st.id),
+              ),
+            )
+        if (!relevant) continue
+        out.push({ t, s, st, endsAt: end })
       }
     }
     out.sort((a, b) => a.endsAt - b.endsAt)
@@ -360,10 +351,11 @@ export function Cook(props: {
     /* Aktive Karten: Scheduling-Score absteigend; stabile Sortierung —
        bei Gleichstand bleibt die Flow-/Schritt-Reihenfolge */
     normal.sort((a, b) => b.st.score - a.st.score)
-    /* Wartende Karten: nach Freiwerden (Timer-Ende), Tiebreaker prio oben */
+    /* Wartende Karten: nach Freiwerden (Timer-Ende), Tiebreaker prio oben.
+       timerEffectiveEnd liest keine Signals → jetztCards() bleibt tick-unabhängig */
     waiting.sort((a, b) => {
-      const ta = pendingUntil(a.s, a.st) ?? Infinity
-      const tb = pendingUntil(b.s, b.st) ?? Infinity
+      const ta = a.st.timer?.gatesSelf ? timerEffectiveEnd(a.st.timer) : Infinity
+      const tb = b.st.timer?.gatesSelf ? timerEffectiveEnd(b.st.timer) : Infinity
       if (ta !== tb) return ta - tb
       if (a.st.priority !== b.st.priority) return a.st.priority === 'high' ? -1 : 1
       return 0
@@ -398,6 +390,124 @@ export function Cook(props: {
   })
 
   const detailFlow = createMemo(() => flows().find((x) => x.id === flowView()))
+
+  /* ── Warte-Menü (öffnet am Button der wartenden Karte) ────────────── */
+  const [waitMenu, setWaitMenu] = createSignal<{ flowId: string; stepId: string } | null>(null)
+  function WaitMenu() {
+    const card = () => {
+      const m = waitMenu()
+      if (!m) return null
+      const s = flows().find((x) => x.id === m.flowId)
+      if (!s) return null
+      const i = s.steps.findIndex((st) => st.id === m.stepId)
+      return i < 0 ? null : { s, i }
+    }
+    const st = () => {
+      const c = card()
+      return c ? c.s.steps[c.i] : null
+    }
+    /* Karte nicht mehr waiting → Menü schließen */
+    createEffect(() => {
+      const c = card()
+      if (c && stepState(c.s, c.s.steps[c.i]) !== 'waiting') setWaitMenu(null)
+    })
+    const act = (name: string, args: Record<string, unknown>) => {
+      const m = waitMenu()
+      if (!m) return
+      engine.executeTool(name, { flow_id: m.flowId, step_id: m.stepId, ...args }, { silent: true })
+    }
+    const menuBtn =
+      'h-9 px-2 rounded-lg border border-zinc-600 bg-zinc-700 text-zinc-300 hover:bg-zinc-600 hover:text-zinc-100 transition-colors flex items-center justify-center gap-1.5 text-xs disabled:opacity-40'
+    const menuIconBtn =
+      'h-9 px-2 rounded-lg border border-zinc-600 bg-zinc-700 text-zinc-300 hover:bg-zinc-600 hover:text-zinc-100 transition-colors flex items-center justify-center disabled:opacity-40'
+    return (
+      <Show when={card()}>
+        {(c) => {
+          const remaining = () => pendingUntil(c().s, st()!)
+          const paused = () => st()!.timer?.pausedAt !== null
+          return (
+            <div
+              class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50"
+              onClick={() => setWaitMenu(null)}
+            >
+              <div
+                class="w-full sm:max-w-xs rounded-t-xl sm:rounded-xl border border-zinc-700 bg-zinc-900 p-4 flex flex-col gap-3"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div class="flex items-center gap-2">
+                  <Show when={c().s.icon}>
+                    <span class="text-base leading-none">{c().s.icon}</span>
+                  </Show>
+                  <span class="text-sm font-semibold truncate flex-1 min-w-0">{c().s.name}</span>
+                  <span class="font-mono font-semibold tabular-nums text-amber-300 flex items-center gap-1">
+                    <Show when={paused()}>
+                      <FiPause size={12} />
+                    </Show>
+                    {remaining() !== null ? fmtCountdown(remaining()!) : '–'}
+                  </span>
+                </div>
+                <p class="text-xs opacity-70 line-clamp-2">{st()!.description}</p>
+                <div class="grid grid-cols-2 gap-2">
+                  <button
+                    class={menuBtn}
+                    title={paused() ? 'Fortsetzen' : 'Pausieren'}
+                    onClick={() =>
+                      paused() ? act('resume_timer', {}) : act('pause_timer', {})
+                    }
+                  >
+                    <Show when={paused()} fallback={<FiPause size={14} />}>
+                      <FiPlay size={14} />
+                    </Show>
+                    {paused() ? 'Fortsetzen' : 'Pausieren'}
+                  </button>
+                  <button
+                    class={menuBtn}
+                    title="1 Minute dranhängen"
+                    onClick={() => act('start_timer', { offset_seconds: 60, offset_base: 'end' })}
+                  >
+                    <FiPlus size={14} />1 Min
+                  </button>
+                  <button
+                    class={menuBtn}
+                    title="5 Minuten dranhängen"
+                    onClick={() => act('start_timer', { offset_seconds: 300, offset_base: 'end' })}
+                  >
+                    <FiPlus size={14} />5 Min
+                  </button>
+                  <button
+                    class={menuBtn}
+                    title="Neu setzen: 5 Minuten ab jetzt"
+                    onClick={() => act('start_timer', { seconds: 300 })}
+                  >
+                    <FiRefreshCw size={14} />5 Min
+                  </button>
+                  <button
+                    class={menuIconBtn}
+                    title="Vorspulen — Karte jetzt abschließen (Wartezeit überspringen)"
+                    onClick={() => {
+                      const c2 = card()
+                      if (c2) completeStep(c2.s, c2.i)
+                      setWaitMenu(null)
+                    }}
+                  >
+                    <FiFastForward size={18} />
+                  </button>
+                  <button
+                    class={menuIconBtn}
+                    disabled={!st()!.timer}
+                    title="Reset — eigene Anpassung verwerfen, zurück zur ursprünglichen Wartezeit"
+                    onClick={() => act('cancel_timer', {})}
+                  >
+                    <FiRotateCcw size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )
+        }}
+      </Show>
+    )
+  }
 
   /* ── Schritt-Karte (flach, klein, nie verschachtelt) ──────────────── */
   function StepCard(props: { s: Flow; i: number; onTitleClick?: () => void }) {
@@ -465,6 +575,9 @@ export function Cook(props: {
               class="step-countdown font-mono text-sm font-semibold leading-none translate-y-[1px] shrink-0 tabular-nums"
               classList={{ 'text-amber-300 animate-pulse': urgent() }}
             >
+              <Show when={st().timer?.pausedAt !== null}>
+                <FiPause size={12} class="text-amber-300 shrink-0" />
+              </Show>
               {fmtCountdown(countdownEndsAt()!)}
             </span>
           </Show>
@@ -486,7 +599,11 @@ export function Cook(props: {
                 <Show when={stateName() === 'blocked'}>
                   Wartet auf: {blockedBy(s(), st()).join(', ')}
                 </Show>
-                <Show when={stateName() === 'waiting'}>Wartet auf ⏱ Timer</Show>
+                <Show when={stateName() === 'waiting'}>
+                  <span class="inline-flex items-center gap-1">
+                    Wartet auf <FiClock size={11} /> Timer
+                  </span>
+                </Show>
               </p>
             </div>
             <div class="shrink-0 w-11 h-11 flex items-center justify-center">
@@ -523,13 +640,17 @@ export function Cook(props: {
                       classList={{ 'is-muted': stateName() === 'waiting' }}
                       title={
                         stateName() === 'waiting'
-                          ? 'Früh abschließen (Wartezeit überspringen)'
+                          ? 'Wartezeit-Optionen'
                           : 'Schritt abschließen'
                       }
                       aria-label="Schritt abschließen und weiter"
                       onClick={(e) => {
                         e.stopPropagation()
-                        completeStep(s(), i())
+                        if (stateName() === 'waiting') {
+                          setWaitMenu({ flowId: s().id, stepId: st().id })
+                        } else {
+                          completeStep(s(), i())
+                        }
                       }}
                     >
                       <FiCheck size={18} />
@@ -539,11 +660,17 @@ export function Cook(props: {
                   <button
                     class="clock-btn"
                     classList={{ 'is-muted': stateName() === 'waiting' }}
-                    title="Abschließen — Timer startet"
+                    title={
+                      stateName() === 'waiting' ? 'Wartezeit-Optionen' : 'Abschließen — Timer startet'
+                    }
                     aria-label="Schritt abschließen, Timer startet"
                     onClick={(e) => {
                       e.stopPropagation()
-                      completeStep(s(), i())
+                      if (stateName() === 'waiting') {
+                        setWaitMenu({ flowId: s().id, stepId: st().id })
+                      } else {
+                        completeStep(s(), i())
+                      }
                     }}
                   >
                     <FiClock size={18} />
@@ -739,14 +866,20 @@ export function Cook(props: {
                   'is-urgent': tick() > 0 && x.endsAt - Date.now() < 30_000,
                   'is-active': x.s.id === active()?.id,
                 }}
-                onClick={() => pulseTimedDependents(x.s, x.st)}
-                title="Abhängige Karten markieren"
+                onClick={() =>
+                  x.t.gatesSelf
+                    ? pulseCards([`${x.s.id}:${x.st.id}`])
+                    : pulseTimedDependents(x.s, x.st)
+                }
+                title={
+                  x.t.gatesSelf ? 'Wartende Karte markieren' : 'Abhängige Karten markieren'
+                }
               >
                 <Show when={x.s.icon}>
                   <span class="chip-icon text-base leading-none shrink-0">{x.s.icon}</span>
                 </Show>
-                <Show when={x.st.timerPausedAt !== null}>
-                  <span class="text-sm leading-none text-amber-300">⏸</span>
+                <Show when={x.t.pausedAt !== null}>
+                  <FiPause size={12} class="text-amber-300" />
                 </Show>
                 <span class="font-mono font-semibold tabular-nums">
                   {fmtCountdown(x.endsAt)}
@@ -935,6 +1068,8 @@ export function Cook(props: {
           </Show>
         </div>
       </div>
+
+      <WaitMenu />
     </div>
   )
 }
