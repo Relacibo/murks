@@ -54,7 +54,7 @@ interface Step {
 - **done**: explizit abgeschlossen
 
 ### Abschluss-Regeln
-- **Navigation allein schließt nie ab** (◀▶, Dots, Klick auf Desktop-Karte, `set_step`).
+- **Navigation allein schließt nie ab** (◀▶, Dots, `set_step`).
 - **⏱-Button (Schritt mit `timerSeconds`) bzw. ✓** = expliziter Abschluss: `complete_step`
   + Navigation zum nächsten. Bei `timerSeconds` startet damit der Timer — abhängige
   Schritte bleiben waiting, bis er abgelaufen ist.
@@ -144,31 +144,39 @@ blocked mit Hinweis), scrollbar. Keine ◀▶-Browse-Navigation nötig — alles
 ## Desktop Layout (≥ 640px)
 
 ### Prinzip
-Genug Platz → **Spalten pro Strang** (nur Gliederung mit Überschrift, keine Karte),
-alle Schritte als **voll ausgeklappte Karten** vertikal gestapelt, scrollbar.
-Keine Browsing-Navigation nötig — alles sichtbar.
+Genug Platz → **links die „Jetzt"-Spalte** (fix, wie die mobile View 1), rechts daneben
+**Spalten pro Strang** (nur Gliederung mit Überschrift, keine Karte), alle Schritte als
+**voll ausgeklappte Karten** vertikal gestapelt. Keine Browsing-Navigation nötig —
+alles sichtbar.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │ ⏱🍚04:00 ⏱🥗01:12 ⏱🥫07:41                        🎤  📄  ⚙      │  ← Topbar
-├──────────┬───────────────────────┬───────────────────────────────────┤
-│ 🍚 REIS  │ 🍝 SAUCE              │ 🥗 SALAT                          │  ← Spalten-Header
-│          │                       │                                   │    (nur Gliederung)
-│┌────────┐│ ┌───────────────────┐ │ ┌───────────────────┐            │
-││✓ Kochen││ │ ✓ Zwiebeln ⏱ 03:00│ │ │ ✓ Salat waschen   │            │
-││  …     ││ │   andünsten 1/4   │ │ │   …               │            │
-│╔════════╗│ ╔═══════════════════╗ │ ╔═══════════════════╗            │
-│║Quellen ║│ ║  Einreduzieren    ║ │ ║  Dressing ⏱ 01:12  ║            │
-│║lassen   ║│ ║  ⏱ 07:41  2/4     ║ │ ║  1/4 …            ║            │
-│║ …      ║│ ║  Hitze mittel, …  ║ │ ╚═══════════════════╝            │
-│╚════════╝│ ╚═══════════════════╝ │ ┌───────────────────┐            │
-│┌────────┐│ ┌───────────────────┐ │ │  Anmachen         │            │
-││Auflock.││ │  Abschmecken      │ │ │   …               │            │
-││  …     ││ │   …               │ │ └───────────────────┘            │
-│└────────┘│ └───────────────────┘ │                                   │
-└──────────┴─┴───────────────────┴─┴───────────────────────────────────┘
+├─────────────┬───────────────────────┬────────────────────────────────┤
+│ JETZT       │ 🍚 REIS              │ 🍝 SAUCE        │ 🥗 SALAT     │  ← Header
+│ (getönt,    │                       │                 │              │    „Jetzt" = kleines
+│  vertikaler │┌───────────────────┐  │ ┌─────────────┐  │ ┌──────────┐ │    Label, nicht
+│  Strich)    ││ ✓ Quellen lassen  │  │ │ Einreduzieren│  │ │ Dressing │ │    klickbar
+│┌───────────┐││   ⏱ 04:00  3/5    │  │ │ ⏱ 07:41 2/4 │  │ │ ⏱ 01:12  │ │
+││ Prio ═══╗ ││└───────────────────┘  │ │ …           │  │ │ …        │ │
+│└───────────┘│┌───────────────────┐  │ └─────────────┘  │ └──────────┘ │
+│┌───────────┐││ Auflockern …  4/5 │  │ ┌─────────────┐  │ ┌──────────┐ │
+││ aktiv …   ││└───────────────────┘  │ │ Abschmecken🔒│  │ │ …        │ │
+│└───────────┘│                       │ └─────────────┘  │ └──────────┘ │
+│┌───────────┐│                       │                 │              │
+││ blocked…  ││ ← eigene Scrollbars   │ ← eigene Scrollbars              │
+│└───────────┘│                       │                 │              │
+└─────────────┴───────────────────────┴─────────────────┴──────────────┘
 ```
 
+- **„Jetzt"-Spalte ganz links, fix:** identisch zur mobilen View 1 (Prio-Queue, normale
+  Queue, Blocked-Vorschau). Visuell abgetrennt: vertikaler Strich + leicht getönter
+  Hintergrund. Kleines „Jetzt"-Label als Header (nicht klickbar, keine Flow-Chips).
+- **Rechts daneben die Strang-Spalten** (= mobile „Flow"-Views): jede Spalte hat ihre
+  **eigene vertikale Scrollbar** (nur wenn nötig).
+- **Horizontales Scrollen nur im Strang-Bereich** — die „Jetzt"-Spalte bleibt stehen.
+- Titel-Tap in der „Jetzt"-Spalte = Strang fokussieren + Spalte horizontal ins Bild
+  scrollen (falls nicht sichtbar).
 - **Spaltenreihenfolge:** fix = Anlegereihenfolge.
 - **Spalte ist keine Karte** — nur Header (Emoji + Name, Klick = fokussieren) + Kartenstapel.
 - **Alle Schritt-Karten ausgeklappt** und **identisch zur mobilen Karte** (gleiches Titelband —
@@ -228,11 +236,12 @@ Mehrere Karten stehen untereinander (Stapel).
 └──────────────────────────────────┘
 ```
 
-- Klick auf Karte (Desktop/Flow-View) = `set_step` — Navigation, kein Abschluss,
-  keine Toast-Bestätigung.
+- **Karten sind nicht klickbar** und haben **keine Hover-Effekte** (kein Aufhellen,
+  kein Cursor-Pointer). Nur der **Titel** ist klickbar: mobil → Flow-View,
+  Desktop → Strang fokussieren + Spalte horizontal ins Bild scrollen.
 - ⏱ (grün, Schritt mit `timerSeconds`) oder ✓ (rund, nur Häkchen) = `complete_step`
   + Navigation zum nächsten Schritt; auf waiting-Karten überspringt ✓ die Wartezeit.
-- Mobile „Jetzt"-View: Karten einzeln untereinander, kein Klick-Navigation nötig;
+- Mobile „Jetzt"-View: Karten einzeln untereinander, nicht klickbar;
   Tap auf das Titelband öffnet die Flow-View.
 
 ---

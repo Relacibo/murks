@@ -122,7 +122,8 @@
   /* ── Schritt-Karte: flach, klein, nie verschachtelt ─────────────── */
   /* Dekorator-Muster: farbiges Titelband oben, neutraler Body, farbige Outline */
   .step-card {
-    @apply w-full text-left rounded-xl border overflow-hidden transition-colors hover:brightness-125 cursor-pointer bg-zinc-900 text-zinc-300;
+    /* bewusst nicht klickbar: kein Hover (kein Aufhellen), kein Cursor-Pointer */
+    @apply w-full text-left rounded-xl border overflow-hidden bg-zinc-900 text-zinc-300;
     border-color: var(--strang-border);
   }
   .step-card.is-active {

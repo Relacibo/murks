@@ -61,6 +61,16 @@ export function Cook() {
     engine.executeTool('focus_strang', { strang_id: id })
   }
 
+  /* Desktop: Strang fokussieren + Spalte horizontal ins Bild scrollen */
+  function focusColumn(id: string) {
+    focusStrang(id)
+    requestAnimationFrame(() => {
+      document
+        .querySelector(`[data-strang-id="${CSS.escape(id)}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+    })
+  }
+
   /* ── Schritt-Zustände (Modell B: Timer läuft nach Abschluss) ──────── */
   function depStepOf(dep: { strang_id: string; step_index: number }): Step | undefined {
     return strangs().find((x) => x.id === dep.strang_id)?.steps[dep.step_index]
@@ -173,6 +183,7 @@ export function Cook() {
 
   /* Prio-Step wird aktiv → „Jetzt"-View öffnen + nach oben springen */
   let jetztScroller: HTMLDivElement | undefined
+  let jetztScrollerDesktop: HTMLDivElement | undefined
   const prioActiveIds = createMemo(() =>
     jetztCards()
       .prio.map((c) => `${c.s.id}:${c.i}`)
@@ -190,7 +201,10 @@ export function Cook() {
     const added = cur.split('|').filter((id) => id && !prev.has(id))
     if (added.length === 0) return
     setFlowView(null)
-    requestAnimationFrame(() => jetztScroller?.scrollTo({ top: 0, behavior: 'smooth' }))
+    requestAnimationFrame(() => {
+      jetztScroller?.scrollTo({ top: 0, behavior: 'smooth' })
+      jetztScrollerDesktop?.scrollTo({ top: 0, behavior: 'smooth' })
+    })
   })
 
   const flowStrang = createMemo(() => strangs().find((x) => x.id === flowView()))
@@ -223,7 +237,6 @@ export function Cook() {
           'is-waiting': stateName() === 'waiting',
           'is-prio': st().priority === 'high' && stateName() === 'active',
         }}
-        onClick={() => jumpToStep(s(), i())}
       >
         <div class="step-card-band">
           <Show
@@ -350,11 +363,43 @@ export function Cook() {
     )
   }
 
+  /* ── „Jetzt"-Queue (Mobile-View 1 + Desktop-Spalte links) ────────── */
+  function JetztQueue(props: {
+    onTitleClick: (id: string) => void
+    scrollerRef?: (el: HTMLDivElement) => void
+  }) {
+    const empty = () =>
+      jetztCards().prio.length === 0 &&
+      jetztCards().normal.length === 0 &&
+      jetztCards().blocked.length === 0
+    return (
+      <div ref={props.scrollerRef} class="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-2">
+        <For each={jetztCards().prio}>
+          {(c) => <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(c.s.id)} />}
+        </For>
+        <For each={jetztCards().normal}>
+          {(c) => <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(c.s.id)} />}
+        </For>
+        <For each={jetztCards().blocked}>
+          {(c) => <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(c.s.id)} />}
+        </For>
+        <Show when={empty()}>
+          <p class="text-sm text-zinc-500 text-center py-8">Alles erledigt.</p>
+        </Show>
+      </div>
+    )
+  }
+
   /* ── Spalten-Header (Desktop) ─────────────────────────────────────── */
   function StrangColumn(props: { s: Strang; isFocused: boolean; onFocus: () => void }) {
     const s = () => props.s
     return (
-      <div class="column" data-color={s().color} classList={{ 'is-focused': props.isFocused }}>
+      <div
+        class="column"
+        data-color={s().color}
+        data-strang-id={s().id}
+        classList={{ 'is-focused': props.isFocused }}
+      >
         <button class="column-header" onClick={props.onFocus}>
           <Show when={s().icon}>
             <span class="text-base leading-none shrink-0">{s().icon}</span>
@@ -446,37 +491,10 @@ export function Cook() {
             <Show
               when={flowStrang()}
               fallback={
-                <>
-                  {/* Prio-Queue, normale Queue, Blocked-Vorschau unten */}
-                  <div
-                    ref={(el) => (jetztScroller = el)}
-                    class="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-2"
-                  >
-                    <For each={jetztCards().prio}>
-                      {(c) => <StepCard s={c.s} i={c.i} onTitleClick={() => setFlowView(c.s.id)} />}
-                    </For>
-                    <For each={jetztCards().normal}>
-                      {(c) => <StepCard s={c.s} i={c.i} onTitleClick={() => setFlowView(c.s.id)} />}
-                    </For>
-                    <Show when={jetztCards().blocked.length > 0}>
-                      <For each={jetztCards().blocked}>
-                        {(c) => (
-                          <StepCard s={c.s} i={c.i} onTitleClick={() => setFlowView(c.s.id)} />
-                        )}
-                      </For>
-                    </Show>
-                    <Show
-                      when={
-                        jetztCards().prio.length +
-                          jetztCards().normal.length +
-                          jetztCards().blocked.length ===
-                        0
-                      }
-                    >
-                      <p class="text-sm text-zinc-500 text-center py-8">Alles erledigt.</p>
-                    </Show>
-                  </div>
-                </>
+                <JetztQueue
+                  onTitleClick={(id) => setFlowView(id)}
+                  scrollerRef={(el) => (jetztScroller = el)}
+                />
               }
             >
               {(s) => (
@@ -503,17 +521,29 @@ export function Cook() {
             </Show>
           </div>
 
-          {/* Desktop: eine Spalte pro Strang (nur Gliederung, Karten flach) */}
-          <div class="hidden sm:flex flex-1 min-h-0 gap-3 p-3 overflow-x-auto items-stretch">
-            <For each={strangs()}>
-              {(s) => (
-                <StrangColumn
-                  s={s}
-                  isFocused={s.id === active()?.id}
-                  onFocus={() => focusStrang(s.id)}
-                />
-              )}
-            </For>
+          {/* Desktop: „Jetzt"-Spalte links (fix) + eine Spalte pro Strang */}
+          {/* Horizontales Scrollen nur im Strang-Bereich — „Jetzt" bleibt stehen */}
+          <div class="hidden sm:flex flex-1 min-h-0">
+            <div class="w-72 shrink-0 flex flex-col min-h-0 border-r border-zinc-700 bg-zinc-900/50">
+              <div class="shrink-0 px-3 py-2 border-b border-zinc-700 text-xs uppercase tracking-widest text-zinc-500">
+                Jetzt
+              </div>
+              <JetztQueue
+                onTitleClick={(id) => focusColumn(id)}
+                scrollerRef={(el) => (jetztScrollerDesktop = el)}
+              />
+            </div>
+            <div class="flex flex-1 min-h-0 gap-3 p-3 overflow-x-auto items-stretch">
+              <For each={strangs()}>
+                {(s) => (
+                  <StrangColumn
+                    s={s}
+                    isFocused={s.id === active()?.id}
+                    onFocus={() => focusStrang(s.id)}
+                  />
+                )}
+              </For>
+            </div>
           </div>
         </Show>
       </main>
