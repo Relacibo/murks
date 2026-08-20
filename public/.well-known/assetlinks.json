@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "de.relacibo.murks",
+      "sha256_cert_fingerprints": ["DD:99:EF:5B:16:D4:6C:CD:42:42:07:72:41:E3:3D:4D:54:AF:63:F0:7C:33:51:07:67:F6:E8:21:7B:AE:7F:E5"]
+    }
+  }
+]
