@@ -1,4 +1,4 @@
-import { createSignal } from 'solid-js'
+import { createEffect, createSignal } from 'solid-js'
 import { createStore } from 'solid-js/store'
 import type { CookState, Flow, StepRef } from '../state/store'
 import { CookContext, createCookEngine } from '../lib/cookEngine'
@@ -99,11 +99,25 @@ const MOCK_COOK: CookState = {
 
 export function CookMock() {
   // Eigener, lokaler Store — der echte App-State bleibt unberührt.
-  const [cook, setCook] = createStore<CookState>(MOCK_COOK)
+  // Persistiert in localStorage, damit Reloads die Queue behalten (wie die echte App).
+  const MOCK_KEY = 'murks-mock-state'
+  const loadMockCook = (): CookState => {
+    try {
+      const raw = localStorage.getItem(MOCK_KEY)
+      if (raw) return JSON.parse(raw) as CookState
+    } catch {
+      /* ignorieren */
+    }
+    return MOCK_COOK
+  }
+  const [cook, setCook] = createStore<CookState>(loadMockCook())
   const engine = createCookEngine(
     () => cook,
     (fn) => setCook(fn),
   )
+  createEffect(() => {
+    localStorage.setItem(MOCK_KEY, JSON.stringify(cook))
+  })
   const [ingredientsOpen, setIngredientsOpen] = createSignal(false)
 
   const mockBtn = 'rounded-lg border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-700'
@@ -169,6 +183,15 @@ export function CookMock() {
           }
         >
           ✂ S1 Schritt 4 splitten
+        </button>
+        <button
+          class={mockBtn}
+          onClick={() => {
+            localStorage.removeItem('murks-mock-state')
+            window.location.reload()
+          }}
+        >
+          🧹 Mock zurücksetzen
         </button>
       </div>
     </CookContext.Provider>

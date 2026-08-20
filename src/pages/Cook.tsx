@@ -264,12 +264,10 @@ export function Cook(props: {
     const i = () => props.i
     const st = () => s().steps[i()]
     const stateName = () => stepState(s(), st())
+    /* Countdown im Band nur auf wartenden Karten (die den Timer als Bedingung haben) —
+       nicht auf der Karte, die den Timer auslöst */
     const countdownEndsAt = () =>
-      st().timerEndsAt !== null && !st().timerExpired
-        ? st().timerEndsAt
-        : stateName() === 'waiting'
-          ? waitingRemaining(s(), st())
-          : null
+      stateName() === 'waiting' ? waitingRemaining(s(), st()) : null
     const urgent = () => {
       tick()
       const ends = countdownEndsAt()

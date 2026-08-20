@@ -301,9 +301,11 @@ Mehrere Karten stehen untereinander (Stapel).
   **vor Ablauf abgeschlossen** werden — das cancelt die Timer anderer Schritte nicht.
 - **Revert:** `revert_step` verwirft den eigenen Timer und macht Abhängige wieder blocked
   (sie rücken in die Vorschau).
-- Sichtbar: in der Schritt-Karte (Header) + Topbar-Timer-Chips (nur Emoji + Zeit).
-  **Topbar-Chips nur für Timer, auf die eine offene Karte wartet** — Timer ohne
-  abhängige Karten erscheinen nicht in der Topbar (Countdown bleibt auf der Karte).
+- Sichtbar: **Countdown im Kartenband nur auf den wartenden Karten** (die den Timer als
+  Bedingung haben). Die Karte, die den Timer auslöst, zeigt keinen Countdown im Band —
+  vorher nur der ⏱-Button, danach 🔔 bei Ablauf. Topbar-Timer-Chips (nur Emoji + Zeit)
+  zeigen nur Timer, auf die eine offene Karte wartet — Timer ohne abhängige Karten
+  erscheinen dort nicht.
 - **Klick auf einen Timer-Chip markiert alle abhängigen Karten** (kurzer Puls,
   wo immer sie gerade sichtbar sind).
 - Dringlichkeit: Orange + Pulsieren < 2 min; bei Ablauf verschwindet der Topbar-Chip sofort
