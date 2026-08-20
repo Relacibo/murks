@@ -752,26 +752,16 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           toast('Alle Stränge gelöscht')
           return JSON.stringify({ ok: true })
         }
-        case 'read_step': {
+        case 'show_step': {
           const flowId = String(args.flow_id ?? '')
           const stepId = String(args.step_id ?? '')
           const flow = findFlow(flowId)
           if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
           const step = flow.steps.find((st) => st.id === stepId)
           if (!step) return JSON.stringify({ error: 'Unbekannter Schritt' })
-          speak(step.description)
-          return JSON.stringify({ ok: true })
-        }
-        case 'show_step': {
-          const flowId = String(args.flow_id ?? '')
-          const stepId = String(args.step_id ?? '')
-          const flow = findFlow(flowId)
-          if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
-          if (!flow.steps.some((st) => st.id === stepId)) {
-            return JSON.stringify({ error: 'Unbekannter Schritt' })
-          }
           setCook((c) => ({ ...c, focusedFlowId: flowId }))
           setNavTarget({ flowId, stepId, nonce: Date.now() })
+          if (args.speak === true) speak(step.description)
           return JSON.stringify({ ok: true })
         }
         case 'focus_flow': {
