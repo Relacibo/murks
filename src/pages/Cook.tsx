@@ -521,14 +521,12 @@ export function Cook(props: {
         const now = next.get(k)
         if (now === undefined) continue
         if (prev === undefined) {
-          // Leicht verzögert, damit erst die alte Karte (Ghost) wegfliegt
-          // und das Reinkommen des Nachfolgers sichtbar wird
           el.animate(
             [
               { transform: 'translateX(48px)', opacity: 0 },
               { transform: 'translateX(0)', opacity: 1 },
             ],
-            { duration: 320, easing: 'ease-out', delay: 140 },
+            { duration: 300, easing: 'ease-out' },
           )
         } else if (Math.abs(prev - now) > 1) {
           el.animate(
