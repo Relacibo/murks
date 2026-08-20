@@ -27,6 +27,9 @@ declare module 'piper-tts-web' {
   export class OnnxWebWorkerRuntime {
     constructor(options?: { basePath?: string; numThreads?: number })
   }
+  export class OnnxWebGPUWorkerRuntime extends OnnxWebWorkerRuntime {
+    constructor(options?: { basePath?: string; numThreads?: number })
+  }
   export class PhonemizeWebRuntime {
     constructor(options?: { provider?: unknown; basePath?: string })
   }

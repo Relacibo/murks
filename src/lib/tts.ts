@@ -64,6 +64,7 @@ function getPiper(): Promise<PiperBundle> {
       const {
         PiperWebWorkerEngine,
         OnnxWebWorkerRuntime,
+        OnnxWebGPUWorkerRuntime,
         PhonemizeWebRuntime,
         RemoteVoiceProvider,
       } = await import('piper-tts-web')
@@ -71,8 +72,13 @@ function getPiper(): Promise<PiperBundle> {
         provider: new CacheVoiceProvider(),
         baseUrl: PIPER_VOICE_BASE_URL,
       })
+      // WebGPU wenn verfügbar, sonst WASM-Fallback
+      const hasWebGPU = 'gpu' in navigator
+      const onnxRuntime = hasWebGPU
+        ? new OnnxWebGPUWorkerRuntime({ basePath: `${PIPER_BASE_PATH}onnx/` })
+        : new OnnxWebWorkerRuntime({ basePath: `${PIPER_BASE_PATH}onnx/` })
       const engine = new PiperWebWorkerEngine({
-        onnxRuntime: new OnnxWebWorkerRuntime({ basePath: `${PIPER_BASE_PATH}onnx/` }),
+        onnxRuntime,
         phonemizeRuntime: new PhonemizeWebRuntime({ basePath: PIPER_BASE_PATH }),
         expressionRuntime: { destroy() {} },
         voiceProvider: provider,
@@ -90,8 +96,45 @@ function getAudioCtx(): AudioContext {
   return audioCtx
 }
 
-let currentSource: AudioBufferSourceNode | null = null
-let token = 0
+/* ── Satz-Split ──────────────────────────────────────────────────── */
+/** Teilt Text an Satzgrenzen. Kürzt nicht mitten in Zahlen/Abk. */
+export function splitSentences(text: string): string[] {
+  // Split nach . ! ? — aber nicht nach z.B./Nr./Dr./1. etc.
+  const parts = text.split(/(?<=[.!?])\s+(?=[A-ZÄÖÜ\d])/)
+  return parts.map((s) => s.trim()).filter(Boolean)
+}
+
+/* ── Decoded-Audio-Cache für Vorgenerierung ──────────────────────── */
+interface DecodedAudio { samples: Float32Array; rate: number }
+const pregenCache = new Map<string, Promise<DecodedAudio>>()
+
+async function generateFirstSentence(text: string): Promise<DecodedAudio> {
+  if (!(await isTtsModelCached())) return { samples: new Float32Array(0), rate: 22050 }
+  const sentence = splitSentences(text)[0] ?? text
+  return generateSegment(sentence)
+}
+
+async function generateSegment(text: string): Promise<DecodedAudio> {
+  const { engine } = await getPiper()
+  const { file } = await engine.generate(text, TTS_VOICE, 0)
+  const arrayBuffer = await file.arrayBuffer()
+  const ctx = getAudioCtx()
+  const buffer = await ctx.decodeAudioData(arrayBuffer)
+  return { samples: buffer.getChannelData(0), rate: buffer.sampleRate }
+}
+
+/** Vorgeneriert den ersten Satz einer Karte (kein Token-Check — wird als Cache gespeichert). */
+export function pregenCard(id: string, text: string): void {
+  if (pregenCache.has(id) || state.tts.muted || state.tts.mode !== 'wasm') return
+  pregenCache.set(id, generateFirstSentence(text))
+}
+
+/** Löscht einen Eintrag aus dem Pre-gen-Cache (z.B. wenn eine Karte entfernt wird). */
+export function clearPregen(id: string): void {
+  pregenCache.delete(id)
+}
+
+
 
 export function stopSpeaking() {
   token++
@@ -130,14 +173,36 @@ async function speakWasm(text: string, myToken: number) {
   if (!(await isTtsModelCached())) {
     throw new Error('TTS-Modell nicht heruntergeladen. In der Config unter „Sprache“ laden.')
   }
-  const { engine } = await getPiper()
-  const { file } = await engine.generate(text, TTS_VOICE, 0)
-  if (token !== myToken) return
-  const arrayBuffer = await file.arrayBuffer()
-  const ctx = getAudioCtx()
-  const buffer = await ctx.decodeAudioData(arrayBuffer)
-  if (token !== myToken) return
-  await playBuffer(buffer.getChannelData(0), buffer.sampleRate, myToken)
+  const sentences = splitSentences(text)
+  if (sentences.length === 0) return
+
+  // Lookahead-1-Pipeline: ersten Satz aus Pre-gen-Cache oder frisch generieren
+  const firstCacheKey = `__speak__${myToken}`
+  let nextAudio: Promise<DecodedAudio>
+
+  // Schaue ob der erste Satz vorher für eine bekannte Karte vorgeneriert wurde
+  // (Aufrufer kann den Cache-Key mitgeben — hier nutzen wir den Text als Key)
+  const cachedFirst = pregenCache.get(text)
+  if (cachedFirst) {
+    nextAudio = cachedFirst
+    pregenCache.delete(text)
+  } else {
+    nextAudio = generateSegment(sentences[0])
+  }
+
+  for (let i = 0; i < sentences.length; i++) {
+    const audio = await nextAudio
+    if (token !== myToken) return
+
+    // Nächsten Satz parallel zum Abspielen generieren
+    if (i + 1 < sentences.length) {
+      nextAudio = generateSegment(sentences[i + 1])
+    }
+
+    await playBuffer(audio.samples, audio.rate, myToken)
+    if (token !== myToken) return
+  }
+  pregenCache.delete(firstCacheKey)
 }
 
 async function speakServer(text: string, myToken: number) {

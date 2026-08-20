@@ -10,7 +10,7 @@ import {
   FiCheck, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw, FiClock, FiSidebar,
   FiVolume2, FiVolumeX, FiPause, FiPlay, FiPlus, FiFastForward, FiSend,
 } from 'solid-icons/fi'
-import { toggleMuted, stopSpeaking } from '../lib/tts'
+import { toggleMuted, stopSpeaking, speak, pregenCard } from '../lib/tts'
 
 export function Cook(props: {
   voice?: ReturnType<typeof createAgentVoice>
@@ -374,7 +374,7 @@ export function Cook(props: {
     return { prio, normal, waiting, blocked }
   })
 
-  /* Prio-Step wird aktiv → „Jetzt"-View öffnen + nach oben springen */
+  /* Prio-Step wird aktiv → „Jetzt"-View öffnen + nach oben springen + Auto-Vorlesen */
   let jetztScroller: HTMLDivElement | undefined
   let jetztScrollerDesktop: HTMLDivElement | undefined
   const prioActiveIds = createMemo(() =>
@@ -398,6 +398,22 @@ export function Cook(props: {
       jetztScroller?.scrollTo({ top: 0, behavior: 'smooth' })
       jetztScrollerDesktop?.scrollTo({ top: 0, behavior: 'smooth' })
     })
+    // Erste neue Prio-Karte automatisch vorlesen
+    const first = added[0].split(':')
+    const pFlow = flows().find((x) => x.id === first[0])
+    const pStep = pFlow?.steps[parseInt(first[1])]
+    if (pStep?.description) speak(pStep.description)
+  })
+
+  /* Karten die aktiv werden: ersten Satz vorgenerieren */
+  const allActiveKeys = createMemo(() =>
+    [...jetztCards().prio, ...jetztCards().normal]
+      .map((c) => ({ key: `${c.s.id}:${c.st.id}`, desc: c.st.description }))
+  )
+  createEffect(() => {
+    for (const { key, desc } of allActiveKeys()) {
+      pregenCard(key, desc)
+    }
   })
 
   const detailFlow = createMemo(() => flows().find((x) => x.id === flowView()))
