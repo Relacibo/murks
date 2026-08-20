@@ -133,17 +133,10 @@
     @apply opacity-55;
   }
   .step-card.is-waiting {
-    /* Timer läuft noch → Karte ausgegraut, nur der Countdown leuchtet amber */
-    border-color: theme('colors.zinc.700');
+    /* Timer läuft noch → gedimmt wie blocked/done (Farbzuordnung bleibt) */
+    @apply opacity-55;
   }
-  .step-card.is-waiting .step-card-band {
-    background-color: theme('colors.zinc.800');
-    border-color: theme('colors.zinc.700');
-    color: theme('colors.zinc.500');
-  }
-  .step-card.is-waiting .step-card-body {
-    color: theme('colors.zinc.500');
-  }
+  /* ✓/⏱ auf waiting-Karten: grau wie der ↺-Button */
   .check-btn.is-muted,
   .clock-btn.is-muted {
     background-color: theme('colors.zinc.800');
