@@ -8,7 +8,7 @@ import { createAgentVoice } from '../lib/agentVoice'
 import {
   FiMic, FiMicOff, FiMoreHorizontal, FiFileText, FiSettings, FiMessageSquare,
   FiCheck, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw, FiClock, FiSidebar,
-  FiVolume2, FiVolumeX, FiPause, FiPlay, FiPlus, FiFastForward, FiRefreshCw, FiSend,
+  FiVolume2, FiVolumeX, FiPause, FiPlay, FiPlus, FiFastForward, FiSend,
 } from 'solid-icons/fi'
 import { toggleMuted, stopSpeaking } from '../lib/tts'
 
@@ -417,7 +417,6 @@ export function Cook(props: {
       const c = card()
       return c ? c.s.steps[c.i] : null
     }
-    /* Karte nicht mehr waiting → Menü schließen */
     createEffect(() => {
       const c = card()
       if (c && stepState(c.s, c.s.steps[c.i]) !== 'waiting') setWaitMenu(null)
@@ -427,10 +426,22 @@ export function Cook(props: {
       if (!m) return
       engine.executeTool(name, { flow_id: m.flowId, step_id: m.stepId, ...args }, { silent: true })
     }
-    const menuBtn =
-      'h-9 px-2 rounded-lg border border-zinc-600 bg-zinc-700 text-zinc-300 hover:bg-zinc-600 hover:text-zinc-100 transition-colors flex items-center justify-center gap-1.5 text-xs disabled:opacity-40'
-    const menuIconBtn =
-      'h-9 px-2 rounded-lg border border-zinc-600 bg-zinc-700 text-zinc-300 hover:bg-zinc-600 hover:text-zinc-100 transition-colors flex items-center justify-center disabled:opacity-40'
+    const [mins, setMins] = createSignal('')
+    const [secs, setSecs] = createSignal('')
+    function applyCustomTimer() {
+      const m = Math.max(0, parseInt(mins() || '0', 10))
+      const s = Math.min(59, Math.max(0, parseInt(secs() || '0', 10)))
+      const total = m * 60 + s
+      if (total > 0) {
+        act('start_timer', { seconds: total })
+        setMins('')
+        setSecs('')
+      }
+    }
+    const btn =
+      'h-9 px-3 rounded-lg border border-zinc-600 bg-zinc-700 text-zinc-300 hover:bg-zinc-600 hover:text-zinc-100 transition-colors flex items-center justify-center gap-1.5 text-sm disabled:opacity-40'
+    const inputCls =
+      'w-14 bg-zinc-800 border border-zinc-600 rounded-lg py-2 text-center font-mono text-xl text-zinc-100 focus:border-zinc-400 focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none'
     return (
       <Show when={card()}>
         {(c) => {
@@ -442,76 +453,99 @@ export function Cook(props: {
               onClick={() => setWaitMenu(null)}
             >
               <div
-                class="w-full sm:max-w-xs rounded-t-xl sm:rounded-xl border border-zinc-700 bg-zinc-900 p-4 flex flex-col gap-3"
+                class="w-full sm:max-w-xs rounded-t-xl sm:rounded-xl border border-zinc-700 bg-zinc-900 p-5 flex flex-col gap-4"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div class="flex items-center gap-2">
-                  <Show when={c().s.icon}>
-                    <span class="text-base leading-none">{c().s.icon}</span>
-                  </Show>
-                  <span class="text-sm font-semibold truncate flex-1 min-w-0">{c().s.name}</span>
-                  <span class="font-mono font-semibold tabular-nums text-amber-300 flex items-center gap-1">
+                {/* Großer Countdown */}
+                <div class="flex flex-col items-center gap-1 py-1">
+                  <div class="flex items-center gap-2">
                     <Show when={paused()}>
-                      <FiPause size={12} />
+                      <FiPause size={18} class="text-amber-400" />
                     </Show>
-                    {remaining() !== null ? fmtCountdown(remaining()!) : '–'}
-                  </span>
+                    <span
+                      class="font-mono text-5xl font-bold tabular-nums"
+                      classList={{ 'text-amber-300': !paused(), 'text-zinc-500': paused() }}
+                    >
+                      {remaining() !== null ? fmtCountdown(remaining()!) : '–'}
+                    </span>
+                  </div>
+                  <Show when={paused()}>
+                    <span class="text-xs text-zinc-500">pausiert</span>
+                  </Show>
                 </div>
-                <p class="text-xs opacity-70 line-clamp-2">{st()!.description}</p>
-                <div class="grid grid-cols-2 gap-2">
+
+                {/* Neu stellen: M : SS */}
+                <div class="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    max="99"
+                    class={inputCls}
+                    placeholder="0"
+                    value={mins()}
+                    onInput={(e) => setMins(e.currentTarget.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && applyCustomTimer()}
+                  />
+                  <span class="text-zinc-500 font-mono text-2xl font-bold select-none">:</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="59"
+                    class={inputCls}
+                    placeholder="00"
+                    value={secs()}
+                    onInput={(e) => setSecs(e.currentTarget.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && applyCustomTimer()}
+                  />
                   <button
-                    class={menuBtn}
-                    title={paused() ? 'Fortsetzen' : 'Pausieren'}
-                    onClick={() =>
-                      paused() ? act('resume_timer', {}) : act('pause_timer', {})
-                    }
+                    class={btn + ' flex-1'}
+                    disabled={!mins() && !secs()}
+                    onClick={applyCustomTimer}
+                  >
+                    <FiCheck size={14} />
+                    Stellen
+                  </button>
+                </div>
+
+                {/* Schnell-Aktionen */}
+                <div class="grid grid-cols-4 gap-2">
+                  <button
+                    class={btn}
+                    onClick={() => (paused() ? act('resume_timer', {}) : act('pause_timer', {}))}
                   >
                     <Show when={paused()} fallback={<FiPause size={14} />}>
                       <FiPlay size={14} />
                     </Show>
-                    {paused() ? 'Fortsetzen' : 'Pausieren'}
                   </button>
                   <button
-                    class={menuBtn}
-                    title="1 Minute dranhängen"
+                    class={btn}
                     onClick={() => act('start_timer', { offset_seconds: 60, offset_base: 'end' })}
                   >
-                    <FiPlus size={14} />1 Min
+                    <FiPlus size={12} />1m
                   </button>
                   <button
-                    class={menuBtn}
-                    title="5 Minuten dranhängen"
+                    class={btn}
                     onClick={() => act('start_timer', { offset_seconds: 300, offset_base: 'end' })}
                   >
-                    <FiPlus size={14} />5 Min
+                    <FiPlus size={12} />5m
                   </button>
-                  <button
-                    class={menuBtn}
-                    title="Neu setzen: 5 Minuten ab jetzt"
-                    onClick={() => act('start_timer', { seconds: 300 })}
-                  >
-                    <FiRefreshCw size={14} />5 Min
-                  </button>
-                  <button
-                    class={menuIconBtn}
-                    title="Vorspulen — Karte jetzt abschließen (Wartezeit überspringen)"
-                    onClick={() => {
-                      const c2 = card()
-                      if (c2) completeStep(c2.s, c2.i)
-                      setWaitMenu(null)
-                    }}
-                  >
-                    <FiFastForward size={18} />
-                  </button>
-                  <button
-                    class={menuIconBtn}
-                    disabled={!st()!.timer}
-                    title="Reset — eigene Anpassung verwerfen, zurück zur ursprünglichen Wartezeit"
-                    onClick={() => act('cancel_timer', {})}
-                  >
-                    <FiRotateCcw size={18} />
+                  <button class={btn} onClick={() => act('cancel_timer', {})} title="Zurücksetzen">
+                    <FiRotateCcw size={14} />
                   </button>
                 </div>
+
+                {/* Jetzt abschließen */}
+                <button
+                  class={btn + ' w-full justify-center'}
+                  onClick={() => {
+                    const c2 = card()
+                    if (c2) completeStep(c2.s, c2.i)
+                    setWaitMenu(null)
+                  }}
+                >
+                  <FiFastForward size={14} />
+                  Jetzt abschließen
+                </button>
               </div>
             </div>
           )
@@ -597,91 +631,89 @@ export function Cook(props: {
           </span>
         </div>
 
-        <div class="step-card-body">
-          {/* Feste Größe: 2-Zeilen-Description + Statuszeile + Button-Slot reserviert */}
-          <div class="flex items-start gap-2">
-            <div class="flex-1 min-w-0">
-              <div class="step-description step-description-clamp">
-                <Show when={st().description}>
-                  <Markdown>{st().description}</Markdown>
-                </Show>
-              </div>
-              <p class="mt-1 h-4 text-xs leading-4 truncate opacity-70">
-                <Show when={stateName() === 'blocked'}>
-                  Wartet auf: {blockedBy(s(), st()).join(', ')}
-                </Show>
-                <Show when={stateName() === 'waiting'}>
-                  <span class="inline-flex items-center gap-1">
-                    Wartet auf <FiClock size={11} /> Timer
-                  </span>
-                </Show>
-              </p>
-            </div>
-            <div class="shrink-0 w-11 h-11 flex items-center justify-center">
-              {/* Wartende Karte: Uhr-Symbol öffnet das Warte-Menü — pulsiert, solange der Timer läuft */}
-              <Show when={stateName() === 'waiting'}>
-                <button
-                  class="clock-btn"
-                  classList={{ 'is-running': st().timer?.pausedAt === null }}
-                  title="Timer-Optionen"
-                  aria-label="Timer-Optionen öffnen"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setWaitMenu({ flowId: s().id, stepId: st().id })
-                  }}
-                >
-                  <FiClock size={18} />
-                </button>
+        {/* Button außerhalb step-card-body, damit opacity-55 (waiting) ihn nicht dimmt */}
+        <div class="flex items-stretch">
+          <div class="step-card-body flex-1 min-w-0">
+            <div class="step-description step-description-clamp">
+              <Show when={st().description}>
+                <Markdown>{st().description}</Markdown>
               </Show>
-              {/* Aktive Karte: abschließen — Uhr, wenn der Abschluss einen Timer startet */}
-              <Show when={stateName() === 'active' && !flowDone(s())}>
-                <Show
-                  when={hasTimedDependent(s(), st())}
-                  fallback={
-                    <button
-                      class="check-btn"
-                      title="Schritt abschließen"
-                      aria-label="Schritt abschließen und weiter"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        completeStep(s(), i())
-                      }}
-                    >
-                      <FiCheck size={18} />
-                    </button>
-                  }
-                >
+            </div>
+            <p class="mt-1 h-4 text-xs leading-4 truncate opacity-70">
+              <Show when={stateName() === 'blocked'}>
+                Wartet auf: {blockedBy(s(), st()).join(', ')}
+              </Show>
+              <Show when={stateName() === 'waiting'}>
+                <span class="inline-flex items-center gap-1">
+                  Wartet auf <FiClock size={11} /> Timer
+                </span>
+              </Show>
+            </p>
+          </div>
+          <div class="shrink-0 w-14 flex items-center justify-center">
+            {/* Wartende Karte: Uhr öffnet Timer-Modal */}
+            <Show when={stateName() === 'waiting'}>
+              <button
+                class="clock-btn"
+                classList={{ 'is-running': st().timer?.pausedAt === null }}
+                title="Timer-Optionen"
+                aria-label="Timer-Optionen öffnen"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setWaitMenu({ flowId: s().id, stepId: st().id })
+                }}
+              >
+                <FiClock size={18} />
+              </button>
+            </Show>
+            {/* Aktive Karte: abschließen — Uhr, wenn der Abschluss einen Timer startet */}
+            <Show when={stateName() === 'active' && !flowDone(s())}>
+              <Show
+                when={hasTimedDependent(s(), st())}
+                fallback={
                   <button
-                    class="clock-btn"
-                    title="Abschließen — Timer startet"
-                    aria-label="Schritt abschließen, Timer startet"
+                    class="check-btn"
+                    title="Schritt abschließen"
+                    aria-label="Schritt abschließen und weiter"
                     onClick={(e) => {
                       e.stopPropagation()
                       completeStep(s(), i())
                     }}
                   >
-                    <FiClock size={18} />
+                    <FiCheck size={18} />
                   </button>
-                </Show>
-              </Show>
-              <Show when={stateName() === 'done' && canRevert(s(), i())}>
+                }
+              >
                 <button
-                  class="revert-btn"
-                  title="Schritt zurücknehmen"
-                  aria-label="Schritt zurücknehmen"
+                  class="clock-btn"
+                  title="Abschließen — Timer startet"
+                  aria-label="Schritt abschließen, Timer startet"
                   onClick={(e) => {
                     e.stopPropagation()
-                    engine.executeTool(
-                      'revert_step',
-                      { flow_id: s().id, step_id: st().id },
-                      { silent: true },
-                    )
+                    completeStep(s(), i())
                   }}
                 >
-                  <FiRotateCcw size={18} />
+                  <FiClock size={18} />
                 </button>
               </Show>
-            </div>
+            </Show>
+            <Show when={stateName() === 'done' && canRevert(s(), i())}>
+              <button
+                class="revert-btn"
+                title="Schritt zurücknehmen"
+                aria-label="Schritt zurücknehmen"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  engine.executeTool(
+                    'revert_step',
+                    { flow_id: s().id, step_id: st().id },
+                    { silent: true },
+                  )
+                }}
+              >
+                <FiRotateCcw size={18} />
+              </button>
+            </Show>
           </div>
         </div>
       </div>
