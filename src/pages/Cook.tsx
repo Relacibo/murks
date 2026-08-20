@@ -426,22 +426,47 @@ export function Cook(props: {
       if (!m) return
       engine.executeTool(name, { flow_id: m.flowId, step_id: m.stepId, ...args }, { silent: true })
     }
-    const [mins, setMins] = createSignal('')
-    const [secs, setSecs] = createSignal('')
-    function applyCustomTimer() {
-      const m = Math.max(0, parseInt(mins() || '0', 10))
-      const s = Math.min(59, Math.max(0, parseInt(secs() || '0', 10)))
-      const total = m * 60 + s
-      if (total > 0) {
-        act('start_timer', { seconds: total })
-        setMins('')
-        setSecs('')
-      }
+
+    /* Editierbarer Timer: Minuten als Texteingabe, Sekunden als Viertel-Schritte */
+    const SEC_STEPS = [0, 15, 30, 45] as const
+    const [editMins, setEditMins] = createSignal<string | null>(null)
+    const [editSecs, setEditSecs] = createSignal<number | null>(null)
+
+    function currentMins() {
+      const r = pendingUntil(card()!.s, st()!)
+      if (r === null) return 0
+      return Math.floor((r - Date.now()) / 60000)
     }
-    const btn =
-      'h-9 px-3 rounded-lg border border-zinc-600 bg-zinc-700 text-zinc-300 hover:bg-zinc-600 hover:text-zinc-100 transition-colors flex items-center justify-center gap-1.5 text-sm disabled:opacity-40'
-    const inputCls =
-      'w-14 bg-zinc-800 border border-zinc-600 rounded-lg py-2 text-center font-mono text-xl text-zinc-100 focus:border-zinc-400 focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none'
+    function currentSecs() {
+      const r = pendingUntil(card()!.s, st()!)
+      if (r === null) return 0
+      return Math.round(((r - Date.now()) % 60000) / 1000 / 15) * 15 % 60
+    }
+
+    function applyTimer(m: number, s: number) {
+      const total = Math.max(1, m * 60 + s)
+      act('start_timer', { seconds: total })
+    }
+    function commitMins() {
+      const raw = editMins()
+      if (raw === null) return
+      const m = Math.max(0, Math.min(99, parseInt(raw || '0', 10) || 0))
+      const s = editSecs() ?? currentSecs()
+      setEditMins(null)
+      applyTimer(m, s)
+    }
+    function cycleSecs(dir: 1 | -1) {
+      const cur = editSecs() ?? currentSecs()
+      const idx = SEC_STEPS.indexOf(cur as typeof SEC_STEPS[number])
+      const next = SEC_STEPS[(idx + dir + SEC_STEPS.length) % SEC_STEPS.length]
+      setEditSecs(next)
+      const m = editMins() !== null ? (parseInt(editMins()! || '0', 10) || 0) : currentMins()
+      applyTimer(m, next)
+    }
+
+    const iconBtn =
+      'w-11 h-11 rounded-full border border-zinc-600 bg-zinc-700 text-zinc-300 hover:bg-zinc-600 hover:text-zinc-100 transition-colors flex items-center justify-center disabled:opacity-40'
+
     return (
       <Show when={card()}>
         {(c) => {
@@ -453,99 +478,104 @@ export function Cook(props: {
               onClick={() => setWaitMenu(null)}
             >
               <div
-                class="w-full sm:max-w-xs rounded-t-xl sm:rounded-xl border border-zinc-700 bg-zinc-900 p-5 flex flex-col gap-4"
+                class="w-full sm:max-w-xs rounded-t-xl sm:rounded-xl border border-zinc-700 bg-zinc-900 p-5 flex flex-col gap-5"
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* Großer Countdown */}
-                <div class="flex flex-col items-center gap-1 py-1">
-                  <div class="flex items-center gap-2">
-                    <Show when={paused()}>
-                      <FiPause size={18} class="text-amber-400" />
-                    </Show>
-                    <span
-                      class="font-mono text-5xl font-bold tabular-nums"
-                      classList={{ 'text-amber-300': !paused(), 'text-zinc-500': paused() }}
+                {/* Timer-Anzeige = Eingabe */}
+                <div class="flex items-center justify-center gap-1 py-1">
+                  {/* Minuten: Klick → editierbar */}
+                  <div class="relative">
+                    <Show
+                      when={editMins() !== null}
+                      fallback={
+                        <button
+                          class="font-mono text-5xl font-bold tabular-nums w-20 text-center leading-none"
+                          classList={{ 'text-amber-300': !paused(), 'text-zinc-500': paused() }}
+                          onClick={() => setEditMins(String(currentMins()))}
+                          title="Minuten tippen"
+                        >
+                          {remaining() !== null
+                            ? String(Math.floor(Math.max(0, remaining()! - Date.now()) / 60000)).padStart(2, '0')
+                            : '00'}
+                        </button>
+                      }
                     >
-                      {remaining() !== null ? fmtCountdown(remaining()!) : '–'}
-                    </span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="99"
+                        class="font-mono text-5xl font-bold tabular-nums w-20 text-center leading-none bg-transparent text-amber-300 border-b-2 border-amber-400 focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                        value={editMins()!}
+                        onInput={(e) => setEditMins(e.currentTarget.value)}
+                        onBlur={commitMins}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') { e.currentTarget.blur() }
+                          if (e.key === 'Escape') { setEditMins(null) }
+                        }}
+                        ref={(el) => setTimeout(() => { el.focus(); el.select() }, 0)}
+                      />
+                    </Show>
                   </div>
-                  <Show when={paused()}>
-                    <span class="text-xs text-zinc-500">pausiert</span>
-                  </Show>
-                </div>
-
-                {/* Neu stellen: M : SS */}
-                <div class="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="0"
-                    max="99"
-                    class={inputCls}
-                    placeholder="0"
-                    value={mins()}
-                    onInput={(e) => setMins(e.currentTarget.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && applyCustomTimer()}
-                  />
-                  <span class="text-zinc-500 font-mono text-2xl font-bold select-none">:</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="59"
-                    class={inputCls}
-                    placeholder="00"
-                    value={secs()}
-                    onInput={(e) => setSecs(e.currentTarget.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && applyCustomTimer()}
-                  />
+                  <span
+                    class="font-mono text-5xl font-bold select-none leading-none"
+                    classList={{ 'text-amber-300': !paused(), 'text-zinc-500': paused() }}
+                  >:</span>
+                  {/* Sekunden: Klick/Scroll → Viertel-Schritte */}
                   <button
-                    class={btn + ' flex-1'}
-                    disabled={!mins() && !secs()}
-                    onClick={applyCustomTimer}
+                    class="font-mono text-5xl font-bold tabular-nums w-20 text-center leading-none"
+                    classList={{ 'text-amber-300': !paused(), 'text-zinc-500': paused() }}
+                    onClick={() => cycleSecs(1)}
+                    onWheel={(e) => { e.preventDefault(); cycleSecs(e.deltaY > 0 ? 1 : -1) }}
+                    title="Sekunden (00 / 15 / 30 / 45)"
                   >
-                    <FiCheck size={14} />
-                    Stellen
+                    {editSecs() !== null
+                      ? String(editSecs()!).padStart(2, '0')
+                      : remaining() !== null
+                        ? String(Math.round(((Math.max(0, remaining()! - Date.now())) % 60000) / 1000 / 15) * 15 % 60).padStart(2, '0')
+                        : '00'}
                   </button>
                 </div>
+                <Show when={paused()}>
+                  <p class="text-xs text-zinc-500 text-center -mt-3">pausiert</p>
+                </Show>
 
-                {/* Schnell-Aktionen */}
-                <div class="grid grid-cols-4 gap-2">
+                {/* Aktions-Buttons */}
+                <div class="flex items-center justify-center gap-3">
                   <button
-                    class={btn}
+                    class={iconBtn}
                     onClick={() => (paused() ? act('resume_timer', {}) : act('pause_timer', {}))}
+                    title={paused() ? 'Fortsetzen' : 'Pausieren'}
                   >
-                    <Show when={paused()} fallback={<FiPause size={14} />}>
-                      <FiPlay size={14} />
+                    <Show when={paused()} fallback={<FiPause size={16} />}>
+                      <FiPlay size={16} />
                     </Show>
                   </button>
                   <button
-                    class={btn}
+                    class={iconBtn}
                     onClick={() => act('start_timer', { offset_seconds: 60, offset_base: 'end' })}
+                    title="+1 Minute"
                   >
-                    <FiPlus size={12} />1m
+                    <FiPlus size={16} />
                   </button>
                   <button
-                    class={btn}
-                    onClick={() => act('start_timer', { offset_seconds: 300, offset_base: 'end' })}
+                    class={iconBtn}
+                    onClick={() => act('cancel_timer', {})}
+                    title="Auf ursprüngliche Zeit zurücksetzen"
                   >
-                    <FiPlus size={12} />5m
+                    <FiRotateCcw size={16} />
                   </button>
-                  <button class={btn} onClick={() => act('cancel_timer', {})} title="Zurücksetzen">
-                    <FiRotateCcw size={14} />
+                  <button
+                    class={iconBtn}
+                    onClick={() => {
+                      const c2 = card()
+                      if (c2) completeStep(c2.s, c2.i)
+                      setWaitMenu(null)
+                    }}
+                    title="Jetzt abschließen"
+                  >
+                    <FiFastForward size={16} />
                   </button>
                 </div>
-
-                {/* Jetzt abschließen */}
-                <button
-                  class={btn + ' w-full justify-center'}
-                  onClick={() => {
-                    const c2 = card()
-                    if (c2) completeStep(c2.s, c2.i)
-                    setWaitMenu(null)
-                  }}
-                >
-                  <FiFastForward size={14} />
-                  Jetzt abschließen
-                </button>
               </div>
             </div>
           )

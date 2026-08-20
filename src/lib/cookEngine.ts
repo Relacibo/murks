@@ -119,7 +119,20 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
     return max
   }
 
-  // Wartende Karten bekommen einen eigenen Timer („Spiegel" der abgeleiteten
+  // Ursprüngliche Gesamtdauer der Wartezeit: max(timer_seconds) aller getimten Kanten.
+  // Für cancel_timer: Timer auf diese Dauer ab jetzt neu setzen (nicht verbleibende Zeit).
+  function originalWaitDurationMs(step: Step): number | null {
+    let max: number | null = null
+    for (const d of step.dependsOn) {
+      if (d.timer_seconds) {
+        const ms = d.timer_seconds * 1000
+        if (max === null || ms > max) max = ms
+      }
+    }
+    return max
+  }
+
+
   // Wartezeit) — Ziel des Warte-Menüs und der Timer-Chips. Ein Timer gehört
   // genau einem Step. Erzeugt, wenn eine Karte wartet und noch keinen hat;
   // entfernt, wenn kein Gate mehr läuft.
@@ -632,10 +645,27 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           const stepId = String(args.step_id ?? '')
           const flow = findFlow(id)
           if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
-          if (stepIndexOf(id, stepId) < 0) return JSON.stringify({ error: 'Unbekannter Schritt' })
+          const stepIdx = stepIndexOf(id, stepId)
+          if (stepIdx < 0) return JSON.stringify({ error: 'Unbekannter Schritt' })
+          const step = flow.steps[stepIdx]
+          const now = Date.now()
+          const origMs = originalWaitDurationMs(step)
           batch(() => {
-            patchStep(id, stepId, { timer: null })
-            syncWaitTimers()
+            if (origMs !== null) {
+              // Volle ursprüngliche Wartezeit ab jetzt setzen
+              patchStep(id, stepId, {
+                timer: {
+                  startAt: now,
+                  durationMs: origMs,
+                  pausedAt: null,
+                  pauseOffsetMs: 0,
+                  gatesSelf: true,
+                },
+              })
+            } else {
+              patchStep(id, stepId, { timer: null })
+              syncWaitTimers()
+            }
           })
           toast('⏱ Timer zurückgesetzt')
           return JSON.stringify({ ok: true })
