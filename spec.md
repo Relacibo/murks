@@ -83,7 +83,7 @@ Zwei Views:
 
 1. **„Jetzt"** (Standard, mobile-only): eine **Queue** aller aktiven Karten über alle Flows —
    die Dinge, die gerade dran sind. Ganz oben die Prio-Queue, darunter die normale Queue,
-   unten als **Vorschau** die blocked-Karten (ausgegraut). Done-Karten sind ausgeblendet.
+   unten als **Vorschau** die blocked-Karten (gedimmt, mit Farbe). Done-Karten sind ausgeblendet.
 2. **„Flow"**: die Karten **eines** Flows — optisch identisch mit einer Desktop-Spalte
    (vertikaler Kartenstapel mit allen Zuständen: done/active/waiting/blocked).
 
@@ -99,9 +99,8 @@ Zurück-Button → „Jetzt". Es gibt keine Flow-Chips-Leiste mehr.
 │ ┌──────────────────────────────┐   │
 │ │ 🍝 TOMATENSAUCE ▸ ⏱ 07:41  │   │  ← farbiges Titelband (Dekorator)
 │ ├──────────────────────────────┤   │     Farbe endet hier vertikal
-│ │ Hitze mittel, ~10 min  2/4   │   │  ← neutraler Body (zinc)
+│ │ Hitze mittel, ~10 min  [ ✓ ] │   │  ← neutraler Body (zinc), Button rechts neben Text
 │ │ köcheln.                     │   │
-│ │                    [ ✓ ]     │   │  ← runder Häkchen-Button
 │ └──────────────────────────────┘   │
 │ ┌──────────────────────────────┐   │
 │ │ 🍚 REIS ▸           ⏱ 04:00 │   │
@@ -109,7 +108,7 @@ Zurück-Button → „Jetzt". Es gibt keine Flow-Chips-Leiste mehr.
 │ │ Quellen lassen …       3/5   │   │
 │ └──────────────────────────────┘   │
 │ ┌──────────────────────────────┐   │
-│ │ 🍝 TOMATENSAUCE 🔒     4/5   │   │  ← Blocked-Vorschau (ausgegraut)
+│ │ 🍝 TOMATENSAUCE 🔒     4/5   │   │  ← Blocked-Vorschau (gedimmt, Farbe bleibt)
 │ │ Abschmecken …                │   │
 │ └──────────────────────────────┘   │
 └────────────────────────────────────┘
@@ -119,7 +118,7 @@ Zurück-Button → „Jetzt". Es gibt keine Flow-Chips-Leiste mehr.
   1. **Prio-Queue**: aktive `high`-Karten, FIFO (Auftauch-Reihenfolge — eine neue Prio
      kommt hinten dran, verdrängt keine ältere), pulsierend.
   2. **Normale Queue**: active + waiting in Auftauch-Reihenfolge.
-  3. **Blocked-Vorschau**: blocked-Karten, ausgegraut (keine gestrichelte Outline, kein
+  3. **Blocked-Vorschau**: blocked-Karten, gedimmt wie done (keine gestrichelte Outline, kein
      Label — das Grau sagt es), in Anlage-Reihenfolge (Flow 1 Schritt n, n+1, … Flow 2 Schritt m, …).
 - **Prio-Aktivierung:** Wird eine `high`-Karte aktiv (ihre einzige Bedingung ist erfüllt),
   wechselt die UI automatisch in die „Jetzt"-View (falls nicht schon dort) und scrollt
@@ -127,9 +126,10 @@ Zurück-Button → „Jetzt". Es gibt keine Flow-Chips-Leiste mehr.
 - Neu eintretende Karten (KI legt Schritt an, Abhängigkeit erfüllt, Timer abgelaufen)
   werden in ihrer Queue **unten angehängt**. Die KI kann nicht umsortieren (append-only,
   kein Reorder-Werkzeug).
-- Karten voll ausgeklappt: **farbiges Titelband** (Emoji + Flow-Name, caps, klickbar)
-  + ⏱ Timer + x/y; darunter neutraler Body (zinc) mit der Description (Markdown).
-  Der Body-Stil ist überall identisch — nur das Band unterscheidet pro Flow.
+- Karten voll ausgeklappt, **feste Größe**: **farbiges Titelband** (Emoji + Flow-Name,
+  caps, klickbar) + ⏱ Timer + x/y; darunter neutraler Body (zinc) mit der Description
+  (Markdown, 2 Zeilen). Der Body-Stil ist überall identisch — nur das Band unterscheidet
+  pro Flow.
 - ⏱ (grün, bei `timerSeconds`) bzw. ✓ (rund) = `complete_step` + Navigation;
   auf waiting-Karten = früh abschließen. Navigation allein schließt nie ab.
 - Blocked-Karte: 🔒 + Hinweis auf fehlende Abhängigkeit, kein ✓-Button.
@@ -184,7 +184,7 @@ alles sichtbar.
 - **active:** hellere Outline in Strang-Farbe.
 - **done:** gedimmt, ↺-Button zum Zurücknehmen (s. Abschluss-Regeln).
 - **waiting:** gestrichelte Outline, Countdown im Band, ✓ = früh abschließen.
-- **blocked:** ausgegraut + 🔒 (Abhängigkeit offen), kein ✓-Button.
+- **blocked:** gedimmt + 🔒 (Abhängigkeit offen), kein ✓-Button.
 - **Mehrere Karten pro Strang können gleichzeitig Timer laufen lassen.**
 - Vertikales Scrollen pro Spalte. Kein horizontales Scrollen (bis auf die Spalten selbst).
 
@@ -212,16 +212,17 @@ Mehrere Karten stehen untereinander (Stapel).
   Desktop-Spalten-Header bleibt zusätzlich als Gliederung.
 
 ### Karten-Header
-- Überall identisch: `🍚 FLOW-NAME · ⏱ Timer (nur wenn läuft) · x/y` — Titelband in
-  Strang-Farbe, Flow-Name caps + klein. Nur mobile „Jetzt": `▸` + Titel-Tap → Flow-View.
+- Titelband in Strang-Farbe: Emoji immer, **Flow-Name nur in „Jetzt" (View 1)** — in
+  View 2 / Desktop-Spalten reicht das Emoji, der Name steht ja im Flow-/Spalten-Header.
+  `· ⏱ Timer (nur wenn läuft) · x/y`. Nur mobile „Jetzt": `▸` + Titel-Tap → Flow-View.
 
 ### Zustände
 - **active**: hellere Outline (Strang-Farbe), Titelband heller
-- **waiting**: gestrichelte Outline, Countdown im Band, ✓ unten rechts = früh abschließen
-- **blocked**: ausgegraut (gedimmt + grayscale, keine gestrichelte Outline), 🔒-Hinweis
-  auf fehlende Abhängigkeit, kein ✓-Button
-- **done**: gedimmt, Description bleibt sichtbar, ↺-Button unten rechts (gleicher Slot wie ✓;
-  ausgeblendet, wenn eine abhängige Karte bereits abgeschlossen ist)
+- **waiting**: gestrichelte Outline, Countdown im Band, ✓ rechts neben dem Text = früh abschließen
+- **blocked**: gedimmt wie done (opacity — **kein grayscale**, Farbzuordnung bleibt erhalten),
+  🔒-Hinweis auf fehlende Abhängigkeit, kein ✓-Button
+- **done**: gedimmt (gleiche Art wie blocked), Description bleibt sichtbar, ↺ im Button-Slot
+  rechts neben dem Text (ausgeblendet, wenn eine abhängige Karte bereits abgeschlossen ist)
 - **prio (high, active)**: pulsiert (Outline) und steht in „Jetzt" oben — greift beim
   Aktiv-Werden; blocked/waiting verhalten sich wie immer
 
@@ -230,12 +231,16 @@ Mehrere Karten stehen untereinander (Stapel).
 ┌──────────────────────────────────┐
 │ 🍝 TOMATENSAUCE ▸ ⏱ 07:41  2/4  │  ← farbiges Titelband (▸ nur mobile „Jetzt")
 ├──────────────────────────────────┤
-│ Hitze mittel, ~10 min köcheln.  │  ← neutraler Body (zinc, Markdown)
+│ Hitze mittel, ~10 min  [ ⏱ ]    │  ← Body: Description links, Button rechts
+│ köcheln.                 ▲      │     (fester Slot neben dem Text)
 │                                  │
-│                         [ ⏱ ]    │  ← ⏱ (grün, bei timerSeconds) / ✓ / ↺ unten rechts
 └──────────────────────────────────┘
 ```
 
+- **Karten ändern nie ihre Größe:** Description fest auf 2 Zeilen geklemmt (line-clamp),
+  Statuszeile und Button-Slot fest reserviert — Zustandswechsel (Button erscheint,
+  „Wartet auf"-Zeile) verschieben nichts. Reines CSS (Flex + line-clamp), keine
+  Laufzeit-Berechnung nötig.
 - **Karten sind nicht klickbar** und haben **keine Hover-Effekte** (kein Aufhellen,
   kein Cursor-Pointer). Nur der **Titel** ist klickbar: mobil → Flow-View,
   Desktop → Strang fokussieren + Spalte horizontal ins Bild scrollen.
@@ -287,7 +292,7 @@ Mehrere Karten stehen untereinander (Stapel).
   zeitkritische Aktionen als eigene Karte zu modellieren („Aus dem Ofen holen" hängt nur
   von „In den Ofen" ab). Verstöße → Tool-Fehler.
 - **Blocked = ganz normal blocked** — kein Puls, kein ✓; erscheint in „Jetzt" nur in der
-  Blocked-Vorschau unten (ausgegraut).
+  Blocked-Vorschau unten (gedimmt, Farbe bleibt).
 - **Prio-Queue:** Mehrere `high`-Karten bilden eine eigene FIFO-Queue ganz oben —
   eine neu aktivierte Prio verdrängt keine ältere, sie kommt hinten dran.
 - **Beim Aktiv-Werden** (Bedingung erfüllt — bei `high` gibt es nur eine) wechselt die

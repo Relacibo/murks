@@ -241,10 +241,11 @@ export function Cook() {
             when={props.onTitleClick}
             fallback={
               <>
+                {/* View 2 / Desktop-Spalten: nur Emoji — der Name steht im Flow-/Spalten-Header */}
                 <Show when={s().icon}>
                   <span class="text-base leading-none shrink-0">{s().icon}</span>
                 </Show>
-                <span class="step-card-title truncate flex-1 min-w-0">{s().name}</span>
+                <span class="flex-1" />
               </>
             }
           >
@@ -285,77 +286,82 @@ export function Cook() {
         </div>
 
         <div class="step-card-body">
-          <Show when={st().description}>
-            <div class="step-description mt-2">
-              <Markdown>{st().description}</Markdown>
+          {/* Feste Größe: 2-Zeilen-Description + Statuszeile + Button-Slot reserviert */}
+          <div class="flex items-start gap-2">
+            <div class="flex-1 min-w-0">
+              <div class="step-description step-description-clamp">
+                <Show when={st().description}>
+                  <Markdown>{st().description}</Markdown>
+                </Show>
+              </div>
+              <p class="mt-1 h-4 text-xs leading-4 truncate opacity-70">
+                <Show when={stateName() === 'blocked'}>
+                  Wartet auf: {blockedBy(s(), st()).join(', ')}
+                </Show>
+                <Show when={stateName() === 'waiting'}>Wartet auf ⏱ Timer</Show>
+              </p>
             </div>
-          </Show>
-
-          <Show when={stateName() === 'blocked'}>
-            <p class="mt-2 text-xs opacity-70">Wartet auf: {blockedBy(s(), st()).join(', ')}</p>
-          </Show>
-
-          <Show when={stateName() === 'waiting'}>
-            <p class="mt-2 text-xs opacity-70">Wartet auf ⏱ Timer</p>
-          </Show>
-
-          <Show
-            when={
-              (stateName() === 'active' || stateName() === 'waiting') &&
-              !strangDone(s())
-            }
-          >
-            <div class="flex justify-end mt-3">
+            <div class="shrink-0 w-11 h-11 flex items-center justify-center">
               <Show
-                when={st().timerSeconds !== null}
+                when={
+                  (stateName() === 'active' || stateName() === 'waiting') &&
+                  !strangDone(s())
+                }
                 fallback={
+                  <Show when={stateName() === 'done' && canRevert(s(), i())}>
+                    <button
+                      class="revert-btn"
+                      title="Schritt zurücknehmen"
+                      aria-label="Schritt zurücknehmen"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        engine.executeTool(
+                          'revert_step',
+                          { strang_id: s().id, step_index: i() },
+                          { silent: true },
+                        )
+                      }}
+                    >
+                      <FiRotateCcw size={18} />
+                    </button>
+                  </Show>
+                }
+              >
+                <Show
+                  when={st().timerSeconds !== null}
+                  fallback={
+                    <button
+                      class="check-btn"
+                      title={
+                        stateName() === 'waiting'
+                          ? 'Früh abschließen (Wartezeit überspringen)'
+                          : 'Schritt abschließen'
+                      }
+                      aria-label="Schritt abschließen und weiter"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        completeAndAdvance(s(), i())
+                      }}
+                    >
+                      <FiCheck size={18} />
+                    </button>
+                  }
+                >
                   <button
-                    class="check-btn"
-                    title={
-                      stateName() === 'waiting'
-                        ? 'Früh abschließen (Wartezeit überspringen)'
-                        : 'Schritt abschließen'
-                    }
-                    aria-label="Schritt abschließen und weiter"
+                    class="clock-btn"
+                    title="Abschließen — Timer startet"
+                    aria-label="Schritt abschließen, Timer startet"
                     onClick={(e) => {
                       e.stopPropagation()
                       completeAndAdvance(s(), i())
                     }}
                   >
-                    <FiCheck size={18} />
+                    <FiClock size={18} />
                   </button>
-                }
-              >
-                <button
-                  class="clock-btn"
-                  title="Abschließen — Timer startet"
-                  aria-label="Schritt abschließen, Timer startet"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    completeAndAdvance(s(), i())
-                  }}
-                >
-                  <FiClock size={18} />
-                </button>
+                </Show>
               </Show>
             </div>
-          </Show>
-
-          <Show when={stateName() === 'done' && canRevert(s(), i())}>
-            <div class="flex justify-end mt-3">
-              <button
-                class="revert-btn"
-                title="Schritt zurücknehmen"
-                aria-label="Schritt zurücknehmen"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  engine.executeTool('revert_step', { strang_id: s().id, step_index: i() }, { silent: true })
-                }}
-              >
-                <FiRotateCcw size={18} />
-              </button>
-            </div>
-          </Show>
+          </div>
         </div>
       </div>
     )
