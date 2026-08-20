@@ -8,3 +8,4 @@
   - Während dem Braten muss nach 5 min ein Schritt hinzugefügt werden — der Brat-Timer muss dabei einfach weiterlaufen.
   - Spaghetti + Soße sollen ungefähr gleichzeitig fertig sein: Die Soße kocht schon, bevor die Spaghetti reinkommen — Verknüpfung an einen Timer muss komplexer möglich sein (z.B. „wenn der Timer bei 5 min ist").
   - Timer ggf. vom Step entkoppeln: Ein Step kann beim Abschluss einen Timer starten, aber nicht so festkodiert wie jetzt. Evtl. Bedingungen statt explizitem Timer („nach Abschluss des Steps" — Timer implizit hergeleitet).
+  - **Mehrere getimte Bedingungen**: den **maximalen Timer** nehmen (der zuletzt ablaufende bestimmt, wann die Karte frei wird). Den Countdown erst anzeigen, wenn der letzte Timer tatsächlich läuft. Gilt auch für die implizite Variante, falls wir sie wählen.
