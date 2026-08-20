@@ -482,7 +482,16 @@ export function Cook(props: {
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Timer-Anzeige = Eingabe */}
-                <div class="flex items-center justify-center gap-1 py-1">
+                <div class="flex flex-col items-center gap-1 py-1">
+                  {/* Pause-Indikator: immer vorhanden (kein Layout-Shift), nur sichtbar wenn pausiert */}
+                  <div class="h-4 flex items-center justify-center">
+                    <Show when={paused()}>
+                      <span class="flex items-center gap-1 text-xs text-zinc-500">
+                        <FiPause size={10} />pausiert
+                      </span>
+                    </Show>
+                  </div>
+                  <div class="flex items-center justify-center gap-1">
                   {/* Minuten: Klick → editierbar */}
                   <div class="relative">
                     <Show
@@ -534,10 +543,8 @@ export function Cook(props: {
                         ? String(Math.round(((Math.max(0, remaining()! - Date.now())) % 60000) / 1000 / 15) * 15 % 60).padStart(2, '0')
                         : '00'}
                   </button>
+                  </div>
                 </div>
-                <Show when={paused()}>
-                  <p class="text-xs text-zinc-500 text-center -mt-3">pausiert</p>
-                </Show>
 
                 {/* Aktions-Buttons */}
                 <div class="flex items-center justify-center gap-3">
@@ -647,13 +654,18 @@ export function Cook(props: {
           </Show>
           <Show when={countdownEndsAt() !== null}>
             <span
-              class="step-countdown font-mono text-sm font-semibold leading-none translate-y-[1px] shrink-0 tabular-nums"
-              classList={{ 'text-amber-300 animate-pulse': urgent() }}
+              class="step-countdown font-mono text-sm font-semibold leading-none translate-y-[1px] shrink-0 tabular-nums inline-flex items-baseline gap-[2px]"
+              classList={{ 'animate-pulse': urgent() }}
             >
               <Show when={st().timer?.pausedAt !== null}>
-                <FiPause size={12} class="text-amber-300 shrink-0" />
+                <FiPause size={9} class="text-amber-400 translate-y-[1px] shrink-0" />
               </Show>
-              {fmtCountdown(countdownEndsAt()!)}
+              <span classList={{
+                'text-amber-300': urgent() || st().timer?.pausedAt === null,
+                'text-zinc-400': !urgent() && st().timer?.pausedAt !== null,
+              }}>
+                {fmtCountdown(countdownEndsAt()!)}
+              </span>
             </span>
           </Show>
           <span class="text-sm opacity-60 tabular-nums shrink-0">
@@ -941,13 +953,18 @@ export function Cook(props: {
                   x.t.gatesSelf ? 'Wartende Karte markieren' : 'Abhängige Karten markieren'
                 }
               >
-                <Show when={x.s.icon}>
-                  <span class="chip-icon text-base leading-none shrink-0">{x.s.icon}</span>
+                {/* Emoji ausblenden wenn pausiert — ⏸ übernimmt den Platz */}
+                <Show when={x.t.pausedAt !== null} fallback={
+                  <Show when={x.s.icon}>
+                    <span class="chip-icon text-base leading-none shrink-0">{x.s.icon}</span>
+                  </Show>
+                }>
+                  <FiPause size={14} class="text-amber-300 shrink-0" />
                 </Show>
-                <Show when={x.t.pausedAt !== null}>
-                  <FiPause size={12} class="text-amber-300" />
-                </Show>
-                <span class="font-mono font-semibold tabular-nums">
+                <span
+                  class="font-mono font-semibold tabular-nums"
+                  classList={{ 'text-zinc-400': x.t.pausedAt !== null }}
+                >
                   {fmtCountdown(x.endsAt)}
                 </span>
               </button>
