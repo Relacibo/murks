@@ -166,7 +166,8 @@ Zurück-Button → „Jetzt". Es gibt keine Flow-Chips-Leiste mehr.
   caps, klickbar) + ⏱ Timer + x/y; darunter neutraler Body (zinc) mit der Description
   (Markdown, 2 Zeilen). Der Body-Stil ist überall identisch — nur das Band unterscheidet
   pro Flow.
-- ⏱ (Kartenfarbe, wenn eine getimte Kante auf den Schritt zeigt) bzw. ✓ (rund) = `complete_step` + Navigation;
+- ⏱ (Kartenfarbe, wenn eine getimte Kante auf den Schritt zeigt; mit kleinem Play-Icon
+  unten rechts als Hinweis, dass dieser Abschluss den Timer startet) bzw. ✓ (rund) = `complete_step` + Navigation;
   auf waiting-Karten = früh abschließen. Navigation allein schließt nie ab.
 - Blocked-Karte: 🔒 + Hinweis auf fehlende Abhängigkeit, kein ✓-Button.
 
