@@ -318,6 +318,13 @@ Mehrere Karten stehen untereinander (Stapel).
 - Erkannte Eingabe (STT-Text) als eigener Streifen, fade-out nach 10s.
 - Letzter KI-Text: max. 4 Zeilen, fade-out nach 12s.
 
+## Toasts (Meldung unten)
+
+- **Nur bei KI-Aktionen** (LLM führt Tools aus) und **Engine-Events** (Timer abgelaufen).
+- **Nutzer-Aktionen erzeugen keine** Toasts — ✓/⏱ (abschließen), ↺ (zurücknehmen),
+  Zutaten-Haken: der Nutzer sieht die Karte ja direkt. Die Meldung unten bleibt den
+  Dingen vorbehalten, die der Nutzer nicht selbst ausgelöst hat.
+
 ---
 
 ## KI-Tools (Delta zu v1)

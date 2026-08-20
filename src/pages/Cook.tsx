@@ -150,7 +150,7 @@ export function Cook() {
   }
 
   function completeAndAdvance(s: Strang, i: number) {
-    engine.executeTool('complete_step', { strang_id: s.id, step_index: i })
+    engine.executeTool('complete_step', { strang_id: s.id, step_index: i }, { silent: true })
     if (i < s.steps.length - 1) {
       engine.executeTool('set_step', { strang_id: s.id, step_index: i + 1 })
     }
@@ -349,7 +349,7 @@ export function Cook() {
                 aria-label="Schritt zurücknehmen"
                 onClick={(e) => {
                   e.stopPropagation()
-                  engine.executeTool('revert_step', { strang_id: s().id, step_index: i() })
+                  engine.executeTool('revert_step', { strang_id: s().id, step_index: i() }, { silent: true })
                 }}
               >
                 <FiRotateCcw size={18} />
@@ -627,7 +627,7 @@ export function Cook() {
                   {(item) => (
                     <button
                       class="flex items-center gap-3 py-3 px-1 border-b border-zinc-600 last:border-0 w-full text-left"
-                      onClick={() => engine.executeTool('toggle_zutaten', { id: item.id })}
+                      onClick={() => engine.executeTool('toggle_zutaten', { id: item.id }, { silent: true })}
                     >
                       <div
                         class={`w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors ${

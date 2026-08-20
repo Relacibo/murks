@@ -7,7 +7,7 @@ export const STRANG_COLORS: StrangColor[] = ['cyan', 'violet', 'amber', 'emerald
 
 export interface CookEngine {
   readonly cook: CookState
-  executeTool(name: string, args: Record<string, unknown>): string
+  executeTool(name: string, args: Record<string, unknown>, opts?: { silent?: boolean }): string
   expireTimers(): void
 }
 
@@ -97,7 +97,15 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
     )
   }
 
-  function executeTool(name: string, args: Record<string, unknown>): string {
+  // Toasts nur bei KI-Aktionen / Engine-Events (Timer abgelaufen) — nicht bei
+  // Nutzer-Aktionen aus der UI (der Nutzer sieht die Karte ja direkt).
+  let silentToasts = false
+  function toast(text: string) {
+    if (!silentToasts) showToast(text)
+  }
+
+  function executeTool(name: string, args: Record<string, unknown>, opts: { silent?: boolean } = {}): string {
+    silentToasts = opts.silent === true
     try {
       switch (name) {
         case 'get_cook_state':
@@ -168,7 +176,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             ],
           }))
           setCook((c) => ({ ...c, focusedStrangId: id }))
-          showToast(`Strang: ${strangName}`)
+          toast(`Strang: ${strangName}`)
           return JSON.stringify({ id, name: strangName })
         }
         case 'add_step': {
@@ -206,7 +214,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             priority,
           }
           patchStrang(id, { steps: [...strang.steps, step] })
-          showToast(`${strang.name}: + „${stepLabel(description)}"`)
+          toast(`${strang.name}: + „${stepLabel(description)}"`)
           return JSON.stringify({ ok: true, step_index: strang.steps.length })
         }
         case 'complete_step': {
@@ -235,7 +243,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           patchStrang(id, { steps, done: allDone ? true : strang.done })
           // Abhängige aufnehmen (active oder waiting — Zustand wird in der UI abgeleitet)
           activateDependents([{ strang_id: id, step_index: stepIdx }])
-          showToast(`${strang.name}: „${stepLabel(strang.steps[stepIdx].description)}" fertig`)
+          toast(`${strang.name}: „${stepLabel(strang.steps[stepIdx].description)}" fertig`)
           return JSON.stringify({ ok: true })
         }
         case 'revert_step': {
@@ -263,7 +271,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           })
           patchStrang(id, { done: false })
           deactivateDependents([{ strang_id: id, step_index: stepIdx }])
-          showToast(`${strang.name}: „${stepLabel(strang.steps[stepIdx].description)}" zurückgenommen`)
+          toast(`${strang.name}: „${stepLabel(strang.steps[stepIdx].description)}" zurückgenommen`)
           return JSON.stringify({ ok: true })
         }
         case 'set_step_priority': {
@@ -311,7 +319,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             timerEndsAt: endsAt,
             timerExpired: false,
           })
-          showToast(`⏱ Timer: ${fmtRemaining(endsAt)} (${strang.name}: ${stepLabel(strang.steps[stepIdx].description)})`)
+          toast(`⏱ Timer: ${fmtRemaining(endsAt)} (${strang.name}: ${stepLabel(strang.steps[stepIdx].description)})`)
           return JSON.stringify({ ok: true, endsAt })
         }
         case 'cancel_timer': {
@@ -323,7 +331,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             return JSON.stringify({ error: `step_index muss 0..${strang.steps.length - 1} sein` })
           }
           patchStep(id, stepIdx, { timerEndsAt: null, timerExpired: false })
-          showToast('⏱ Timer abgebrochen')
+          toast('⏱ Timer abgebrochen')
           return JSON.stringify({ ok: true })
         }
         case 'complete_strang': {
@@ -339,7 +347,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               timerExpired: false,
             })),
           })
-          showToast(`Fertig: ${strang.name}`)
+          toast(`Fertig: ${strang.name}`)
           // Abhängige aus anderen Strängen freigeben (alle Schritte sind jetzt done)
           activateDependents(strang.steps.map((_, i) => ({ strang_id: id, step_index: i })))
           const cur = getCook()
@@ -366,7 +374,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               { id, name: zName, amount: args.amount ? String(args.amount) : '', checked: false },
             ],
           }))
-          showToast(`Zutat: ${zName}`)
+          toast(`Zutat: ${zName}`)
           return JSON.stringify({ id, name: zName })
         }
         case 'toggle_zutaten': {
@@ -394,6 +402,8 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
       }
     } catch (e) {
       return JSON.stringify({ error: e instanceof Error ? e.message : String(e) })
+    } finally {
+      silentToasts = false
     }
   }
 
