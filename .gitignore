@@ -4,5 +4,5 @@ dev-dist
 *.local
 .DS_Store
 .env
-murks-release.keystore
+*.keystore
 
