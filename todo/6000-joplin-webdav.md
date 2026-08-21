@@ -27,6 +27,7 @@ created_time: ...
 ```
 
 ## Tasks
+- [x] Zutatenliste als Markdown-Checkliste exportieren (Zwischenablage, Export-Button im Zutaten-Modal)
 - [ ] Joplin-Ordner lesen: PROPFIND → Dateiliste
 - [ ] Note parsen: Markdown + Frontmatter → Rezept-Objekt
 - [ ] Rezept exportieren: Rezept-Objekt → Joplin-Markdown → PUT

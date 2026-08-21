@@ -20,6 +20,117 @@ export function timerEffectiveEnd(timer: StepTimer, now = Date.now()): number {
   )
 }
 
+/* Effektiver Score: hohe Scores propagieren rückwärts durch die Dependency-Kette —
+   jeder Schritt erbt den höchsten Score aller Schritte, die transitiv von ihm
+   abhängen (rekursiv, auch über Wartezeiten hinweg). So wandern alle Vorgänger
+   eines dringenden Schritts automatisch mit nach oben. */
+function effectiveScores(cook: CookState): Map<string, number> {
+  const all: { key: string; score: number; deps: StepRef[] }[] = []
+  for (const s of cook.flows) {
+    for (const st of s.steps) {
+      all.push({ key: `${s.id}:${st.id}`, score: st.score, deps: st.dependsOn })
+    }
+  }
+  const byKey = new Map(all.map((x) => [x.key, x]))
+  const downstream = new Map<string, string[]>()
+  for (const x of all) {
+    for (const d of x.deps) {
+      const k = `${d.flow_id}:${d.step_id}`
+      if (!downstream.has(k)) downstream.set(k, [])
+      downstream.get(k)!.push(x.key)
+    }
+  }
+  const eff = new Map<string, number>()
+  const visiting = new Set<string>()
+  const visit = (key: string): number => {
+    const cached = eff.get(key)
+    if (cached !== undefined) return cached
+    if (visiting.has(key)) return byKey.get(key)?.score ?? 0 // Zyklus-Schutz
+    visiting.add(key)
+    let best = byKey.get(key)?.score ?? 0
+    for (const depKey of downstream.get(key) ?? []) {
+      best = Math.max(best, visit(depKey))
+    }
+    visiting.delete(key)
+    eff.set(key, best)
+    return best
+  }
+  for (const x of all) visit(x.key)
+  return eff
+}
+
+export interface QueueEntry {
+  flowId: string
+  stepId: string
+  state: 'active' | 'waiting' | 'blocked'
+  priority: 'normal' | 'high'
+}
+
+/**
+ * Reihenfolge der „Jetzt"-View — die UI (Cook.tsx jetztCards) konsumiert genau
+ * diese Funktion, damit der Agent dieselbe Reihenfolge sieht wie der Nutzer:
+ * prio (active + high, FIFO nach activatedAt) → normal (effektiver Score absteigend,
+ * Tiebreaker letzter Abschluss des Flows) → waiting (Timer-Ende aufsteigend,
+ * high zuerst) → blocked (Anlage-Reihenfolge, nur mit „Blocked zeigen" sichtbar).
+ * get_cook_state legt dem Agenten diese Reihenfolge als Feld "queue" bei.
+ */
+export function queueOrder(cook: CookState): QueueEntry[] {
+  const cards: { s: Flow; st: Step }[] = []
+  for (const s of cook.flows) {
+    if (s.done || s.steps.every((st) => st.done)) continue
+    for (const st of s.steps) {
+      if (!st.done) cards.push({ s, st })
+    }
+  }
+  const depDone = (ref: StepRef) =>
+    cook.flows.some(
+      (f) => f.id === ref.flow_id && f.steps.some((st) => st.id === ref.step_id && st.done),
+    )
+  const stateOf = (st: Step): QueueEntry['state'] =>
+    st.dependsOn.some((d) => !depDone(d))
+      ? 'blocked'
+      : st.timer?.gatesSelf === true
+        ? 'waiting'
+        : 'active'
+  const flowRecency = new Map<string, number>()
+  for (const s of cook.flows) {
+    let max = 0
+    for (const st of s.steps) if (st.doneAt !== null && st.doneAt > max) max = st.doneAt
+    flowRecency.set(s.id, max)
+  }
+  const eff = effectiveScores(cook)
+  const prio = cards
+    .filter((c) => stateOf(c.st) === 'active' && c.st.priority === 'high')
+    .sort((a, b) => (a.st.activatedAt ?? 0) - (b.st.activatedAt ?? 0))
+  const normal = cards
+    .filter((c) => stateOf(c.st) === 'active' && c.st.priority !== 'high')
+    .sort((a, b) => {
+      const ds =
+        (eff.get(`${b.s.id}:${b.st.id}`) ?? 0) - (eff.get(`${a.s.id}:${a.st.id}`) ?? 0)
+      if (ds !== 0) return ds
+      const ra = flowRecency.get(a.s.id) ?? 0
+      const rb = flowRecency.get(b.s.id) ?? 0
+      if (ra !== rb) return rb - ra
+      return 0
+    })
+  const waiting = cards
+    .filter((c) => stateOf(c.st) === 'waiting')
+    .sort((a, b) => {
+      const ta = a.st.timer?.gatesSelf ? timerEffectiveEnd(a.st.timer) : Infinity
+      const tb = b.st.timer?.gatesSelf ? timerEffectiveEnd(b.st.timer) : Infinity
+      if (ta !== tb) return ta - tb
+      if (a.st.priority !== b.st.priority) return a.st.priority === 'high' ? -1 : 1
+      return 0
+    })
+  const blocked = cards.filter((c) => stateOf(c.st) === 'blocked')
+  return [...prio, ...normal, ...waiting, ...blocked].map((c) => ({
+    flowId: c.s.id,
+    stepId: c.st.id,
+    state: stateOf(c.st),
+    priority: c.st.priority,
+  }))
+}
+
 /** Navigation/Puls-Event an die UI (ephemer, wird nicht persistiert) */
 export interface NavTarget {
   flowId: string
@@ -260,8 +371,15 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
     silentToasts = opts.silent === true
     try {
       switch (name) {
-        case 'get_cook_state':
-          return JSON.stringify(getCook())
+        case 'get_cook_state': {
+          const cook = getCook()
+          return JSON.stringify({
+            ...cook,
+            queue: queueOrder(cook)
+              .filter((q) => q.state !== 'blocked')
+              .map((q) => `${q.flowId}:${q.stepId}`),
+          })
+        }
         case 'add_flow': {
           const flowName = String(args.name ?? '').trim()
           const icon = String(args.icon ?? '').trim()
@@ -315,7 +433,6 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             })
           }
 
-          const color = FLOW_COLORS[getCook().flows.length % FLOW_COLORS.length]
           const steps = parsed.map((st, i) => ({
             id: ids[i],
             description: st.description,
@@ -331,7 +448,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             ...c,
             flows: [
               ...c.flows,
-              { id: flowId, name: flowName, icon: icon || null, color, steps, done: false },
+              { id: flowId, name: flowName, icon: icon || null, steps, done: false },
             ],
           }))
           setCook((c) => ({ ...c, focusedFlowId: flowId }))
@@ -743,6 +860,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           const flow = findFlow(id)
           if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
           removeRefsTo(id, flow.steps.map((st) => st.id))
+          // Farben sind abgeleitet (FLOW_COLORS[Flow-Index]) — kein Feld zu pflegen
           const flows = getCook().flows.filter((s) => s.id !== id)
           setCook((c) => ({
             ...c,
@@ -784,34 +902,25 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           setCook((c) => ({ ...c, focusedFlowId: id }))
           return JSON.stringify({ ok: true })
         }
-        case 'add_ingredient': {
-          const zName = String(args.name ?? '').trim()
-          if (!zName) return JSON.stringify({ error: 'name fehlt' })
-          const id = crypto.randomUUID()
+        case 'set_ingredients': {
+          const raw = Array.isArray(args.ingredients) ? args.ingredients : []
+          const items = raw.flatMap((x) => {
+            if (!x || typeof x !== 'object') return []
+            const o = x as Record<string, unknown>
+            const name = String(o.name ?? '').trim()
+            if (!name) return []
+            return { name, amount: o.amount ? String(o.amount) : '' }
+          })
           setCook((c) => ({
             ...c,
-            ingredients: [
-              ...c.ingredients,
-              { id, name: zName, amount: args.amount ? String(args.amount) : '', checked: false },
-            ],
+            ingredients: items.map((it) => ({
+              id: crypto.randomUUID(),
+              name: it.name,
+              amount: it.amount,
+            })),
           }))
-          toast(`Zutat: ${zName}`)
-          return JSON.stringify({ id, name: zName })
-        }
-        case 'toggle_ingredient': {
-          // Nur UI-intern (Ingredients-Modal) — kein KI-Tool
-          const id = String(args.id ?? '')
-          let found = false
-          setCook((c) => ({
-            ...c,
-            ingredients: c.ingredients.map((x) => {
-              if (x.id !== id) return x
-              found = true
-              return { ...x, checked: !x.checked }
-            }),
-          }))
-          if (!found) return JSON.stringify({ error: 'Unbekannte Ingredient' })
-          return JSON.stringify({ ok: true })
+          toast(`Zutaten: ${items.length}`)
+          return JSON.stringify({ ok: true, count: items.length })
         }
         case 'open_ingredients':
           setModalRequest({ modal: 'ingredients', open: true, nonce: Date.now() })

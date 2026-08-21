@@ -2,7 +2,7 @@ import { For, Show, createEffect, createMemo, createSignal, onCleanup, useContex
 import { SolidMarkdown as Markdown } from 'solid-markdown'
 import { useConfig } from '../App'
 import { state, sendMessage, type Flow, type Step, type StepRef, type StepTimer } from '../state/store'
-import { CookContext, timerEffectiveEnd } from '../lib/cookEngine'
+import { CookContext, FLOW_COLORS, queueOrder, timerEffectiveEnd } from '../lib/cookEngine'
 import { fmtRemaining } from '../lib/tools'
 import { createAgentVoice } from '../lib/agentVoice'
 import {
@@ -89,6 +89,10 @@ export function Cook(props: {
 
   const flows = () => engine.cook.flows
 
+  /* Farbe ergibt sich aus der Flow-Position (Index) — kein gespeichertes Feld,
+     dadurch nie Duplikate und keine Lücken nach delete_flow */
+  const colorOf = (s: Flow) =>
+    FLOW_COLORS[Math.max(0, flows().indexOf(s)) % FLOW_COLORS.length]
   const active = createMemo(() => {
     const all = flows()
     if (all.length === 0) return undefined
@@ -358,98 +362,29 @@ export function Cook(props: {
   }
 
   /* ── View 1 (Mobile „Jetzt"): Prio-Queue, normale Queue, Blocked ──── */
-  /* Prio-Queue: active high-Steps in Auftauch-Reihenfolge (FIFO)       */
-  /* Normale Queue: nach Scheduling-Score (absteigend),                 */
-  /*                Tiebreaker Flow-/Schritt-Reihenfolge                */
-  /* Waiting: nach Freiwerden (Timer-Ende), Tiebreaker prio             */
-  /* Blocked: als Vorschau unten, grau, in Anlage-Reihenfolge           */
-  /* Effektiver Score: hohe Scores propagieren rückwärts durch die      */
-  /* Dependency-Kette — jeder Schritt erbt den höchsten Score aller     */
-  /* Schritte, die transitiv von ihm abhängen (rekursiv, auch über      */
-  /* Wartezeiten hinweg). So wandern alle Vorgänger eines dringenden    */
-  /* Schritts automatisch mit nach oben.                                */
-  function effectiveScores(): Map<string, number> {
-    const all: { key: string; score: number; deps: StepRef[] }[] = []
-    for (const s of flows()) {
-      for (const st of s.steps) {
-        all.push({ key: `${s.id}:${st.id}`, score: st.score, deps: st.dependsOn })
-      }
-    }
-    const byKey = new Map(all.map((x) => [x.key, x]))
-    const downstream = new Map<string, string[]>()
-    for (const x of all) {
-      for (const d of x.deps) {
-        const k = `${d.flow_id}:${d.step_id}`
-        if (!downstream.has(k)) downstream.set(k, [])
-        downstream.get(k)!.push(x.key)
-      }
-    }
-    const eff = new Map<string, number>()
-    const visiting = new Set<string>()
-    const visit = (key: string): number => {
-      const cached = eff.get(key)
-      if (cached !== undefined) return cached
-      if (visiting.has(key)) return byKey.get(key)?.score ?? 0 // Zyklus-Schutz
-      visiting.add(key)
-      let best = byKey.get(key)?.score ?? 0
-      for (const depKey of downstream.get(key) ?? []) {
-        best = Math.max(best, visit(depKey))
-      }
-      visiting.delete(key)
-      eff.set(key, best)
-      return best
-    }
-    for (const x of all) visit(x.key)
-    return eff
-  }
+  /* Reihenfolge kommt aus queueOrder (cookEngine) — identisch zu dem,
+     was der Agent über get_cook_state (Feld "queue") sieht.            */
+  const queue = createMemo(() => queueOrder(engine.cook))
   const jetztCards = createMemo(() => {
+    const byKey = new Map<string, { s: Flow; st: Step; i: number }>()
+    for (const s of flows()) {
+      if (flowDone(s)) continue
+      s.steps.forEach((st, i) => {
+        if (!st.done) byKey.set(`${s.id}:${st.id}`, { s, st, i })
+      })
+    }
     const prio: { s: Flow; st: Step; i: number }[] = []
     const normal: { s: Flow; st: Step; i: number }[] = []
     const waiting: { s: Flow; st: Step; i: number }[] = []
     const blocked: { s: Flow; st: Step; i: number }[] = []
-    for (const s of flows()) {
-      if (flowDone(s)) continue
-      s.steps.forEach((st, i) => {
-        if (st.done) return
-        const state = stepState(s, st)
-        if (state === 'active' && st.priority === 'high') prio.push({ s, st, i })
-        else if (state === 'active') normal.push({ s, st, i })
-        else if (state === 'waiting') waiting.push({ s, st, i })
-        else blocked.push({ s, st, i })
-      })
+    for (const q of queue()) {
+      const card = byKey.get(`${q.flowId}:${q.stepId}`)
+      if (!card) continue
+      if (q.state === 'active' && q.priority === 'high') prio.push(card)
+      else if (q.state === 'active') normal.push(card)
+      else if (q.state === 'waiting') waiting.push(card)
+      else blocked.push(card)
     }
-    prio.sort((a, b) => (a.st.activatedAt ?? 0) - (b.st.activatedAt ?? 0))
-    /* Aktive Karten: effektiver Scheduling-Score absteigend (eigener Score +
-       rückwärts propagierte Scores aller transitiv abhängigen Schritte).
-       Tiebreaker bei gleichem Score: zuletzt aktualisierter Flow zuerst
-       (letzter abgeschlossener Schritt = max(doneAt)), dann Schritt-Reihenfolge */
-    const eff = effectiveScores()
-    const flowRecency = new Map<string, number>()
-    for (const s of flows()) {
-      let max = 0
-      for (const st of s.steps) {
-        if (st.doneAt !== null && st.doneAt > max) max = st.doneAt
-      }
-      flowRecency.set(s.id, max)
-    }
-    normal.sort((a, b) => {
-      const ds =
-        (eff.get(`${b.s.id}:${b.st.id}`) ?? 0) - (eff.get(`${a.s.id}:${a.st.id}`) ?? 0)
-      if (ds !== 0) return ds
-      const ra = flowRecency.get(a.s.id) ?? 0
-      const rb = flowRecency.get(b.s.id) ?? 0
-      if (ra !== rb) return rb - ra
-      return 0
-    })
-    /* Wartende Karten: nach Freiwerden (Timer-Ende), Tiebreaker prio oben.
-       timerEffectiveEnd liest keine Signals → jetztCards() bleibt tick-unabhängig */
-    waiting.sort((a, b) => {
-      const ta = a.st.timer?.gatesSelf ? timerEffectiveEnd(a.st.timer) : Infinity
-      const tb = b.st.timer?.gatesSelf ? timerEffectiveEnd(b.st.timer) : Infinity
-      if (ta !== tb) return ta - tb
-      if (a.st.priority !== b.st.priority) return a.st.priority === 'high' ? -1 : 1
-      return 0
-    })
     return { prio, normal, waiting, blocked }
   })
 
@@ -704,7 +639,7 @@ export function Cook(props: {
     return (
       <div
         class="step-card"
-        data-color={s().color}
+        data-color={colorOf(s())}
         data-card-key={`${s().id}:${st().id}`}
         classList={{
           'is-active': stateName() === 'active',
@@ -1031,7 +966,7 @@ export function Cook(props: {
     return (
       <div
         class="column"
-        data-color={s().color}
+        data-color={colorOf(s())}
         data-flow-id={s().id}
         classList={{ 'is-focused': props.isFocused }}
       >
@@ -1070,7 +1005,7 @@ export function Cook(props: {
             {(x) => (
               <button
                 class="chip"
-                data-color={x.s.color}
+                data-color={colorOf(x.s)}
                 classList={{
                   'is-urgent': tick() > 0 && x.endsAt - Date.now() < 30_000,
                   'is-active': x.s.id === active()?.id,

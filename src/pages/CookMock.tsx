@@ -64,7 +64,6 @@ const MOCK_FLOWS: Flow[] = [
     id: 's1',
     name: 'Pfannkuchenteig',
     icon: '🥞',
-    color: 'cyan',
     steps: [s1_0, s1_1, s1_2, s1_3, s1_4],
     done: false,
   },
@@ -72,7 +71,6 @@ const MOCK_FLOWS: Flow[] = [
     id: 's2',
     name: 'Tomatensauce',
     icon: '🍅',
-    color: 'rose',
     steps: [s2_0, s2_1, s2_2],
     done: false,
   },
@@ -80,7 +78,6 @@ const MOCK_FLOWS: Flow[] = [
     id: 's3',
     name: 'Salat',
     icon: '🥗',
-    color: 'emerald',
     steps: [s3_0, s3_1, s3_2],
     done: true,
   },
@@ -89,8 +86,8 @@ const MOCK_FLOWS: Flow[] = [
 const MOCK_COOK: CookState = {
   flows: MOCK_FLOWS,
   ingredients: [
-    { id: 'z1', name: 'Mehl', amount: '250 g', checked: true },
-    { id: 'z2', name: 'Passierte Tomaten', amount: '400 g', checked: false },
+    { id: 'z1', name: 'Mehl', amount: '250 g' },
+    { id: 'z2', name: 'Passierte Tomaten', amount: '400 g' },
   ],
   focusedFlowId: 's2',
 }

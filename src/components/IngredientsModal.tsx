@@ -1,6 +1,7 @@
 import { For, Show, createEffect, onCleanup, useContext } from 'solid-js'
-import { FiCheck, FiX } from 'solid-icons/fi'
+import { FiDownload, FiX } from 'solid-icons/fi'
 import { CookContext } from '../lib/cookEngine'
+import { showToast } from '../lib/toast'
 
 /** Ingredients-Liste als Modal — Sichtbarkeit steuert die URL (?modal=…), KI über open/close_ingredients */
 export function IngredientsModal(props: { open: boolean; onClose: () => void }) {
@@ -15,6 +16,33 @@ export function IngredientsModal(props: { open: boolean; onClose: () => void }) 
     onCleanup(() => window.removeEventListener('keydown', onKey))
   })
 
+  /* Zutaten als Markdown-Checkliste in die Zwischenablage — für Joplin & Co:
+     Abhaken passiert beim Einkaufen, nicht in der App */
+  const exportIngredients = async () => {
+    const lines = engine.cook.ingredients.map((it) =>
+      it.amount ? `- [ ] ${it.name} — ${it.amount}` : `- [ ] ${it.name}`,
+    )
+    const text = `Zutaten\n\n${lines.join('\n')}\n`
+    let ok = false
+    try {
+      await navigator.clipboard.writeText(text)
+      ok = true
+    } catch {
+      try {
+        const ta = document.createElement('textarea')
+        ta.value = text
+        document.body.appendChild(ta)
+        ta.select()
+        ok = document.execCommand('copy')
+        ta.remove()
+      } catch {
+        ok = false
+      }
+    }
+    if (ok) showToast('In Zwischenablage kopiert — in Joplin einfügen.')
+    else showToast('Kopieren fehlgeschlagen.')
+  }
+
   return (
     <Show when={props.open}>
       <div
@@ -22,8 +50,16 @@ export function IngredientsModal(props: { open: boolean; onClose: () => void }) 
         onClick={(e) => e.target === e.currentTarget && props.onClose()}
       >
         <div class="bg-zinc-950 rounded-t-2xl sm:rounded-2xl sm:border sm:border-zinc-600 sm:shadow-2xl sm:w-full sm:max-w-md max-h-[80vh] overflow-y-auto modal-pop">
-          <div class="flex items-center justify-between px-5 py-4 border-b border-zinc-600 sticky top-0 bg-zinc-950">
-            <h2 class="text-base font-semibold">Zutaten</h2>
+          <div class="flex items-center gap-2 px-5 py-4 border-b border-zinc-600 sticky top-0 bg-zinc-950">
+            <h2 class="text-base font-semibold flex-1">Zutaten</h2>
+            <button
+              class="icon-btn"
+              onClick={() => void exportIngredients()}
+              disabled={engine.cook.ingredients.length === 0}
+              title="Als Markdown-Checkliste kopieren (Joplin)"
+            >
+              <FiDownload size={16} />
+            </button>
             <button class="icon-btn" onClick={() => props.onClose()}>
               <FiX size={16} />
             </button>
@@ -35,30 +71,12 @@ export function IngredientsModal(props: { open: boolean; onClose: () => void }) 
             >
               <For each={engine.cook.ingredients}>
                 {(item) => (
-                  <button
-                    class="flex items-center gap-3 py-3 px-1 border-b border-zinc-600 last:border-0 w-full text-left"
-                    onClick={() =>
-                      engine.executeTool('toggle_ingredient', { id: item.id }, { silent: true })
-                    }
-                  >
-                    <div
-                      class={`w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                        item.checked ? 'border-zinc-400 bg-zinc-700' : 'border-zinc-600 bg-zinc-700'
-                      }`}
-                    >
-                      <Show when={item.checked}>
-                        <FiCheck size={12} class="text-zinc-100" />
-                      </Show>
-                    </div>
-                    <span
-                      class={`flex-1 text-sm ${
-                        item.checked ? 'text-zinc-400 line-through' : 'text-zinc-100'
-                      }`}
-                    >
-                      {item.name}
-                    </span>
-                    <span class="text-xs text-zinc-400 shrink-0">{item.amount}</span>
-                  </button>
+                  <div class="flex items-baseline gap-3 py-3 px-1 border-b border-zinc-600 last:border-0">
+                    <span class="flex-1 text-sm text-zinc-100">{item.name}</span>
+                    <Show when={item.amount}>
+                      <span class="text-xs text-zinc-400 shrink-0">{item.amount}</span>
+                    </Show>
+                  </div>
                 )}
               </For>
             </Show>

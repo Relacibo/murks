@@ -330,15 +330,25 @@ export const TOOLS: ToolDef[] = [
   {
     type: 'function',
     function: {
-      name: 'add_ingredient',
-      description: 'Ingredient zur Ingredientsliste hinzufügen (Name, optional Menge).',
+      name: 'set_ingredients',
+      description: 'Die komplette Zutatenliste ersetzen (absolute Liste, Einkaufsliste). Aufrufen nach add_flow und bei jeder Änderung: Zutat kommt dazu/fällt weg, Mengen werden skaliert (z.B. doppelte Menge). Vorhandene Einkaufs-Haken bleiben über den Namen erhalten.',
       parameters: {
         type: 'object',
         properties: {
-          name: { type: 'string', description: 'Ingredient, z.B. "Basmatireis"' },
-          amount: { type: 'string', description: 'Menge, z.B. "300 g" oder "2 Stück"' },
+          ingredients: {
+            type: 'array',
+            description: 'Komplette Zutatenliste (alle Zutaten, auch unveränderte)',
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', description: 'Zutat, z.B. "Basmatireis"' },
+                amount: { type: 'string', description: 'Menge, z.B. "300 g" oder "2 Stück"' },
+              },
+              required: ['name'],
+            },
+          },
         },
-        required: ['name'],
+        required: ['ingredients'],
       },
     },
   },

@@ -6,7 +6,7 @@ Voice-first Kochassistent-PWA. KI navigiert primär per Tool, Nutzer übersteuer
 > Abhängigkeiten erfüllt. Mobile zeigt alle aktiven Karten (statt Strips + eine Karte).
 >
 > **Sprach-Trennung:** visueller Text (UI) = **deutsch** („Strang", „Zutaten", „Zutatenliste");
-> Tools, Parameter und State = **englisch** (`add_flow`, `flow_id`, `add_ingredient`, …).
+> Tools, Parameter und State = **englisch** (`add_flow`, `flow_id`, `set_ingredients`, …).
 
 ---
 
@@ -20,7 +20,7 @@ interface Flow {
   id: string
   name: string
   icon: string | null      // Emoji, vom LLM vergeben (add_flow) — visuelle Identität
-  color: FlowColor
+  // keine color — Farbe wird aus der Flow-Position abgeleitet (FLOW_COLORS[Index])
   steps: Step[]
   done: boolean
   ingredients: Ingredient[]         // Ingredients gehören zum Flow, nicht global
@@ -303,7 +303,11 @@ Mehrere Karten stehen untereinander (Stapel).
 
 - Gehören zum **Flow**, nicht global. UI-Text deutsch: „Zutaten", „Zutatenliste".
 - Zutaten-Modal öffnet sich pro Flow.
-- `open_ingredients` / `add_ingredient` erfordern `flow_id`.
+- `open_ingredients` / `set_ingredients` erfordern `flow_id`.
+- Agent hält die Zutatenliste absolut: `set_ingredients` ersetzt die komplette Liste — nach `add_flow` und bei jeder Änderung (Zutat dazu/weg, Mengen-Skalierung).
+- **Kein Abhaken in der App** — die Liste ist read-only. Abhaken passiert beim Einkauf:
+  Export-Button im Modal kopiert die Zutaten als Markdown-Checkliste (`- [ ] Name — Menge`)
+  in die Zwischenablage (für Joplin & Co.).
 - Globale Einkaufsliste (alle Zutaten aggregiert) bleibt als separate Ansicht möglich.
 - Modal-Darstellung: Desktop zentriertes Dialog (max-w-md, Rahmen, abgerundet),
   Mobile Bottom-Sheet; schließt über X, Esc, Klick auf den Hintergrund.
@@ -459,9 +463,9 @@ Mehrere Karten stehen untereinander (Stapel).
 ## Toasts (Meldung unten)
 
 - **Nur bei KI-Aktionen** (LLM führt Tools aus) und **Engine-Events** (Timer abgelaufen).
-- **Nutzer-Aktionen erzeugen keine** Toasts — ✓/⏱ (abschließen), ↺ (zurücknehmen),
-  Zutaten-Haken: der Nutzer sieht die Karte ja direkt. Die Meldung unten bleibt den
-  Dingen vorbehalten, die der Nutzer nicht selbst ausgelöst hat.
+- **Nutzer-Aktionen erzeugen keine** Toasts — ✓/⏱ (abschließen), ↺ (zurücknehmen):
+  der Nutzer sieht die Karte ja direkt. Ausnahme: der Zutaten-Export (Zwischenablage) —
+  externer Effekt ohne sichtbare Bestätigung, bekommt einen kurzen Toast.
 
 ---
 
@@ -473,7 +477,7 @@ umbenennen/löschen/teilen, Timer neu setzen oder verlängern.
 
 | Tool | Semantik |
 |---|---|
-| `get_cook_state` | kompletter Zustand (Flows, Steps mit IDs, Timer, Ingredients) |
+| `get_cook_state` | kompletter Zustand (Flows, Steps mit IDs, Timer, Ingredients) + Feld `queue`: Reihenfolge der „Jetzt"-View (erstes Element = oberste Karte) |
 | `add_flow` | neuer Flow: `name`, `icon`, `steps[]` mit `description`, `depends_on` (nur auf existierende Steps; Einträge optional mit `timer_seconds`), `priority`, `score` |
 | `add_step` | Step anhängen oder hinter `after_step_id` einfügen; optional `depends_on` (inkl. `timer_seconds` an den Kanten), `priority`, `score` |
 | `update_step` | `description` / `depends_on` (inkl. Kanten-`timer_seconds`) / `priority` / `score` ändern (nur angegebene Felder); Queue-Status wird neu bewertet |
@@ -487,16 +491,15 @@ umbenennen/löschen/teilen, Timer neu setzen oder verlängern.
 | `cancel_timer` | Timer abbrechen (Abhängige werden frei, sofern keine Kanten-Verzögerung läuft); auf wartender Karte: Reset auf die ursprüngliche Wartezeit |
 | `complete_flow` | alle Steps `done` (+ `doneAt`) + Flow `done` + alle Timer abbrechen |
 | `update_flow` | `name` / `icon` ändern |
-| `delete_flow` | Flow löschen; Refs anderer Flows auf seine Steps werden entfernt |
+| `delete_flow` | Flow löschen; Refs anderer Flows auf seine Steps werden entfernt; Farben sind abgeleitet (FLOW_COLORS[Index]) — nichts zu pflegen |
 | `reset_cook` | alles verwerfen: alle Flows + Ingredients löschen |
 | `show_step` | gezielt einen Schritt zeigen: Fokus + View-Wechsel (mobil) + Scroll in den sichtbaren Bereich + kurzer Puls — ersetzt `set_step`/`focus_flow`-Navigation |
 | `focus_flow` | Flow fokussieren (Spalten-Hervorhebung), ohne Schritt-Puls |
-| `add_ingredient` | `name`, optional `amount` |
+| `set_ingredients` | komplette Zutatenliste ersetzen (absolute Liste): `ingredients[]` mit `name`, optional `amount` |
 | `open_ingredients` / `close_ingredients` | Zutaten-Modal |
 | `open_chat` / `close_chat` | Chat-Modal |
-| `toggle_ingredient` | **kein KI-Tool mehr** — nur UI-intern (Nutzer hakt ab) |
 
-**Entfernt:** `set_step`, `set_step_priority` (→ `update_step`), `toggle_ingredient` (KI-seitig).
+**Entfernt:** `set_step`, `set_step_priority` (→ `update_step`), `toggle_ingredient` (kein Abhaken in der App mehr), `add_ingredient` (→ `set_ingredients`).
 
 ---
 
