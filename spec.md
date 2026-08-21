@@ -269,7 +269,7 @@ Mehrere Karten stehen untereinander (Stapel).
   🔒-Hinweis auf fehlende Abhängigkeit, kein ✓-Button
 - **done**: gedimmt (gleiche Art wie blocked), Description bleibt sichtbar, ↺ in der Button-Zeile
   rechts neben dem Text (ausgeblendet, wenn eine abhängige Karte bereits abgeschlossen ist)
-- **prio (high, active)**: pulsiert (Outline, **rot** — echter Alarm) und steht in „Jetzt"
+- **prio (high, active)**: pulsiert (Outline, Kartenfarbe) und steht in „Jetzt"
   oben — greift beim Aktiv-Werden; blocked/waiting verhalten sich wie immer
 - **Alarm-Feedback:** läuft ein Timer ab, blinkt an der Stelle des Countdowns im Kartenband
   eine ⏰-Uhr auf (max. ~6 s, Engine-Event) — nicht-prio in heller Kartenschriftfarbe,
