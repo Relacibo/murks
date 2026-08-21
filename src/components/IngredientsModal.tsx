@@ -1,5 +1,5 @@
 import { For, Show, createEffect, onCleanup, useContext } from 'solid-js'
-import { FiDownload, FiX } from 'solid-icons/fi'
+import { FiCopy, FiX } from 'solid-icons/fi'
 import { CookContext } from '../lib/cookEngine'
 import { showToast } from '../lib/toast'
 
@@ -16,7 +16,7 @@ export function IngredientsModal(props: { open: boolean; onClose: () => void }) 
     onCleanup(() => window.removeEventListener('keydown', onKey))
   })
 
-  /* Zutaten als Markdown-Checkliste in die Zwischenablage — für Joplin & Co:
+  /* Zutaten als Markdown-Checkliste in die Zwischenablage —
      Abhaken passiert beim Einkaufen, nicht in der App */
   const exportIngredients = async () => {
     const lines = engine.cook.ingredients.map((it) =>
@@ -39,7 +39,7 @@ export function IngredientsModal(props: { open: boolean; onClose: () => void }) 
         ok = false
       }
     }
-    if (ok) showToast('In Zwischenablage kopiert — in Joplin einfügen.')
+    if (ok) showToast('Markdown-Checkliste in die Zwischenablage kopiert.')
     else showToast('Kopieren fehlgeschlagen.')
   }
 
@@ -53,12 +53,12 @@ export function IngredientsModal(props: { open: boolean; onClose: () => void }) 
           <div class="flex items-center gap-2 px-5 py-4 border-b border-zinc-600 sticky top-0 bg-zinc-950">
             <h2 class="text-base font-semibold flex-1">Zutaten</h2>
             <button
-              class="icon-btn"
+              class="w-9 h-9 rounded-full flex items-center justify-center transition-all disabled:opacity-40 bg-black text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
               onClick={() => void exportIngredients()}
               disabled={engine.cook.ingredients.length === 0}
-              title="Als Markdown-Checkliste kopieren (Joplin)"
+              title="Als Markdown-Checkliste kopieren"
             >
-              <FiDownload size={16} />
+              <FiCopy size={16} />
             </button>
             <button class="icon-btn" onClick={() => props.onClose()}>
               <FiX size={16} />
