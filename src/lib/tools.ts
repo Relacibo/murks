@@ -22,7 +22,8 @@ const depRefSchema = {
     },
     required: ['flow_id', 'step_id'],
   },
-  description: 'Optionale Abhängigkeiten (Schritte, die zuerst erledigt sein müssen)',
+  description:
+    'Optionale Abhängigkeiten (Schritte, die zuerst erledigt sein müssen). Es gibt KEINE implizite Reihenfolge — ohne depends_on läuft der Schritt sofort parallel. Verkette jeden Folgeschritt explizit an seinen Vorgänger (auch Schritt 2 → Schritt 1).',
 }
 
 const prioritySchema = {
