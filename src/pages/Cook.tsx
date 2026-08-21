@@ -1152,10 +1152,10 @@ export function Cook(props: {
           {/* Horizontales Scrollen nur im Flow-Bereich — „Jetzt" bleibt stehen */}
           <div class="hidden sm:flex flex-1 min-h-0" classList={{ 'justify-center': !overviewOpen() }}>
             <div
-              class="shrink-0 flex flex-col min-h-0"
+              class="flex flex-col min-h-0"
               classList={{
-                'w-[320px] bg-zinc-900/50': overviewOpen(),
-                'w-[400px]': !overviewOpen(),
+                'w-[320px] shrink-0 bg-zinc-900/50': overviewOpen(),
+                'w-full max-w-[480px]': !overviewOpen(),
               }}
             >
               <Show when={overviewOpen()}>
