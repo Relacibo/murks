@@ -102,7 +102,7 @@ export function Cook(props: {
   /* Farbe ergibt sich aus der Flow-Position (Index) — kein gespeichertes Feld,
      dadurch nie Duplikate und keine Lücken nach delete_flow */
   const colorOf = (s: Flow) =>
-    FLOW_COLORS[Math.max(0, flows().indexOf(s)) % FLOW_COLORS.length]
+    FLOW_COLORS[Math.max(0, flows().findIndex((f) => f.id === s.id)) % FLOW_COLORS.length]
   const active = createMemo(() => {
     const all = flows()
     if (all.length === 0) return undefined
@@ -858,11 +858,14 @@ export function Cook(props: {
     let listRef: HTMLDivElement | undefined
     let prevRects = new Map<string, number>()
     let firstRun = true
-    const visibleKeys = () => {
+    /* createMemo statt plain function: SolidJS vergleicht den resultierenden
+       String wertgleich — bei gleichem Inhalt feuert der FLIP-Effect nicht neu,
+       auch wenn jetztCards() durch tick() jede Sekunde ein neues Objekt erzeugt. */
+    const visibleKeys = createMemo(() => {
       const list = [...jetztCards().prio, ...jetztCards().normal, ...jetztCards().waiting]
       if (showBlocked()) list.push(...jetztCards().blocked)
       return list.join('|')
-    }
+    })
     createEffect(() => {
       visibleKeys()
       const cont = listRef
