@@ -447,7 +447,6 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             doneAt: null,
             dependsOn: st.dependsOn,
             timer: null,
-            alarmedAt: null,
             activatedAt: depsDone(st.dependsOn) ? nextAct() : null,
             priority: st.priority,
             score: st.score,
@@ -487,7 +486,6 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             doneAt: null,
             dependsOn,
             timer: null,
-            alarmedAt: null,
             activatedAt: depsDone(dependsOn) ? nextAct() : null,
             priority,
             score,
@@ -587,7 +585,6 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             doneAt: null,
             dependsOn: [{ flow_id: id, step_id: orig.id }],
             timer: null,
-            alarmedAt: null,
             activatedAt: null,
             priority: 'normal',
             score: 0,
@@ -630,7 +627,6 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
                   done: true,
                   doneAt: Date.now(),
                   timer: null,
-                  alarmedAt: null,
                 }
               : st,
           )
@@ -665,7 +661,6 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               doneAt: null,
               activatedAt: nextAct(),
               timer: null,
-              alarmedAt: null,
             })
             patchFlow(id, { done: false })
             deactivateDependents([{ flow_id: id, step_id: stepId }])
@@ -791,7 +786,6 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               done: true,
               doneAt: st.done ? st.doneAt : Date.now(),
               timer: null,
-              alarmedAt: null,
             })),
           })
           setQuietNonce((n) => n + 1)
@@ -935,8 +929,6 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
     }
   }
   function fireAlarm(sId: string, stepId: string, now: number, prio: boolean) {
-    // Fakt am Schritt: die ⏰-Uhr im Band leitet sich daraus ab (übersteht Reloads)
-    patchStep(sId, stepId, { alarmedAt: now })
     setAlarmEvents([
       ...alarmEvents().filter((e) => now - e.at < 6000),
       { flowId: sId, stepId, at: now, prio },

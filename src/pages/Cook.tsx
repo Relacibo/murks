@@ -125,8 +125,8 @@ export function Cook(props: {
 
   /* Abgelaufene Timer → Ton — prio = mechanischer Wecker (auch bei Mute),
      sonst informatives Bing (bei gemutetem TTS still; Text wird danach
-     vorgelesen). Die ⏰-Uhr im Band leitet sich aus Step.alarmedAt ab
-     (Fakt im Store, übersteht Reloads). */
+     vorgelesen). Die ⏰-Uhr im Band ist aus den Fakten abgeleitet
+     (Tombstone/abgelaufenes Gate — kein eigener Zustand). */
   let lastAlarmAt = Date.now()
   createEffect(() => {
     const evs = engine.alarmEvents
@@ -207,9 +207,7 @@ export function Cook(props: {
      die Plan-Wartezeit; ohne Timer gilt die Ableitung aus den Kanten
      (doneAt + timer_seconds). tick()-Read, damit ablaufende Gates die
      Zustände pro Sekunde aktualisieren. */
-  function pendingUntil(s: Flow, step: Step): number | null {
-    tick()
-    if (step.timer) return timerEffectiveEnd(step.timer)
+  function derivedGateEnd(step: Step): number | null {
     let max: number | null = null
     for (const d of step.dependsOn) {
       const dep = depStepOf(d)
@@ -220,6 +218,12 @@ export function Cook(props: {
       }
     }
     return max
+  }
+
+  function pendingUntil(s: Flow, step: Step): number | null {
+    tick()
+    if (step.timer) return timerEffectiveEnd(step.timer)
+    return derivedGateEnd(step)
   }
 
   function stepState(s: Flow, step: Step): 'done' | 'blocked' | 'waiting' | 'active' {
@@ -650,12 +654,19 @@ export function Cook(props: {
       const ends = countdownEndsAt()
       return ends !== null && ends - Date.now() < 30_000
     }
-    /* Uhr im Band: Timer dieser Karte ist abgelaufen (Fakt alarmedAt) — sie
-       blinkt auf und bleibt stehen, bis die Karte abgeschlossen wird */
+    /* Uhr im Band: Timer dieser Karte ist abgelaufen — ABGELEITET aus den
+       Fakten, kein eigener Zustand: abgelaufener gesetzter Timer (Tombstone)
+       oder abgelaufenes Plan-Gate (doneAt + timer_seconds). Sie blinkt auf
+       und bleibt stehen, bis die Karte abgeschlossen wird. (Grenzfall: nach
+       revert der Karte selbst leuchtet sie wieder — das alte Gate ist ein
+       Fakt; harmlos, beim nächsten Abschluss ist sie weg.) */
     const alarmClock = () => {
       tick()
       if (stateName() !== 'active') return false
-      return st().alarmedAt !== null
+      const t = st().timer
+      if (t && t.pausedAt === null && timerEffectiveEnd(t) <= Date.now()) return true
+      const gateEnd = derivedGateEnd(st())
+      return gateEnd !== null && gateEnd <= Date.now()
     }
     return (
       <div

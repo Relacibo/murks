@@ -18,7 +18,6 @@ const step = (
   doneAt,
   dependsOn,
   timer: null,
-  alarmedAt: null,
   activatedAt: Date.now(),
   priority,
   score: 0,
