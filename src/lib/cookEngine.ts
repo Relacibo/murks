@@ -232,19 +232,6 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
     return max
   }
 
-  // Ursprüngliche Gesamtdauer der Wartezeit: max(timer_seconds) aller getimten Kanten.
-  // Für cancel_timer: Timer auf diese Dauer ab jetzt neu setzen (nicht verbleibende Zeit).
-  function originalWaitDurationMs(step: Step): number | null {
-    let max: number | null = null
-    for (const d of step.dependsOn) {
-      if (d.timer_seconds) {
-        const ms = d.timer_seconds * 1000
-        if (max === null || ms > max) max = ms
-      }
-    }
-    return max
-  }
-
 
   // Wartezeit) — Ziel des Warte-Menüs und der Timer-Chips. Ein Timer gehört
   // genau einem Step. Erzeugt, wenn eine Karte wartet und noch keinen hat;
@@ -276,6 +263,15 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               gatesSelf: true,
             },
           })
+        } else if (step.timer.gatesSelf) {
+          // Max-Regel: neue, längere Bedingung dazu gekommen → Timer
+          // verlängern (auch pausiert: durationMs-Verschiebung wirkt auf das
+          // effektive Ende); kürzere Bedingungen ändern nichts.
+          const t = step.timer
+          const delta = end - timerEffectiveEnd(t, now)
+          if (delta > 0) {
+            patchStep(s.id, step.id, { timer: { ...t, durationMs: t.durationMs + delta } })
+          }
         }
       })
     }
@@ -659,7 +655,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           toast(`${flow.name}: „${stepLabel(flow.steps[stepIdx].description)}" zurückgenommen`)
           return JSON.stringify({ ok: true })
         }
-        case 'start_timer': {
+        case 'set_timer': {
           const id = String(args.flow_id ?? '')
           const stepId = String(args.step_id ?? '')
           const flow = findFlow(id)
@@ -673,36 +669,24 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             !step.done && depsDone(step.dependsOn) && derivedWaitEnd(step) !== null
           const keepSelf = step.timer?.gatesSelf === true || waiting
           let newTimer: StepTimer
-          if (typeof args.offset_seconds === 'number') {
-            const delta = Number(args.offset_seconds)
+          if (typeof args.delta_seconds === 'number') {
+            // Aufschlagen: Restzeit ± delta (signed, relativ zum aktuellen Ende)
+            const delta = Number(args.delta_seconds)
             if (!Number.isFinite(delta)) {
-              return JSON.stringify({ error: 'offset_seconds muss eine Zahl sein' })
+              return JSON.stringify({ error: 'delta_seconds muss eine Zahl sein' })
             }
-            if (args.offset_base === 'end') {
-              // Aufschlagen: Restzeit ± delta
-              const cur = step.timer
-              if (cur) {
-                newTimer = { ...cur, durationMs: Math.max(0, cur.durationMs + delta * 1000) }
-              } else {
-                const end = derivedWaitEnd(step)
-                if (end === null) return JSON.stringify({ error: 'Kein laufender Timer' })
-                newTimer = {
-                  startAt: now,
-                  durationMs: Math.max(0, end - now + delta * 1000),
-                  pausedAt: null,
-                  pauseOffsetMs: 0,
-                  gatesSelf: true,
-                }
-              }
+            const cur = step.timer
+            if (cur) {
+              newTimer = { ...cur, durationMs: Math.max(0, cur.durationMs + delta * 1000) }
             } else {
-              // Neu setzen ab jetzt — Startzeitpunkt wird komplett zurückgesetzt
-              const cur = step.timer
+              const end = derivedWaitEnd(step)
+              if (end === null) return JSON.stringify({ error: 'Kein laufender Timer' })
               newTimer = {
-                startAt: cur?.pausedAt ?? now,
-                durationMs: Math.max(0, delta * 1000),
-                pausedAt: cur?.pausedAt ?? null,
+                startAt: now,
+                durationMs: Math.max(0, end - now + delta * 1000),
+                pausedAt: null,
                 pauseOffsetMs: 0,
-                gatesSelf: keepSelf,
+                gatesSelf: true,
               }
             }
           } else {
@@ -789,25 +773,13 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
           const stepIdx = stepIndexOf(id, stepId)
           if (stepIdx < 0) return JSON.stringify({ error: 'Unbekannter Schritt' })
-          const step = flow.steps[stepIdx]
-          const now = Date.now()
-          const origMs = originalWaitDurationMs(step)
+          // Einfach entfernen: auf einer wartenden Karte materialisiert
+          // syncWaitTimers sofort wieder die ABGELEITETE Wartezeit (Reset auf
+          // die letzte Gate-Endzeit — „die höchste Zeit"), auf einer aktiven
+          // Karte werden die Abhängigen frei. Kein Spezialpfad nötig.
           batch(() => {
-            if (origMs !== null) {
-              // Volle ursprüngliche Wartezeit ab jetzt setzen
-              patchStep(id, stepId, {
-                timer: {
-                  startAt: now,
-                  durationMs: origMs,
-                  pausedAt: null,
-                  pauseOffsetMs: 0,
-                  gatesSelf: true,
-                },
-              })
-            } else {
-              patchStep(id, stepId, { timer: null })
-              syncWaitTimers()
-            }
+            patchStep(id, stepId, { timer: null })
+            syncWaitTimers()
           })
           toast('⏱ Timer zurückgesetzt')
           return JSON.stringify({ ok: true })

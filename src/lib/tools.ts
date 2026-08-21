@@ -184,23 +184,18 @@ export const TOOLS: ToolDef[] = [
   {
     type: 'function',
     function: {
-      name: 'start_timer',
+      name: 'set_timer',
       description:
-        'Timer eines Schritts neu setzen, aufschlagen oder verschieben. "seconds": Dauer ab jetzt — setzt den Startzeitpunkt komplett zurück und ersetzt einen laufenden Timer. Alternativ "offset_seconds" + "offset_base": laufenden Timer um X Sekunden verschieben — base "now" = „noch X Minuten ab jetzt", base "end" = „noch X Minuten länger" (negativ = verkürzen). Auf einer wartenden Karte (alle Abhängigkeiten erledigt) betrifft der Timer die Wartezeit der Karte selbst; sonst die Wartezeit ihrer abhängigen Karten.',
+        'Timer eines Schritts setzen oder anpassen. "seconds": Dauer ab jetzt — setzt den Startzeitpunkt komplett zurück und ersetzt einen laufenden Timer. Alternativ "delta_seconds" (signed): laufenden Timer um X Sekunden verschieben — positiv = „noch X Minuten länger", negativ = verkürzen. Auf einer wartenden Karte ohne eigenen Timer wird deren Wartezeit als Basis genommen. Auf einer wartenden Karte (alle Abhängigkeiten erledigt) betrifft der Timer die Wartezeit der Karte selbst; sonst die Wartezeit ihrer abhängigen Karten.',
       parameters: {
         type: 'object',
         properties: {
           flow_id: { type: 'string' },
           step_id: stepIdSchema('Der Schritt'),
           seconds: { type: 'number', description: 'Dauer ab jetzt, in Sekunden (ersetzt einen laufenden Timer)' },
-          offset_seconds: {
+          delta_seconds: {
             type: 'number',
-            description: 'Optional statt seconds: laufenden Timer um diese Sekunden verschieben (negativ = verkürzen)',
-          },
-          offset_base: {
-            type: 'string',
-            enum: ['now', 'end'],
-            description: 'Bezug von offset_seconds: "now" = ab jetzt, "end" = ab dem aktuellen Ende des Timers. Default "end".',
+            description: 'Optional statt seconds: laufenden Timer um diese Sekunden verschieben — positiv verlängert, negativ verkürzt',
           },
         },
         required: ['flow_id', 'step_id'],
@@ -241,7 +236,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'cancel_timer',
-      description: 'Timer eines Schritts abbrechen (abhängige Karten werden frei, sofern keine Kanten-Verzögerung läuft). Auf einer wartenden Karte: eigene Anpassung verwerfen — zurück zur ursprünglichen Wartezeit (Reset).',
+      description: 'Timer eines Schritts abbrechen (abhängige Karten werden frei, sofern keine Kanten-Verzögerung läuft). Auf einer wartenden Karte: eigene Anpassung verwerfen — zurück zur abgeleiteten Wartezeit (Reset).',
       parameters: {
         type: 'object',
         properties: {

@@ -30,18 +30,18 @@ Wartezeit aus den Kanten materialisieren oder Fehler „kein laufender Timer".
 
 ## Tasks
 
-- [ ] `tools.ts`: Tool-Name + Beschreibung auf `set_timer` umstellen,
+- [x] `tools.ts`: Tool-Name + Beschreibung auf `set_timer` umstellen,
       `offset_seconds`/`offset_base` → `delta_seconds`
-- [ ] `cookEngine.ts`: `case 'start_timer'` → `case 'set_timer'`,
+- [x] `cookEngine.ts`: `case 'start_timer'` → `case 'set_timer'`,
       Offset-Logik auf signed Delta vereinfachen
-- [ ] `Cook.tsx`: `act('start_timer', …)`-Aufrufe umbenennen (Warte-Menü,
+- [x] `Cook.tsx`: `act('start_timer', …)`-Aufrufe umbenennen (Warte-Menü,
       inkl. `offset_seconds`/`offset_base`-Aufrufe)
-- [ ] `CookMock.tsx`: Demo-Aufrufe prüfen
-- [ ] Prompt (`store.ts`): alle `start_timer`/offset-Erwähnungen
+- [x] `CookMock.tsx`: Demo-Aufrufe prüfen (keine Timer-Aufrufe vorhanden)
+- [x] Prompt (`store.ts`): alle `start_timer`/offset-Erwähnungen
       (Warte-Menü-Zeile, Referenzen-Zeile, Rollenklärung) umbenennen
-- [ ] Alt-Daten: Chat-Verlauf kann alte `start_timer`-Tool-Aufrufe enthalten —
-      beim Convo-Aufbau (sendMessage) alte Namen mappen oder Verlauf einmal
-      clearen (Prüfen, ob der Provider History-Toolnamen strikt validiert)
+- [x] Alt-Daten: Chat-Verlauf kann alte `start_timer`-Tool-Aufrufe enthalten —
+      unkritisch: der Convo wird pro sendMessage nur aus Textnachrichten neu
+      aufgebaut, Tool-Aufrufe persistieren nie in den Verlauf
 
 ## Abhängigkeit
 

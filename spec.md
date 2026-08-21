@@ -356,14 +356,13 @@ Mehrere Karten stehen untereinander (Stapel).
   über Referenz-Gleichheit).
 - **Warte-Menü** (öffnet am Button der wartenden Karte): Pausieren/Fortsetzen,
   +1/+5 Min (aufschlagen), „Neu: 5 Min" (Startzeitpunkt komplett zurücksetzen),
-  **⏩ Vorspulen** (= früh abschließen, Wartezeit überspringen), ↺ Reset (eigene
-  Anpassung verwerfen → zurück zur abgeleiteten Wartezeit).
-- **Timer-Tools:** `start_timer` — `seconds` = neu setzen ab jetzt (Startzeitpunkt
-  zurückgesetzt), `offset_seconds` + `offset_base` — `"now"` = „noch X Minuten ab jetzt",
-  `"end"` = „noch X Minuten länger" (negativ = verkürzen). Auf einer wartenden Karte
-  wirken die Tools auf deren Wartezeit selbst. `pause_timer`/`resume_timer` frieren die
-  Restzeit ein bzw. setzen fort (Pausendauer wandert in `pauseOffsetMs`); pausierte Timer
-  laufen nie ab. `cancel_timer` bricht ab bzw. resettet die Wartezeit-Anpassung.
+  **⏩ Vorspulen** (= früh abschließen, Wartezeit überspringen).
+- **Timer-Tools:** `set_timer` — `seconds` = neu setzen ab jetzt (Startzeitpunkt
+  zurückgesetzt), `delta_seconds` (signed) = aufschlagen/verkürzen relativ zum aktuellen
+  Ende. Auf einer wartenden Karte wirken die Tools auf deren Wartezeit selbst.
+  `pause_timer`/`resume_timer` frieren die Restzeit ein bzw. setzen fort (Pausendauer
+  wandert in `pauseOffsetMs`); pausierte Timer laufen nie ab. `cancel_timer` bricht ab
+  bzw. resettet die Wartezeit-Anpassung.
 - **Waiting-Karten** sind in „Jetzt" sichtbar (gedimmt wie blocked/done, Countdown in Flow-Farbe, ab < 30 s amber);
   ihr Button ist ein Uhr-Symbol (Kartenfarbe, pulsiert solange der Timer läuft) und öffnet das Warte-Menü (kein Direkt-Abschluss mehr).
 - **Sortierung:** waiting-Karten stehen **unter** den aktiven und **über** den blocked;
@@ -485,10 +484,10 @@ umbenennen/löschen/teilen, Timer neu setzen oder verlängern.
 | `split_step` | Step teilen: Teil 1 bleibt (mit Prio), Teil 2 folgt danach und hängt von Teil 1 ab; Verweise auf den Original-Step zeigen auf Teil 2. Nur nicht-done |
 | `complete_step` | `done` (+ `doneAt`); Verzögerungen der Dependents laufen ab hier; Abhängige kommen in „Jetzt" (waiting/active) |
 | `revert_step` | zurücknehmen — nur wenn keine abhängige Karte abgeschlossen ist; verwirft `doneAt`/Timer, Abhängige werden wieder blocked |
-| `start_timer` | Timer neu setzen („seconds" = Dauer ab jetzt, Startzeitpunkt wird zurückgesetzt) **oder aufschlagen** (`offset_seconds` + `offset_base`: „now" = ab jetzt, „end" = „noch X Minuten länger"; negativ = verkürzen). Auf einer wartenden Karte: deren Wartezeit selbst |
+| `set_timer` | Timer neu setzen („seconds" = Dauer ab jetzt, Startzeitpunkt wird zurückgesetzt) **oder aufschlagen** (`delta_seconds` signed: positiv = „noch X Minuten länger", negativ = verkürzen). Auf einer wartenden Karte: deren Wartezeit selbst |
 | `pause_timer` | laufenden Timer pausieren (Restzeit friert ein); auf wartender Karte ohne eigenen Timer: Wartezeit einfrieren |
 | `resume_timer` | pausierten Timer fortsetzen |
-| `cancel_timer` | Timer abbrechen (Abhängige werden frei, sofern keine Kanten-Verzögerung läuft); auf wartender Karte: Reset auf die ursprüngliche Wartezeit |
+| `cancel_timer` | Timer abbrechen (Abhängige werden frei, sofern keine Kanten-Verzögerung läuft); auf wartender Karte: Reset auf die abgeleitete Wartezeit |
 | `complete_flow` | alle Steps `done` (+ `doneAt`) + Flow `done` + alle Timer abbrechen |
 | `update_flow` | `name` / `icon` ändern |
 | `delete_flow` | Flow löschen; Refs anderer Flows auf seine Steps werden entfernt; Farben sind abgeleitet (FLOW_COLORS[Index]) — nichts zu pflegen |

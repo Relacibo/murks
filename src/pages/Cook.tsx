@@ -475,7 +475,7 @@ export function Cook(props: {
 
     function applyTimer(m: number, s: number) {
       const total = Math.max(1, m * 60 + s)
-      act('start_timer', { seconds: total })
+      act('set_timer', { seconds: total })
     }
     function commitMins() {
       const raw = editMins()
@@ -589,17 +589,10 @@ export function Cook(props: {
                   </button>
                   <button
                     class={iconBtn}
-                    onClick={() => act('start_timer', { offset_seconds: 60, offset_base: 'end' })}
+                    onClick={() => act('set_timer', { delta_seconds: 60 })}
                     title="+1 Minute"
                   >
                     <FiPlus size={16} />
-                  </button>
-                  <button
-                    class={iconBtn}
-                    onClick={() => act('cancel_timer', {})}
-                    title="Auf ursprüngliche Zeit zurücksetzen"
-                  >
-                    <FiRotateCcw size={16} />
                   </button>
                   <button
                     class={iconBtn}
