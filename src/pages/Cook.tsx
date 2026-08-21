@@ -1151,13 +1151,7 @@ export function Cook(props: {
           {/* Übersicht ein-/ausblendbar; zu → „Jetzt" allein, zentriert, breitere Karten */}
           {/* Horizontales Scrollen nur im Flow-Bereich — „Jetzt" bleibt stehen */}
           <div class="hidden sm:flex flex-1 min-h-0" classList={{ 'justify-center': !overviewOpen() }}>
-            <div
-              class="flex flex-col min-h-0"
-              classList={{
-                'w-[320px] shrink-0 bg-zinc-900/50': overviewOpen(),
-                'w-full max-w-[480px]': !overviewOpen(),
-              }}
-            >
+            <div class="w-[320px] shrink-0 flex flex-col min-h-0" classList={{ 'bg-zinc-900/50': overviewOpen() }}>
               <Show when={overviewOpen()}>
                 <div class="shrink-0 px-3 py-2 border-b border-zinc-700 text-xs uppercase tracking-widest text-zinc-500">
                   Jetzt
