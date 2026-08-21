@@ -912,14 +912,9 @@ export function Cook(props: {
         const now = next.get(k)
         if (now === undefined) continue
         if (prev === undefined) {
-          // fill backwards: während des kleinen Delays unsichtbar (kein Morph),
-          // erst fliegt der Ghost raus, dann kommt die neue Karte rein
           el.animate(
-            [
-              { transform: 'translateY(32px)', opacity: 0 },
-              { transform: 'translateY(0)', opacity: 1 },
-            ],
-            { duration: 300, easing: 'ease-out', delay: 120, fill: 'backwards' },
+            [{ transform: 'translateY(28px)' }, { transform: 'translateY(0)' }],
+            { duration: 280, easing: 'ease-out' },
           )
         } else if (Math.abs(prev - now) > 1) {
           el.animate(
@@ -964,7 +959,6 @@ export function Cook(props: {
                     { duration: 220, easing: 'ease-in' },
                   )
                   anim.onfinish = () => setLeaving((l) => l.filter((x) => x !== g))
-                  setTimeout(() => setLeaving((l) => l.filter((x) => x !== g)), 600)
                 })
               }}
             />
