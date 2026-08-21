@@ -616,17 +616,16 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               ? {
                   ...st,
                   done: true,
-                  // Verzögerungen der Dependents laufen ab diesem Zeitpunkt;
-                  // eigener Timer endet mit dem Abschluss
                   doneAt: Date.now(),
                   override: null,
                 }
               : st,
           )
           const allDone = steps.every((st) => st.done)
-          patchFlow(id, { steps, done: allDone ? true : flow.done })
-          // Abhängige aufnehmen (active oder waiting — Zustand wird in der UI abgeleitet)
-          activateDependents([{ flow_id: id, step_id: stepId }])
+          batch(() => {
+            patchFlow(id, { steps, done: allDone ? true : flow.done })
+            activateDependents([{ flow_id: id, step_id: stepId }])
+          })
 
           toast(`${flow.name}: „${stepLabel(flow.steps[stepIdx].description)}" fertig`)
           return JSON.stringify({ ok: true })
@@ -646,15 +645,16 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               error: 'Abhängige Karte ist bereits abgeschlossen — Schritt kann nicht zurückgenommen werden',
             })
           }
-          // Eigener Timer entfällt; Abhängige werden wieder blocked
-          patchStep(id, stepId, {
-            done: false,
-            doneAt: null,
-            activatedAt: nextAct(),
-            override: null,
+          batch(() => {
+            patchStep(id, stepId, {
+              done: false,
+              doneAt: null,
+              activatedAt: nextAct(),
+              override: null,
+            })
+            patchFlow(id, { done: false })
+            deactivateDependents([{ flow_id: id, step_id: stepId }])
           })
-          patchFlow(id, { done: false })
-          deactivateDependents([{ flow_id: id, step_id: stepId }])
 
           toast(`${flow.name}: „${stepLabel(flow.steps[stepIdx].description)}" zurückgenommen`)
           return JSON.stringify({ ok: true })
