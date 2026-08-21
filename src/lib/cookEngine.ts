@@ -902,7 +902,9 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
      sobald ihr Gate in der Vergangenheit liegt). Invariante: ein vorhandenes
      Override ist pausiert oder liegt in der Zukunft. Für abgelaufene
      abgeleitete Gates: Übergangs-Toast (Fenster ±2 s, damit er genau einmal
-     kommt und nach Reload nicht nachhallt). */
+     kommt und nach Reload nicht nachhallt) — dedupliziert pro Karte und
+     Endzeit, sonst feuert er auf jedem Tick im Fenster doppelt. */
+  const toastedEnds = new Map<string, number>()
   function expireTimers(): void {
     const now = Date.now()
     for (const s of getCook().flows) {
@@ -918,7 +920,11 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
         if (step.done || !depsDone(step.dependsOn)) return
         const end = derivedWaitEnd(step)
         if (end !== null && end <= now && end > now - 2000) {
-          showToast(`⏰ Timer abgelaufen: ${s.name} — ${stepLabel(step.description)}`)
+          const key = `${s.id}:${step.id}`
+          if (toastedEnds.get(key) !== end) {
+            toastedEnds.set(key, end)
+            showToast(`⏰ Timer abgelaufen: ${s.name} — ${stepLabel(step.description)}`)
+          }
         }
       })
     }

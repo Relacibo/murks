@@ -479,7 +479,7 @@ export function Cook(props: {
       <Show when={card()}>
         {(c) => {
           const remaining = () => pendingUntil(c().s, st()!)
-          const paused = () => st()!.override?.pausedAt !== null
+          const paused = () => st()!.override?.pausedAt != null
           return (
             <div
               class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50"
@@ -667,16 +667,19 @@ export function Cook(props: {
           </Show>
           <Show when={countdownEndsAt() !== null}>
             <span
-              class="step-countdown font-mono text-sm font-semibold leading-none translate-y-[1px] shrink-0 tabular-nums inline-flex items-center gap-[2px]"
+              class="step-countdown font-mono text-sm font-semibold leading-none shrink-0 tabular-nums inline-flex items-center gap-1"
               classList={{ 'animate-pulse': urgent() }}
             >
-              <Show when={st().override?.pausedAt !== null}>
-                <FiPause size={9} class="text-amber-400 shrink-0" />
+              <Show when={st().override?.pausedAt != null}>
+                <FiPause size={12} class="text-amber-400 shrink-0" />
               </Show>
-              <span classList={{
-                'text-amber-300': urgent() || st().override?.pausedAt === null,
-                'text-zinc-400': !urgent() && st().override?.pausedAt !== null,
-              }}>
+              <span
+                class="translate-y-[1px]"
+                classList={{
+                  'text-amber-300': urgent() || st().override?.pausedAt == null,
+                  'text-zinc-400': !urgent() && st().override?.pausedAt != null,
+                }}
+              >
                 {fmtCountdown(countdownEndsAt()!)}
               </span>
             </span>
@@ -712,7 +715,7 @@ export function Cook(props: {
             <Show when={stateName() === 'waiting'}>
               <button
                 class="clock-btn"
-                classList={{ 'is-running': st().override?.pausedAt === null }}
+                classList={{ 'is-running': st().override?.pausedAt == null }}
                 title="Timer-Optionen"
                 aria-label="Timer-Optionen öffnen"
                 onClick={(e) => {
@@ -984,17 +987,20 @@ export function Cook(props: {
                 onClick={() => pulseCards([`${x.s.id}:${x.st.id}`])}
                 title="Wartende Karte markieren"
               >
-                {/* Emoji ausblenden wenn pausiert — ⏸ übernimmt den Platz */}
-                <Show when={x.st.override?.pausedAt !== null} fallback={
+                {/* Emoji ausblenden wenn pausiert — ⏸ übernimmt den Platz
+                    (gleicher 16-px-Footprint, damit nichts springt) */}
+                <Show when={x.st.override?.pausedAt != null} fallback={
                   <Show when={x.s.icon}>
                     <span class="chip-icon text-base leading-none shrink-0">{x.s.icon}</span>
                   </Show>
                 }>
-                  <FiPause size={14} class="text-amber-300 shrink-0 self-center" />
+                  <span class="chip-icon w-4 h-4 shrink-0 flex items-center justify-center">
+                    <FiPause size={16} class="text-amber-300" />
+                  </span>
                 </Show>
                 <span
                   class="font-mono font-semibold tabular-nums"
-                  classList={{ 'text-zinc-400': x.st.override?.pausedAt !== null }}
+                  classList={{ 'text-zinc-400': x.st.override?.pausedAt != null }}
                 >
                   {fmtCountdown(x.endsAt)}
                 </span>
