@@ -95,11 +95,33 @@ const MOCK_COOK: CookState = {
 export function CookMock() {
   // Eigener, lokaler Store — der echte App-State bleibt unberührt.
   // Persistiert in localStorage, damit Reloads die Queue behalten (wie die echte App).
-  const MOCK_KEY = 'murks-mock-state'
+  // Key-versioniert: der Mock persistiert ROH (ohne die Migration des echten
+  // hydrate) — nach Timer-Modell-Änderungen würden alte Shapes sonst
+  // „pausiert + NaN:NaN"-Zustände erzeugen.
+  const MOCK_KEY = 'murks-mock-state-v2'
   const loadMockCook = (): CookState => {
     try {
       const raw = localStorage.getItem(MOCK_KEY)
-      if (raw) return JSON.parse(raw) as CookState
+      if (raw) {
+        const cook = JSON.parse(raw) as CookState
+        // Form-Guard: kaputte Timer-Shapes aus früheren Versionen entsorgen
+        for (const s of cook.flows ?? []) {
+          for (const st of s.steps ?? []) {
+            const t = st.timer as unknown
+            if (t === undefined || t === null) continue
+            const o = t as { alarmAt?: unknown; pausedAt?: unknown }
+            if (
+              typeof o !== 'object' ||
+              typeof o.alarmAt !== 'number' ||
+              !Number.isFinite(o.alarmAt) ||
+              (o.pausedAt !== null && typeof o.pausedAt !== 'number')
+            ) {
+              st.timer = null
+            }
+          }
+        }
+        return cook
+      }
     } catch {
       /* ignorieren */
     }
