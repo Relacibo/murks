@@ -1,14 +1,15 @@
 /**
  * Alarm-Töne:
- * - playAlarmBell: Klirren eines mechanischen Doppelglocken-Weckers (Web
- *   Audio, synthetisch — keine Assets), ~2.5 s, läuft auch bei gemutetem TTS
- *   (kritischer Alarm).
- * - playAlarmBing: informativer „Ding" für unkritische Abläufe — als Asset
- *   public/sounds/ding.mp3 („Film special effects ding", Pixabay,
- *   https://pixabay.com/sound-effects/film-special-effects-ding-101492/;
- *   Pixabay Content License: frei nutzbar, keine Namensnennung nötig).
- *   Fallback, falls die Datei fehlt: synthetischer Zweiton-Bing.
+ * - playAlarmBell: mechanischer Wecker für kritische Alarme (prio) — Asset
+ *   public/sounds/microsammy-clock-alarm-8761.mp3 (Pixabay ID 8761,
+ *   Autor microsammy). Läuft auch bei gemutetem TTS.
+ * - playAlarmBing: informativer „Ding" für unkritische Abläufe — Asset
+ *   public/sounds/freesound_community-ding-101492.mp3 („Film special effects
+ *   ding", https://pixabay.com/sound-effects/film-special-effects-ding-101492/).
  *   Wird bei gemutetem TTS NICHT abgespielt (Prüfung im Aufrufer).
+ * Pixabay Content License: frei nutzbar, keine Namensnennung nötig.
+ * Fehlt eine Datei oder schlägt das Abspielen fehl: synthetischer Fallback
+ * (Web Audio, keine Assets).
  */
 
 let audioCtx: AudioContext | null = null
@@ -23,7 +24,43 @@ function ctx(): AudioContext | null {
   }
 }
 
+/** Asset abspielen; bei Fehler einmalig auf den synthetischen Fallback wechseln */
+const assetPlayers = new Map<string, { audio: HTMLAudioElement; failed: boolean }>()
+
+function playAsset(src: string, fallback: () => void): void {
+  let p = assetPlayers.get(src)
+  if (!p) {
+    p = { audio: new Audio(src), failed: false }
+    p.audio.addEventListener(
+      'error',
+      () => {
+        p!.failed = true
+        fallback()
+      },
+      { once: true },
+    )
+    assetPlayers.set(src, p)
+  }
+  if (p.failed) {
+    fallback()
+    return
+  }
+  p.audio.currentTime = 0
+  p.audio.play().catch(() => {
+    p!.failed = true
+    fallback()
+  })
+}
+
 export function playAlarmBell(): void {
+  playAsset('/sounds/microsammy-clock-alarm-8761.mp3', playSyntheticBell)
+}
+
+export function playAlarmBing(): void {
+  playAsset('/sounds/freesound_community-ding-101492.mp3', playSyntheticBing)
+}
+
+function playSyntheticBell(): void {
   const c = ctx()
   if (!c) return
   const now = c.currentTime
@@ -97,31 +134,4 @@ function playSyntheticBing(): void {
     o.start(now)
     o.stop(now + dur)
   }
-}
-
-let dingAudio: HTMLAudioElement | null = null
-let dingFailed = false
-
-/** Unkritischer Alarm: Pixabay-„Ding" als Asset, sonst synthetischer Fallback */
-export function playAlarmBing(): void {
-  if (!dingFailed) {
-    if (!dingAudio) {
-      dingAudio = new Audio('/sounds/ding.mp3')
-      dingAudio.addEventListener(
-        'error',
-        () => {
-          dingFailed = true
-          playSyntheticBing()
-        },
-        { once: true },
-      )
-    }
-    dingAudio.currentTime = 0
-    dingAudio.play().catch(() => {
-      dingFailed = true
-      playSyntheticBing()
-    })
-    return
-  }
-  playSyntheticBing()
 }
