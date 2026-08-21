@@ -486,7 +486,7 @@ umbenennen/löschen/teilen, Timer neu setzen oder verlängern.
 
 | Tool | Semantik |
 |---|---|
-| `get_cook_state` | kompletter Zustand (Flows, Steps mit IDs, Timer, Ingredients) + Feld `queue`: Reihenfolge der „Jetzt"-View (erstes Element = oberste Karte) + `now_ms`/`now_local` (lokale Uhrzeit) + `waiting` (ref, `ends_in_s`, `ends_at_local` je wartender Karte) — Zeitfragen ohne Epoch-Mathematik |
+| `get_cook_state` | kompletter Zustand (Flows, Steps mit IDs, Timer, Ingredients) + Feld `queue`: Reihenfolge der „Jetzt"-View (erstes Element = oberste Karte) + `now_local` (lokale Uhrzeit mit Offset) + `waiting` (ref, `ends_in_s`, `ends_at_local` je wartender Karte) — Zeitfragen ohne Epoch-Mathematik |
 | `add_flow` | neuer Flow: `name`, `icon`, `steps[]` mit `description`, `depends_on` (nur auf existierende Steps; Einträge optional mit `timer_seconds`), `priority`, `score` |
 | `add_step` | Step anhängen oder hinter `after_step_id` einfügen; optional `depends_on` (inkl. `timer_seconds` an den Kanten), `priority`, `score` |
 | `update_step` | `description` / `depends_on` (inkl. Kanten-`timer_seconds`) / `priority` / `score` ändern (nur angegebene Felder); Queue-Status wird neu bewertet |

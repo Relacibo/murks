@@ -37,9 +37,10 @@ Gespeichert wird nur noch, was Nutzer/KI explizit verlangen: `Step.override`
 - [x] Migration: `gatesSelf:false`-Timer → Override (wenn in Zukunft),
       `gatesSelf:true`-Spiegel verworfen (fallen wieder aus den Kanten)
 - [x] Prompt + spec.md umgeschrieben
-- [x] `get_cook_state` um Zeit-Kontext ergänzt: `now_ms`/`now_local` (lokale
-      Gerätezeit) + `waiting` (ref, `ends_in_s`, `ends_at_local`) — das Modell
-      rechnet nie selbst mit Epoch-Werten; `set_timer` bleibt rein relativ
+- [x] `get_cook_state` um Zeit-Kontext ergänzt: `now_local` (lokale
+      Gerätezeit mit Offset — enthält alles Nötige, kein Epoch nötig) +
+      `waiting` (ref, `ends_in_s`, `ends_at_local`) — das Modell rechnet nie
+      selbst mit Epoch-Werten; `set_timer` bleibt rein relativ
 
 ## Abhängigkeit
 → 3400 (Timer pro Schritt), ersetzt 3430 (Max-Regel)

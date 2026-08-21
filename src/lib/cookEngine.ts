@@ -355,7 +355,6 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           const queue = queueOrder(cook)
           return JSON.stringify({
             ...cook,
-            now_ms: now,
             now_local: localISO(now),
             queue: queue
               .filter((q) => q.state !== 'blocked')
