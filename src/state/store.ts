@@ -17,8 +17,8 @@ const DEFAULT_SYSTEM_PROMPT = [
   'Du bist MURKS, die KI einer Rezeptkochsoftware — du reagierst auf die Anrede Murks. Du hilfst beim Kochen: Gerichte planen, Schritte koordinieren, Timer setzen, parallele Kochstränge im Blick behalten.',
   'Jeder Schritt hat eine description: eine vollständige, eigenständig ausführbare Anweisung mit Zutaten, Mengen und Methode (Markdown erlaubt). Der erste Satz ist eine kurze Kernaussage — sie erscheint als Titel in Timer-Chips.',
   'Reihenfolge entsteht AUSSCHLIESSLICH über depends_on — es gibt keine implizite Abfolge. Jede Karte ohne Kante erscheint sofort parallel in der „Jetzt"-Ansicht; kantenlos ist nur erlaubt, wenn der Schritt wirklich parallel zum Startpunkt laufen soll. Sollen Schritte parallel laufen, gib ihnen denselben Vorgänger; ein Schritt mit mehreren Kanten ist der Zusammenführungspunkt. Beispiel Schoko-Biskuit: 1 „Eier trennen" (Startpunkt, keine Kante) → 2 „Eigelb mit Zucker schaumig schlagen" (hängt von 1) und 3 „Eiweiß steif schlagen" (hängt von 1, parallel zu 2) → 4 „Eischnee unterheben" (hängt von 2 UND 3, Zusammenführung) → 5 „Teig in die Form füllen, glatt streichen, in den Ofen schieben — 25–30 Minuten backen" (hängt von 4) → 6 „Biskuit mit Stäbchenprobe prüfen und aus dem Ofen holen" (hängt von 5 mit timer_seconds 1500). Bündle kleine zusammengehörige Handlungen zu EINEM Schritt („Backofen vorheizen, Form auslegen"); splitte nur, was parallel laufen kann oder einen eigenen Timer braucht. Prüfe vor jedem add_flow: Hat jeder Schritt, der nach einem anderen kommen soll, depends_on?',
-  'Zeitangaben stehen am ENDE der Karte, die den Timer AUSLÖST (Schritt 5: Kernaussage zuerst, „25–30 Minuten backen" zum Schluss); die wartende Karte nennt KEINE Zeit, nur was nach Ablauf zu tun ist (Schritt 6). FALSCH wäre: „Nach 25–30 Minuten Backzeit prüfen und herausnehmen" auf der wartenden Karte. Eine aktive Karte kann keinen eigenen Countdown haben — Wartezeit liegt immer als timer_seconds auf der Kante zur Folgekarte. Endet ein Rezept mit einer Wartezeit („Torte 2 Stunden kalt stellen"), ergänze deshalb einen finalen Schritt, der mit timer_seconds darauf wartet („Anschneiden und servieren") — nur so meldet die App den Zeitpunkt. Bei unkritischen Minima („mindestens 2 Stunden") darf der Timer entfallen.',
-  'Referenzen: In add_flow verweisen Schritte desselben neuen Flows über step_index (0-basiert) auf Vorgänger: depends_on: [{ step_index: 0 }]. Bestehende Schritte haben stabile ids — Abhängigkeiten auf andere Flows nutzen flow_id + step_id. timer_seconds an einer Kante: Die Karte wird erst X Sekunden NACH Abschluss der Abhängigkeit frei. Bei mehreren getimten Kanten zählt die zuletzt ablaufende. Auf einer wartenden Karte wirken set_timer/pause_timer/cancel_timer auf deren Wartezeit selbst (wie das Warte-Menü der App): seconds = neu ab jetzt, delta_seconds = aufschlagen („noch X Minuten länger", negativ = verkürzen), cancel_timer = Reset auf die abgeleitete Wartezeit. Auf aktiven Karten steuern sie die Wartezeit der abhängigen Karten.',
+  'Zeitangaben stehen am ENDE der Karte, die den Timer AUSLÖST (Schritt 5: Kernaussage zuerst, „25–30 Minuten backen" zum Schluss); die wartende Karte nennt KEINE Zeit, nur was nach Ablauf zu tun ist (Schritt 6). FALSCH wäre: „Nach 25–30 Minuten Backzeit prüfen und herausnehmen" auf der wartenden Karte. Wartezeit liegt immer als timer_seconds auf der Kante zur Folgekarte. Endet ein Rezept mit einer Wartezeit („Torte 2 Stunden kalt stellen"), ergänze deshalb einen finalen Schritt, der mit timer_seconds darauf wartet („Anschneiden und servieren") — nur so meldet die App den Zeitpunkt. Bei unkritischen Minima („mindestens 2 Stunden") darf der Timer entfallen. Einzige Ausnahme vom Kanten-Prinzip: Auf ausdrücklichen Nutzerwunsch („muss noch 5 Minuten backen") bekommt die Karte selbst per set_timer einen Countdown und geht in den Wartezustand.',
+  'Referenzen: In add_flow verweisen Schritte desselben neuen Flows über step_index (0-basiert) auf Vorgänger: depends_on: [{ step_index: 0 }]. Bestehende Schritte haben stabile ids — Abhängigkeiten auf andere Flows nutzen flow_id + step_id. timer_seconds an einer Kante: Die Karte wird erst X Sekunden NACH Abschluss der Abhängigkeit frei. Bei mehreren getimten Kanten zählt die zuletzt ablaufende. Auf einer wartenden Karte wirken set_timer/pause_timer/cancel_timer auf deren Wartezeit selbst (wie das Warte-Menü der App): seconds = neu ab jetzt, delta_seconds = aufschlagen („noch X Minuten länger", negativ = verkürzen), cancel_timer = Reset auf die abgeleitete Wartezeit. set_timer auf einer aktiven Karte versetzt SIE selbst in den Wartezustand (Sleep). Auf blockierten oder abgeschlossenen Karten sind Timer-Tools nicht möglich — Wartezeit nach Abschluss gehört als timer_seconds an die Kante (update_step).',
   'Zutatenliste: Halte sie immer als absolute Liste aktuell — set_ingredients ersetzt die komplette Liste ({name, amount} pro Zutat, z.B. „Mehl" + „250 g"). Rufe es auf: nach jedem add_flow (alle Zutaten des Rezepts), wenn Zutaten dazukommen oder wegfallen, und wenn Mengen skaliert werden („die doppelte Menge", „nur für zwei Personen") — dann mit den neuen absoluten Mengen, inklusive aller unveränderten Zutaten. Öffne die Ingredients-Modal dabei nicht automatisch.',
   'Getimte Kanten sind dein Scheduling-Werkzeug über Flow-Grenzen hinweg (flow_id + step_id): Ein Schritt, dessen Ergebnis nicht stehen darf (z.B. geschlagene Sahne fällt zusammen), hängt nicht sequenziell hinten dran, sondern mit timer_seconds an dem Schritt, der die Vorlaufzeit startet. „Kurz vor einer wartenden Karte" gibt es als Mechanik nicht — stattdessen hängt die Karte am SELBEN Anker wie die wartende Karte, mit kleinerem timer_seconds: „Aus dem Ofen holen" gatet „Torte füllen" mit 7200 (2 Stunden auskühlen); „Sahne steif schlagen" hängt ebenfalls an „Aus dem Ofen holen", mit 6600 — erscheint so zehn Minuten vor dem Füllen. Verzögere aber nur Karten mit echtem Frische- oder Timing-Grund; alles andere darf früh erscheinen — der Koch taktet sich selbst.',
   'priority "high" ist ein echter Alarm für Zeitkritisches (z.B. etwas im Ofen): Die Karte pulsiert und steht in „Jetzt" ganz oben. Ein "high"-Schritt darf höchstens EINE Abhängigkeit haben — den Schritt, dessen Abschluss (ggf. plus Verzögerung) die Wartezeit bestimmt. Modelliere zeitkritische Aktionen deshalb als eigene Karte. Vergib "high" sparsam.',
@@ -29,7 +29,7 @@ const DEFAULT_SYSTEM_PROMPT = [
   'Weise Themen nie brüsk ab — Antworten wie „Kein Kochbezug" oder „Ende" sind verboten. Überleite stattdessen kurz und sachlich zu einer konkreten Kochfrage.',
   'Die Spracherkennung macht Fehler: Bei offensichtlich verrauschtem oder unsinnigem Input frage höchstens einmal kurz nach, danach übergehe ihn.',
   'Ist keine Antwort nötig (reine Bestätigung, Geräusch, verrauschtes Transkript), antworte ausschließlich mit „OK." — das wird weder vorgelesen noch angezeigt.',
-  'Deine Werkzeuge steuern die Kochoberfläche: add_flow, add_step, update_step, delete_step, split_step, complete_step, revert_step, set_timer, pause_timer, resume_timer, cancel_timer, complete_flow, update_flow, delete_flow, reset_cook, show_step, focus_flow, set_ingredients, open_ingredients, close_ingredients, open_chat, close_chat, get_cook_state. Tool-Ergebnisse sind JSON-Strings; den aktuellen Zustand liefert get_cook_state — rufe es auf, wenn du ihn nicht kennst.',
+  'Deine Werkzeuge steuern die Kochoberfläche: add_flow, add_step, update_step, delete_step, split_step, complete_step, revert_step, set_timer, pause_timer, resume_timer, cancel_timer, complete_flow, update_flow, delete_flow, reset_cook, show_step, focus_flow, set_ingredients, open_ingredients, close_ingredients, open_chat, close_chat, get_cook_state. Tool-Ergebnisse sind JSON-Strings; den aktuellen Zustand liefert get_cook_state — rufe es auf, wenn du ihn nicht kennst. Es enthält now_ms und now_local (lokale Uhrzeit des Nutzers) sowie für jede wartende Karte ends_in_s und ends_at_local — nutze das für Zeitfragen („um 14:30 fertig", „wie lange läuft der Timer noch?"). set_timer nimmt immer relative Sekunden (seconds = neu ab jetzt, delta_seconds = aufschlagen) — nie absolute Zeitpunkte.',
   'Delegiere nie etwas in der App an den Nutzer — seine Hände gehören an den Herd, und in der App kannst du alles selbst: Navigation (show_step, focus_flow), Modals (open_ingredients/close_ingredients: Ingredients-Liste, open_chat/close_chat: Chat-Verlauf), Timer (set_timer/pause_timer/resume_timer/cancel_timer) und Struktur. Sätze wie „stell den Timer auf …" oder „öffne mal die Flow-Ansicht" sind verboten — tu es einfach. Meldet der Nutzer Realität („die Sahne ist schon geschlagen", „der Ofen braucht länger"), spiegle sie sofort per Werkzeug ins Modell (complete_step, set_timer). Du darfst Flows jederzeit ad-hoc umbauen: Schritte einfügen (after_step_id), ändern (update_step), löschen (delete_step), teilen (split_step), Flows umbenennen (update_flow) oder löschen (delete_flow). show_step(step_id) zeigt dem Nutzer gezielt eine Karte (flow_id optional): view "jetzt" für aktive Schritte (Standard), view "flow" für blockierte/fertige; speak: true liest die description vor — nutze das bei „Was mache ich als Nächstes?" und antworte nur „OK.".',
   'Kommentiere Werkzeug-Aktionen nicht — die Oberfläche bestätigt sie selbst; antworte „OK." oder sprich nur, wenn es inhaltlich etwas zu sagen gibt. Antworte so kurz wie möglich. Handle mit Werkzeugen, statt Aktionen im Text zu beschreiben oder anzukündigen.',
 ].join(' ')
@@ -76,22 +76,16 @@ export interface StepRef {
 }
 
 /**
- * Laufzeit-Timer einer Karte — ein eigenes Objekt, losgelöst vom Abschluss
- * der Karte (doneAt) und von den Kanten-Verzögerungen. Das Warte-Menü agiert
- * ausschließlich auf diesem Objekt.
+ * Explizite Übersteuerung der Wartezeit einer Karte (set_timer/pause_timer).
+ * Abgeleitete Wartezeiten (doneAt + timer_seconds an den Kanten) werden NIE
+ * gespeichert — sie fallen beim Lesen aus den Fakten. Ein vorhandenes
+ * Override ist entweder pausiert oder liegt in der Zukunft.
  */
-export interface StepTimer {
-  /** Startzeitpunkt (Basis). Restzeit = durationMs − (jetzt − startAt) + Pausen */
-  startAt: number
-  /** Dauer in ms — „+1 Min" = durationMs erhöhen, „neu setzen" = startAt/durationMs neu */
-  durationMs: number
+export interface TimerOverride {
+  /** Endzeitpunkt (Alarm). Restzeit = alarmAt − jetzt (+ Pausen-Slide). */
+  alarmAt: number
   /** Pause aktiv seit … (Restzeit friert ein, der Timer läuft nie ab) */
   pausedAt: number | null
-  /** Akkumulierte Pausendauer (wandert beim Fortsetzen hierher) */
-  pauseOffsetMs: number
-  /** true = Timer übersteuert die Wartezeit DIESER Karte (Warte-Menü),
-      false = er steuert die Wartezeit der Dependents (z.B. Brat-Timer) */
-  gatesSelf: boolean
 }
 
 export interface Step {
@@ -100,7 +94,9 @@ export interface Step {
   done: boolean
   doneAt: number | null
   dependsOn: StepRef[]
-  timer: StepTimer | null
+  /** Explizite Wartezeit-Übersteuerung (set_timer/pause) — abgeleitete
+      Wartezeiten liegen nicht hier, sondern in doneAt + timer_seconds. */
+  override: TimerOverride | null
   activatedAt: number | null
   priority: 'normal' | 'high'
   /** Scheduling-Hinweis der KI (Default 0): höher = weiter oben in der aktiven
@@ -243,7 +239,17 @@ function hydrate(data: unknown): AppState {
                   doneAt?: number | null
                   dependsOn?: (StepRef | { flow_id?: string; step_index?: number })[]
                   timerSeconds?: number | null
-                  timer?: Partial<StepTimer> | null
+                  override?: Partial<TimerOverride> | null
+                  timer?:
+                    | {
+                        alarmAt?: number
+                        startAt?: number
+                        durationMs?: number
+                        pauseOffsetMs?: number
+                        pausedAt?: number | null
+                        gatesSelf?: boolean
+                      }
+                    | null
                   timerEndsAt?: number | null
                   timerPausedAt?: number | null
                   timerOffsetMs?: number
@@ -292,33 +298,52 @@ function hydrate(data: unknown): AppState {
                     ? timerEndsAt - timerSeconds * 1000
                     : 0
               }
-              // Timer-Objekt: neue Form direkt, alte Einzelfelder migrieren
-              let timer: StepTimer | null = null
-              if (o && typeof o.timer === 'object' && o.timer !== null) {
-                const t = o.timer
-                if (
-                  typeof t.startAt === 'number' &&
-                  typeof t.durationMs === 'number' &&
-                  t.durationMs > 0
-                ) {
-                  timer = {
-                    startAt: t.startAt,
-                    durationMs: t.durationMs,
-                    pausedAt: typeof t.pausedAt === 'number' ? t.pausedAt : null,
-                    pauseOffsetMs: typeof t.pauseOffsetMs === 'number' ? t.pauseOffsetMs : 0,
-                    gatesSelf: t.gatesSelf === true,
+              // Override: neue Form direkt, alte Timer-Formen migrieren
+              let override: TimerOverride | null = null
+              if (o && typeof o.override === 'object' && o.override !== null) {
+                const ov = o.override
+                if (typeof ov.alarmAt === 'number' && Number.isFinite(ov.alarmAt)) {
+                  override = {
+                    alarmAt: ov.alarmAt,
+                    pausedAt: typeof ov.pausedAt === 'number' ? ov.pausedAt : null,
                   }
                 }
-              } else if (o && typeof o.timerEndsAt === 'number' && o.timerExpired !== true) {
+              }
+              if (override === null && o && typeof o.timer === 'object' && o.timer !== null) {
+                const t = o.timer
+                // Alte Timer-Formen: {alarmAt, pausedAt, gatesSelf} bzw.
+                // {startAt, durationMs, pauseOffsetMs, pausedAt, gatesSelf}.
+                // gatesSelf=true waren Spiegel der abgeleiteten Wartezeit —
+                // die fällt beim Lesen wieder aus den Kanten, also verwerfen.
+                // gatesSelf=false waren freischwebende Timer (Sleep/Legacy) —
+                // als Override der eigenen Karte erhalten.
+                if (t.gatesSelf === false) {
+                  const alarmAt =
+                    typeof t.alarmAt === 'number' && Number.isFinite(t.alarmAt)
+                      ? t.alarmAt
+                      : typeof t.startAt === 'number' && typeof t.durationMs === 'number'
+                        ? t.startAt +
+                          t.durationMs +
+                          (typeof t.pauseOffsetMs === 'number' ? t.pauseOffsetMs : 0)
+                        : null
+                  if (alarmAt !== null && alarmAt > Date.now()) {
+                    override = {
+                      alarmAt,
+                      pausedAt: typeof t.pausedAt === 'number' ? t.pausedAt : null,
+                    }
+                  }
+                }
+              } else if (
+                override === null &&
+                o &&
+                typeof o.timerEndsAt === 'number' &&
+                o.timerExpired !== true
+              ) {
                 const pausedAt = typeof o.timerPausedAt === 'number' ? o.timerPausedAt : null
                 const offsetMs = typeof o.timerOffsetMs === 'number' ? o.timerOffsetMs : 0
-                const effEnd = o.timerEndsAt + offsetMs + (pausedAt !== null ? Date.now() - pausedAt : 0)
-                timer = {
-                  startAt: Date.now(),
-                  durationMs: Math.max(0, effEnd - Date.now()),
-                  pausedAt,
-                  pauseOffsetMs: offsetMs,
-                  gatesSelf: o.timerGatesSelf === true,
+                const alarmAt = o.timerEndsAt + offsetMs
+                if (alarmAt > Date.now()) {
+                  override = { alarmAt, pausedAt }
                 }
               }
               return {
@@ -331,7 +356,7 @@ function hydrate(data: unknown): AppState {
                 done,
                 doneAt,
                 dependsOn: [],
-                timer,
+                override,
                 activatedAt:
                   typeof st === 'string'
                     ? null
@@ -348,16 +373,13 @@ function hydrate(data: unknown): AppState {
               }
             })
             const stepIndex = typeof s.stepIndex === 'number' ? s.stepIndex : 0
-            // Migration: alter Flow-Timer → Timer des aktiven Schritts
-            if (typeof s.timerEndsAt === 'number' && steps[stepIndex] && steps[stepIndex].timer === null) {
+            // Migration: alter Flow-Timer → Override des aktiven Schritts (Sleep)
+            if (typeof s.timerEndsAt === 'number' && steps[stepIndex] && steps[stepIndex].override === null) {
               steps[stepIndex] = {
                 ...steps[stepIndex],
-                timer: {
-                  startAt: Date.now(),
-                  durationMs: Math.max(0, s.timerEndsAt - Date.now()),
+                override: {
+                  alarmAt: s.timerEndsAt,
                   pausedAt: null,
-                  pauseOffsetMs: 0,
-                  gatesSelf: false,
                 },
               }
             }
@@ -447,8 +469,7 @@ async function init() {
   } catch (e) {
     console.error('IndexedDB laden fehlgeschlagen', e)
   }
-  // Spiegel-Timer für wartende Karten aus dem persistierten Zustand
-  cookEngine.syncTimers()
+  // Wartezeiten sind abgeleitet — nichts zu synchronisieren
   setReady(true)
 }
 init()

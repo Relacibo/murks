@@ -1,5 +1,5 @@
-import { batch, createContext, createSignal } from 'solid-js'
-import type { CookState, Step, StepRef, StepTimer, Flow, FlowColor } from '../state/store'
+import { createContext, createSignal } from 'solid-js'
+import type { CookState, Step, StepRef, TimerOverride, Flow, FlowColor } from '../state/store'
 import { showToast } from './toast'
 import { fmtRemaining, stepLabel } from './tools'
 import { speak } from './tts'
@@ -7,17 +7,12 @@ import { speak } from './tts'
 export const FLOW_COLORS: FlowColor[] = ['cyan', 'violet', 'amber', 'emerald', 'rose', 'sky']
 
 /**
- * Effektive Endzeit eines Timers: startAt + durationMs + akkumulierte Pausen
- * + (pausiert: jetzt − Pausenbeginn). Während einer Pause wandert die effektive
- * Endzeit mit der Uhr mit — die Restzeit friert ein und der Timer läuft nie ab.
+ * Effektive Endzeit eines Overrides: alarmAt; während einer Pause wandert die
+ * effektive Endzeit mit der Uhr mit (alarmAt + jetzt − Pausenbeginn) — die
+ * Restzeit friert ein und der Timer läuft nie ab.
  */
-export function timerEffectiveEnd(timer: StepTimer, now = Date.now()): number {
-  return (
-    timer.startAt +
-    timer.durationMs +
-    timer.pauseOffsetMs +
-    (timer.pausedAt !== null ? now - timer.pausedAt : 0)
-  )
+export function overrideEffectiveEnd(o: TimerOverride, now = Date.now()): number {
+  return o.pausedAt !== null ? o.alarmAt + (now - o.pausedAt) : o.alarmAt
 }
 
 /* Effektiver Score: hohe Scores propagieren rückwärts durch die Dependency-Kette —
@@ -64,6 +59,8 @@ export interface QueueEntry {
   stepId: string
   state: 'active' | 'waiting' | 'blocked'
   priority: 'normal' | 'high'
+  /** Effektives Ende der Wartezeit (Epoch ms) — nur bei state "waiting" */
+  endsAt: number | null
 }
 
 /**
@@ -82,16 +79,35 @@ export function queueOrder(cook: CookState): QueueEntry[] {
       if (!st.done) cards.push({ s, st })
     }
   }
+  const now = Date.now()
   const depDone = (ref: StepRef) =>
     cook.flows.some(
       (f) => f.id === ref.flow_id && f.steps.some((st) => st.id === ref.step_id && st.done),
     )
+  const gateEndsAt = (d: StepRef): number | null => {
+    const dep = cook.flows
+      .find((f) => f.id === d.flow_id)
+      ?.steps.find((st) => st.id === d.step_id)
+    if (!dep?.done) return null
+    if (d.timer_seconds && dep.doneAt !== null) return dep.doneAt + d.timer_seconds * 1000
+    return null
+  }
+  const effEnd = (st: Step): number | null => {
+    if (st.override) return overrideEffectiveEnd(st.override, now)
+    let max: number | null = null
+    for (const d of st.dependsOn) {
+      const end = gateEndsAt(d)
+      if (end !== null && (max === null || end > max)) max = end
+    }
+    return max
+  }
   const stateOf = (st: Step): QueueEntry['state'] =>
     st.dependsOn.some((d) => !depDone(d))
       ? 'blocked'
-      : st.timer?.gatesSelf === true
-        ? 'waiting'
-        : 'active'
+      : (() => {
+          const e = effEnd(st)
+          return e !== null && e > now ? 'waiting' : 'active'
+        })()
   const flowRecency = new Map<string, number>()
   for (const s of cook.flows) {
     let max = 0
@@ -116,19 +132,23 @@ export function queueOrder(cook: CookState): QueueEntry[] {
   const waiting = cards
     .filter((c) => stateOf(c.st) === 'waiting')
     .sort((a, b) => {
-      const ta = a.st.timer?.gatesSelf ? timerEffectiveEnd(a.st.timer) : Infinity
-      const tb = b.st.timer?.gatesSelf ? timerEffectiveEnd(b.st.timer) : Infinity
+      const ta = effEnd(a.st) ?? Infinity
+      const tb = effEnd(b.st) ?? Infinity
       if (ta !== tb) return ta - tb
       if (a.st.priority !== b.st.priority) return a.st.priority === 'high' ? -1 : 1
       return 0
     })
   const blocked = cards.filter((c) => stateOf(c.st) === 'blocked')
-  return [...prio, ...normal, ...waiting, ...blocked].map((c) => ({
-    flowId: c.s.id,
-    stepId: c.st.id,
-    state: stateOf(c.st),
-    priority: c.st.priority,
-  }))
+  return [...prio, ...normal, ...waiting, ...blocked].map((c) => {
+    const st = stateOf(c.st)
+    return {
+      flowId: c.s.id,
+      stepId: c.st.id,
+      state: st,
+      priority: c.st.priority,
+      endsAt: st === 'waiting' ? effEnd(c.st) : null,
+    }
+  })
 }
 
 /** Navigation/Puls-Event an die UI (ephemer, wird nicht persistiert) */
@@ -152,8 +172,6 @@ export interface CookEngine {
   readonly modalRequest: ModalRequest | null
   executeTool(name: string, args: Record<string, unknown>, opts?: { silent?: boolean }): string
   expireTimers(): void
-  /** Spiegel-Timer für wartende Karten nachziehen (nach Hydrate/Reload) */
-  syncTimers(): void
 }
 
 export const CookContext = createContext<CookEngine>()
@@ -208,21 +226,20 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
       ?.steps.find((st) => st.id === ref.step_id)
   }
 
-  // Endzeit des Gates, das eine Abhängigkeit erzeugt: deren Timer oder die
-  // Kanten-Verzögerung (doneAt + timer_seconds). Null = kein Gate.
+  // Endzeit des Gates, das eine Abhängigkeit erzeugt: Kanten-Verzögerung
+  // (doneAt + timer_seconds). Null = kein Gate. (Timer anderer Karten spielen
+  // hier keine Rolle — jede Wartezeit gehört der Karte selbst.)
   function gateEndsAt(d: StepRef): number | null {
     const dep = depStep(d)
     if (!dep?.done) return null
-    let end: number | null = null
-    if (dep.timer) end = timerEffectiveEnd(dep.timer)
     if (d.timer_seconds && dep.doneAt !== null) {
-      const e = dep.doneAt + d.timer_seconds * 1000
-      if (end === null || e > end) end = e
+      return dep.doneAt + d.timer_seconds * 1000
     }
-    return end
+    return null
   }
 
-  // Abgeleitete Wartezeit einer Karte aus ihren Abhängigkeiten (ohne eigenen Timer)
+  // Abgeleitete Wartezeit einer Karte aus ihren Abhängigkeiten — reine
+  // Funktion der Fakten (done/doneAt/timer_seconds), nie gespeichert.
   function derivedWaitEnd(step: Step): number | null {
     let max: number | null = null
     for (const d of step.dependsOn) {
@@ -232,50 +249,6 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
     return max
   }
 
-
-  // Wartezeit) — Ziel des Warte-Menüs und der Timer-Chips. Ein Timer gehört
-  // genau einem Step. Erzeugt, wenn eine Karte wartet und noch keinen hat;
-  // entfernt, wenn kein Gate mehr läuft.
-  function syncWaitTimers(): void {
-    const now = Date.now()
-    for (const s of getCook().flows) {
-      s.steps.forEach((step) => {
-        if (step.done) return
-        if (!depsDone(step.dependsOn)) {
-          // Karte ist (wieder) blocked — ihr Warte-Timer ist verwaist,
-          // z.B. nach revert_step der auslösenden Karte → entfernen
-          if (step.timer?.gatesSelf) patchStep(s.id, step.id, { timer: null })
-          return
-        }
-        const end = derivedWaitEnd(step)
-        if (end === null) {
-          if (step.timer?.gatesSelf) patchStep(s.id, step.id, { timer: null })
-          return
-        }
-        if (end <= now) return
-        if (step.timer === null) {
-          patchStep(s.id, step.id, {
-            timer: {
-              startAt: now,
-              durationMs: end - now,
-              pausedAt: null,
-              pauseOffsetMs: 0,
-              gatesSelf: true,
-            },
-          })
-        } else if (step.timer.gatesSelf) {
-          // Max-Regel: neue, längere Bedingung dazu gekommen → Timer
-          // verlängern (auch pausiert: durationMs-Verschiebung wirkt auf das
-          // effektive Ende); kürzere Bedingungen ändern nichts.
-          const t = step.timer
-          const delta = end - timerEffectiveEnd(t, now)
-          if (delta > 0) {
-            patchStep(s.id, step.id, { timer: { ...t, durationMs: t.durationMs + delta } })
-          }
-        }
-      })
-    }
-  }
 
   // Abhängige neu in View 1 aufnehmen (alle Bedingungen done → active oder waiting)
   function activateDependents(refs: StepRef[]): void {
@@ -369,11 +342,31 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
       switch (name) {
         case 'get_cook_state': {
           const cook = getCook()
+          const now = Date.now()
+          // Lokale Wanduhr mit Zeitzonen-Offset — für Zeitfragen („um 14:30"),
+          // damit das Modell nie selbst Epoch ↔ Wanduhr rechnen muss.
+          const localISO = (d: number) => {
+            const t = new Date(d)
+            const pad = (n: number) => String(n).padStart(2, '0')
+            const off = -t.getTimezoneOffset()
+            const sign = off >= 0 ? '+' : '-'
+            return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}T${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}${sign}${pad(Math.floor(Math.abs(off) / 60))}:${pad(Math.abs(off) % 60)}`
+          }
+          const queue = queueOrder(cook)
           return JSON.stringify({
             ...cook,
-            queue: queueOrder(cook)
+            now_ms: now,
+            now_local: localISO(now),
+            queue: queue
               .filter((q) => q.state !== 'blocked')
               .map((q) => `${q.flowId}:${q.stepId}`),
+            waiting: queue
+              .filter((q) => q.state === 'waiting' && q.endsAt !== null)
+              .map((q) => ({
+                ref: `${q.flowId}:${q.stepId}`,
+                ends_in_s: Math.max(0, Math.round((q.endsAt! - now) / 1000)),
+                ends_at_local: localISO(q.endsAt!),
+              })),
           })
         }
         case 'add_flow': {
@@ -435,7 +428,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             done: false,
             doneAt: null,
             dependsOn: st.dependsOn,
-            timer: null,
+            override: null,
             activatedAt: depsDone(st.dependsOn) ? nextAct() : null,
             priority: st.priority,
             score: st.score,
@@ -474,7 +467,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             done: false,
             doneAt: null,
             dependsOn,
-            timer: null,
+            override: null,
             activatedAt: depsDone(dependsOn) ? nextAct() : null,
             priority,
             score,
@@ -489,7 +482,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             steps.push(step)
           }
           patchFlow(id, { steps })
-          syncWaitTimers()
+
           toast(`${flow.name}: + „${stepLabel(description)}"`)
           return JSON.stringify({ ok: true, step_id: step.id })
         }
@@ -531,7 +524,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           } else if (!merged.done && !depsDone(merged.dependsOn) && merged.activatedAt !== null) {
             patchStep(id, stepId, { activatedAt: null })
           }
-          syncWaitTimers()
+
           return JSON.stringify({ ok: true })
         }
         case 'delete_step': {
@@ -545,7 +538,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           removeRefsTo(id, [stepId])
           patchFlow(id, { steps: flow.steps.filter((st) => st.id !== stepId) })
           activateEligible()
-          syncWaitTimers()
+
           toast(`${flow.name}: „${name}" entfernt`)
           return JSON.stringify({ ok: true })
         }
@@ -571,7 +564,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             done: false,
             doneAt: null,
             dependsOn: [{ flow_id: id, step_id: orig.id }],
-            timer: null,
+            override: null,
             activatedAt: null,
             priority: 'normal',
             score: 0,
@@ -615,7 +608,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
                   // Verzögerungen der Dependents laufen ab diesem Zeitpunkt;
                   // eigener Timer endet mit dem Abschluss
                   doneAt: Date.now(),
-                  timer: null,
+                  override: null,
                 }
               : st,
           )
@@ -623,7 +616,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           patchFlow(id, { steps, done: allDone ? true : flow.done })
           // Abhängige aufnehmen (active oder waiting — Zustand wird in der UI abgeleitet)
           activateDependents([{ flow_id: id, step_id: stepId }])
-          syncWaitTimers()
+
           toast(`${flow.name}: „${stepLabel(flow.steps[stepIdx].description)}" fertig`)
           return JSON.stringify({ ok: true })
         }
@@ -647,11 +640,11 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             done: false,
             doneAt: null,
             activatedAt: nextAct(),
-            timer: null,
+            override: null,
           })
           patchFlow(id, { done: false })
           deactivateDependents([{ flow_id: id, step_id: stepId }])
-          syncWaitTimers()
+
           toast(`${flow.name}: „${stepLabel(flow.steps[stepIdx].description)}" zurückgenommen`)
           return JSON.stringify({ ok: true })
         }
@@ -663,51 +656,48 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           const stepIdx = stepIndexOf(id, stepId)
           if (stepIdx < 0) return JSON.stringify({ error: 'Unbekannter Schritt' })
           const step = flow.steps[stepIdx]
+          if (step.done) {
+            return JSON.stringify({
+              error: 'Schritt ist abgeschlossen — Timer sind dort nicht möglich (verlängere stattdessen timer_seconds an den Kanten der Folgekarten)',
+            })
+          }
+          if (!depsDone(step.dependsOn)) {
+            return JSON.stringify({
+              error: 'Karte ist noch blockiert — Wartezeit gehört als timer_seconds an die Kante zur Karte',
+            })
+          }
           const now = Date.now()
-          // Wartende Karte (oder schon eigener Warte-Timer): Timer übersteuert DIESE Karte
-          const waiting =
-            !step.done && depsDone(step.dependsOn) && derivedWaitEnd(step) !== null
-          const keepSelf = step.timer?.gatesSelf === true || waiting
-          let newTimer: StepTimer
+          // Timer gehört immer der Karte selbst: auf einer wartenden Karte
+          // übersteuert er die abgeleitete Wartezeit, auf einer aktiven
+          // Karte versetzt er sie in den Wartezustand (Sleep).
+          let override: TimerOverride
           if (typeof args.delta_seconds === 'number') {
-            // Aufschlagen: Restzeit ± delta (signed, relativ zum aktuellen Ende)
             const delta = Number(args.delta_seconds)
             if (!Number.isFinite(delta)) {
               return JSON.stringify({ error: 'delta_seconds muss eine Zahl sein' })
             }
-            const cur = step.timer
-            if (cur) {
-              newTimer = { ...cur, durationMs: Math.max(0, cur.durationMs + delta * 1000) }
-            } else {
-              const end = derivedWaitEnd(step)
-              if (end === null) return JSON.stringify({ error: 'Kein laufender Timer' })
-              newTimer = {
-                startAt: now,
-                durationMs: Math.max(0, end - now + delta * 1000),
-                pausedAt: null,
-                pauseOffsetMs: 0,
-                gatesSelf: true,
-              }
+            const base =
+              step.override !== null
+                ? overrideEffectiveEnd(step.override, now)
+                : derivedWaitEnd(step)
+            if (base === null) return JSON.stringify({ error: 'Kein laufender Timer' })
+            override = {
+              alarmAt: Math.max(now, base + delta * 1000),
+              pausedAt: null,
             }
           } else {
             const seconds = Number(args.seconds)
             if (!Number.isFinite(seconds) || seconds <= 0) {
               return JSON.stringify({ error: 'seconds muss positiv sein' })
             }
-            newTimer = {
-              startAt: now,
-              durationMs: seconds * 1000,
+            override = {
+              alarmAt: now + seconds * 1000,
               pausedAt: null,
-              pauseOffsetMs: 0,
-              gatesSelf: keepSelf,
             }
           }
-          batch(() => {
-            patchStep(id, stepId, { timer: newTimer })
-            syncWaitTimers()
-          })
+          patchStep(id, stepId, { override })
           toast(
-            `⏱ Timer: ${fmtRemaining(timerEffectiveEnd(newTimer))} (${flow.name}: ${stepLabel(step.description)})`,
+            `⏱ Timer: ${fmtRemaining(overrideEffectiveEnd(override, now))} (${flow.name}: ${stepLabel(step.description)})`,
           )
           return JSON.stringify({ ok: true })
         }
@@ -719,26 +709,23 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           const stepIdx = stepIndexOf(id, stepId)
           if (stepIdx < 0) return JSON.stringify({ error: 'Unbekannter Schritt' })
           const step = flow.steps[stepIdx]
-          if (step.timer && step.timer.pausedAt !== null) {
-            return JSON.stringify({ error: 'Timer ist bereits pausiert' })
-          }
+          if (step.done) return JSON.stringify({ error: 'Schritt ist abgeschlossen' })
           const now = Date.now()
-          if (!step.timer) {
-            // Wartende Karte ohne eigenen Timer: Wartezeit materialisieren und einfrieren
-            const end =
-              !step.done && depsDone(step.dependsOn) ? derivedWaitEnd(step) : null
-            if (end === null) return JSON.stringify({ error: 'Kein laufender Timer' })
-            patchStep(id, stepId, {
-              timer: {
-                startAt: now,
-                durationMs: Math.max(0, end - now),
-                pausedAt: now,
-                pauseOffsetMs: 0,
-                gatesSelf: true,
-              },
-            })
+          if (step.override) {
+            if (step.override.pausedAt !== null) {
+              return JSON.stringify({ error: 'Timer ist bereits pausiert' })
+            }
+            patchStep(id, stepId, { override: { ...step.override, pausedAt: now } })
           } else {
-            patchStep(id, stepId, { timer: { ...step.timer, pausedAt: now } })
+            // Wartende Karte ohne Override: abgeleitete Wartezeit einfrieren
+            const end =
+              depsDone(step.dependsOn) ? derivedWaitEnd(step) : null
+            if (end === null || end <= now) {
+              return JSON.stringify({ error: 'Kein laufender Timer' })
+            }
+            patchStep(id, stepId, {
+              override: { alarmAt: end, pausedAt: now },
+            })
           }
           toast(`⏸ Timer pausiert: ${flow.name} — ${stepLabel(step.description)}`)
           return JSON.stringify({ ok: true })
@@ -751,18 +738,17 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           const stepIdx = stepIndexOf(id, stepId)
           if (stepIdx < 0) return JSON.stringify({ error: 'Unbekannter Schritt' })
           const step = flow.steps[stepIdx]
-          if (!step.timer || step.timer.pausedAt === null) {
+          if (!step.override || step.override.pausedAt === null) {
             return JSON.stringify({ error: 'Timer ist nicht pausiert' })
           }
           const now = Date.now()
-          const t: StepTimer = {
-            ...step.timer,
-            pauseOffsetMs: step.timer.pauseOffsetMs + (now - step.timer.pausedAt),
+          const o: TimerOverride = {
+            alarmAt: step.override.alarmAt + (now - step.override.pausedAt),
             pausedAt: null,
           }
-          patchStep(id, stepId, { timer: t })
+          patchStep(id, stepId, { override: o })
           toast(
-            `▶ Timer läuft weiter: ${fmtRemaining(timerEffectiveEnd(t))} (${flow.name}: ${stepLabel(step.description)})`,
+            `▶ Timer läuft weiter: ${fmtRemaining(overrideEffectiveEnd(o, now))} (${flow.name}: ${stepLabel(step.description)})`,
           )
           return JSON.stringify({ ok: true })
         }
@@ -773,14 +759,10 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
           const stepIdx = stepIndexOf(id, stepId)
           if (stepIdx < 0) return JSON.stringify({ error: 'Unbekannter Schritt' })
-          // Einfach entfernen: auf einer wartenden Karte materialisiert
-          // syncWaitTimers sofort wieder die ABGELEITETE Wartezeit (Reset auf
-          // die letzte Gate-Endzeit — „die höchste Zeit"), auf einer aktiven
-          // Karte werden die Abhängigen frei. Kein Spezialpfad nötig.
-          batch(() => {
-            patchStep(id, stepId, { timer: null })
-            syncWaitTimers()
-          })
+          // Override entfernen — auf einer wartenden Karte übernimmt sofort
+          // wieder die ABGELEITETE Wartezeit (Reset auf die letzte Gate-Endzeit,
+          // „die höchste Zeit"); auf einer aktiven Karte wird sie aktiv.
+          patchStep(id, stepId, { override: null })
           toast('⏱ Timer zurückgesetzt')
           return JSON.stringify({ ok: true })
         }
@@ -794,13 +776,13 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               ...st,
               done: true,
               doneAt: st.done ? st.doneAt : Date.now(),
-              timer: null,
+              override: null,
             })),
           })
           toast(`Fertig: ${flow.name}`)
           // Abhängige aus anderen Flows freigeben (alle Schritte sind jetzt done)
           activateDependents(flow.steps.map((st) => ({ flow_id: id, step_id: st.id })))
-          syncWaitTimers()
+
           const cur = getCook()
           const idx = cur.flows.findIndex((s) => s.id === id)
           const rest = cur.flows.slice(idx + 1).concat(cur.flows.slice(0, idx))
@@ -840,7 +822,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             focusedFlowId: c.focusedFlowId === id ? (flows[0]?.id ?? null) : c.focusedFlowId,
           }))
           activateEligible()
-          syncWaitTimers()
+
           toast(`Gelöscht: ${flow.name}`)
           return JSON.stringify({ ok: true })
         }
@@ -916,23 +898,32 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
     }
   }
 
+  /* Einzige Wartung: explizite Overrides einsammeln, sobald sie ablaufen —
+     abgeleitete Wartezeiten brauchen nichts (die Karte wird von selbst aktiv,
+     sobald ihr Gate in der Vergangenheit liegt). Invariante: ein vorhandenes
+     Override ist pausiert oder liegt in der Zukunft. Für abgelaufene
+     abgeleitete Gates: Übergangs-Toast (Fenster ±2 s, damit er genau einmal
+     kommt und nach Reload nicht nachhallt). */
   function expireTimers(): void {
     const now = Date.now()
     for (const s of getCook().flows) {
       s.steps.forEach((step) => {
-        const t = step.timer
-        if (!t) return
-        if (timerEffectiveEnd(t, now) > now) return
-        patchStep(s.id, step.id, { timer: null })
-        showToast(`⏰ Timer abgelaufen: ${s.name} — ${stepLabel(step.description)}`)
+        const ov = step.override
+        if (ov) {
+          if (ov.pausedAt !== null) return // pausiert läuft nie ab
+          if (ov.alarmAt > now) return
+          patchStep(s.id, step.id, { override: null })
+          showToast(`⏰ Timer abgelaufen: ${s.name} — ${stepLabel(step.description)}`)
+          return
+        }
+        if (step.done || !depsDone(step.dependsOn)) return
+        const end = derivedWaitEnd(step)
+        if (end !== null && end <= now && end > now - 2000) {
+          showToast(`⏰ Timer abgelaufen: ${s.name} — ${stepLabel(step.description)}`)
+        }
       })
     }
-    syncWaitTimers()
   }
-
-  // Initialer Sync: wartende Karten aus dem persistierten Zustand bekommen
-  // ihre Spiegel-Timer (auch im Mock)
-  syncWaitTimers()
 
   return {
     get cook() {
@@ -946,6 +937,5 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
     },
     executeTool,
     expireTimers,
-    syncTimers: syncWaitTimers,
   }
 }

@@ -17,7 +17,7 @@ const step = (
   done,
   doneAt,
   dependsOn,
-  timer: null,
+  override: null,
   activatedAt: Date.now(),
   priority,
   score: 0,
@@ -142,7 +142,7 @@ export function CookMock() {
                   st.id === s1_2.id
                     ? { ...st, doneAt: Date.now() - 901_000 }
                     : st.id === s1_3.id || st.id === s2_1.id
-                      ? { ...st, timer: null }
+                      ? { ...st, override: null }
                       : st,
                 ),
               })),
@@ -163,7 +163,7 @@ export function CookMock() {
                   st.id === s1_2.id
                     ? { ...st, doneAt: Date.now() - 901_000 }
                     : st.id === s1_3.id || st.id === s2_1.id
-                      ? { ...st, timer: null }
+                      ? { ...st, override: null }
                       : st,
                 ),
               })),

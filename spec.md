@@ -37,13 +37,10 @@ interface StepRef {
   timer_seconds?: number | null // Verzögerung: Karte wird X s NACH Abschluss der Abhängigkeit frei
 }
 
-interface StepTimer {
-  startAt: number          // Startzeitpunkt (Basis) — „neu setzen" setzt ihn zurück
-  durationMs: number       // Dauer — „+1 Min" erhöht sie
+interface TimerOverride {
+  alarmAt: number          // Endzeitpunkt (Alarm) — „neu setzen" setzt ihn neu,
+                           // „+1 Min" verschiebt ihn
   pausedAt: number | null  // Pause-Beginn (Restzeit friert ein, Timer läuft nie ab)
-  pauseOffsetMs: number    // akkumulierte Pausendauer
-  gatesSelf: boolean       // true = Timer übersteuert die Wartezeit DIESER Karte,
-                           // false = er steuert die Wartezeit der Dependents (z.B. Brat-Timer)
 }
 
 interface Step {
@@ -52,7 +49,8 @@ interface Step {
   done: boolean            // Schritt einzeln abschließbar (✓-Button / complete_step)
   doneAt: number | null    // Abschlusszeitpunkt — Basis der Verzögerungen an den Kanten
   dependsOn: StepRef[]     // Abhängigkeiten liegen im abhängigen Step → m:n ergibt sich von selbst
-  timer: StepTimer | null  // Laufzeit-Timer — ein Objekt, gehört genau einem Step
+  override: TimerOverride | null // explizite Wartezeit-Übersteuerung (set_timer/pause);
+                                 // abgeleitete Wartezeiten werden NIE gespeichert
   activatedAt: number | null // Zeitpunkt des Eintritts in „Jetzt" (innerhalb seiner Queue: neu → hinten)
   priority: 'normal' | 'high' // high: bei active in der Prio-Queue oben (FIFO) + pulsierend
   score: number               // Scheduling-Hinweis der KI (Default 0): höher = weiter oben
@@ -63,20 +61,25 @@ interface Step {
 > „ich komme X Minuten nach Abschluss dieser Karte". Zwei Karten können so mit
 > **unterschiedlichen Offsets** an derselben Abhängigkeit hängen (Soße +0, Spaghetti +10).
 > Der Schritt, auf den getimte Kanten zeigen, bekommt den
-> ⏱-Button; wartende Karten zeigen den Countdown und bekommen einen eigenen
-> **Spiegel-Timer** (`timer.gatesSelf`), auf dem Warte-Menü und Timer-Chips agieren.
+> ⏱-Button; wartende Karten zeigen den Countdown. Die Wartezeit ist **rein abgeleitet**
+> (`doneAt + timer_seconds`, nie gespeichert); nur explizite Nutzer-/KI-Eingriffe
+> (set_timer/pause) landen als `override` auf der Karte selbst — ein Timer gehört
+> immer der Karte, auf der er liegt, nie den Dependents.
 
 ### Abgeleitete Schritt-Zustände
 - **blocked**: mind. eine Abhängigkeit nicht `done`
-- **waiting**: alle Abhängigkeiten `done`, aber mind. ein Gate läuft noch (Kanten-Verzögerung
-  oder Timer einer Abhängigkeit) → wird in „Jetzt" angezeigt (gedimmt wie blocked/done,
-  Countdown in Flow-Farbe, amber ab < 30 s), ✓ = früh abschließen (Wartezeit überspringen)
+- **waiting**: alle Abhängigkeiten `done`, aber das effektive Ende (Kanten-Verzögerung
+  oder eigenes Override) liegt noch in der Zukunft → wird in „Jetzt" angezeigt
+  (gedimmt wie blocked/done, Countdown in Flow-Farbe, amber ab < 30 s),
+  ✓ = früh abschließen (Wartezeit überspringen)
 - **active**: alle Abhängigkeiten `done` und alle Gates abgelaufen (bzw. keines deklariert)
 - **done**: explizit abgeschlossen
 
 Karte frei = **maximaler** Gate-Endzeitpunkt über alle Abhängigkeiten (der zuletzt ablaufende
 Timer entscheidet). Der Countdown zeigt diesen Maximalwert — er steht erst fest, wenn alle
 Abhängigkeiten abgeschlossen sind (deshalb zeigt nur waiting, nicht blocked, einen Countdown).
+Die Zustände fallen **ausschließlich aus den Fakten** — es gibt keinen Code, der
+blocked → waiting → active „setzt", und nichts, das synchronisiert werden müsste.
 
 ### Abschluss-Regeln
 - **Navigation allein schließt nie ab** (`show_step`, Titel-Tap, Timer-Chip).
@@ -93,7 +96,7 @@ Abhängigkeiten abgeschlossen sind (deshalb zeigt nur waiting, nicht blocked, ei
 
 > **Migration:** `steps: string[]` → `steps: Step[]`. Alte Daten: `string` wird `description`;
 > altes `summary` wird übernommen, falls `description` leer ist.
-> Alte Flow-Timer → Timer des aktiven Schritts.
+> Alte Flow-Timer → Override des aktiven Schritts.
 > Neue Felder defaulten: `id` (generiert), `done: false`, `doneAt: null`, `dependsOn: []`,
 > `activatedAt: null`, `priority: 'normal'`. Alte `dependsOn`-Refs per `step_index` werden beim
 > Laden auf `step_id` gemappt; `Flow.stepIndex` entfällt. Alte `timerSeconds` am Step werden
@@ -349,20 +352,27 @@ Mehrere Karten stehen untereinander (Stapel).
   Kante ist `doneAt + timer_seconds`. Mehrere Karten können mit unterschiedlichen Offsets an
   derselben Karte hängen.
 - **Mehrere Gates:** Der zuletzt ablaufende entscheidet, wann die Karte frei wird (Maximum).
-- **Ein Timer-Objekt pro Step** (`Step.timer`): `startAt` + `durationMs` + Pause-Felder —
-  losgelöst vom Abschluss des Steps. Wartende Karten bekommen automatisch einen
-  **Spiegel-Timer** (`gatesSelf: true`), der ihre abgeleitete Wartezeit materialisiert —
-  darauf agieren Warte-Menü und Chips. Ein Timer gehört genau einem Step (Besitzer-Suche
-  über Referenz-Gleichheit).
+- **Abgeleitet, nie gespeichert:** Wartezeiten sind eine reine Funktion der Fakten
+  (`doneAt + timer_seconds`) — es gibt kein Timer-Objekt und nichts zu synchronisieren.
+  Nur explizite Eingriffe (set_timer/pause) liegen als `override` (`alarmAt` + `pausedAt`)
+  auf der Karte selbst; ein Timer gehört immer der Karte, auf der er liegt. Neue, längere
+  Bedingungen verlängern die Wartezeit automatisch, weil das Maximum stets frisch
+  gerechnet wird.
 - **Warte-Menü** (öffnet am Button der wartenden Karte): Pausieren/Fortsetzen,
   +1/+5 Min (aufschlagen), „Neu: 5 Min" (Startzeitpunkt komplett zurücksetzen),
   **⏩ Vorspulen** (= früh abschließen, Wartezeit überspringen).
-- **Timer-Tools:** `set_timer` — `seconds` = neu setzen ab jetzt (Startzeitpunkt
-  zurückgesetzt), `delta_seconds` (signed) = aufschlagen/verkürzen relativ zum aktuellen
-  Ende. Auf einer wartenden Karte wirken die Tools auf deren Wartezeit selbst.
-  `pause_timer`/`resume_timer` frieren die Restzeit ein bzw. setzen fort (Pausendauer
-  wandert in `pauseOffsetMs`); pausierte Timer laufen nie ab. `cancel_timer` bricht ab
-  bzw. resettet die Wartezeit-Anpassung.
+- **Timer-Tools:** `set_timer` — `seconds` = neu setzen ab jetzt (`alarmAt` = jetzt +
+  Dauer), `delta_seconds` (signed) = aufschlagen/verkürzen relativ zum aktuellen Ende.
+  Auf einer wartenden Karte übersteuern die Tools deren Wartezeit (cancel_timer = zurück
+  zur abgeleiteten Wartezeit); auf einer **aktiven** Karte versetzt `set_timer` sie selbst
+  in den Wartezustand (Sleep, z.B. „muss noch 5 Minuten backen"). Auf blockierten oder
+  abgeschlossenen Karten sind Timer-Tools nicht möglich — Wartezeit nach Abschluss
+  gehört als `timer_seconds` an die Kante.
+  `pause_timer`/`resume_timer` frieren die Restzeit ein bzw. setzen fort (die Pausendauer
+  wird beim Fortsetzen auf `alarmAt` aufgeschlagen); pausierte Timer laufen nie ab.
+- **Wartung:** einzig abgelaufene Overrides werden eingesammelt (Toast) — abgeleitete
+  Gates brauchen keine, die Karte wird von selbst aktiv, sobald ihr Ende vorbei ist
+  (Übergangs-Toast im ±2-s-Fenster).
 - **Waiting-Karten** sind in „Jetzt" sichtbar (gedimmt wie blocked/done, Countdown in Flow-Farbe, ab < 30 s amber);
   ihr Button ist ein Uhr-Symbol (Kartenfarbe, pulsiert solange der Timer läuft) und öffnet das Warte-Menü (kein Direkt-Abschluss mehr).
 - **Sortierung:** waiting-Karten stehen **unter** den aktiven und **über** den blocked;
@@ -476,7 +486,7 @@ umbenennen/löschen/teilen, Timer neu setzen oder verlängern.
 
 | Tool | Semantik |
 |---|---|
-| `get_cook_state` | kompletter Zustand (Flows, Steps mit IDs, Timer, Ingredients) + Feld `queue`: Reihenfolge der „Jetzt"-View (erstes Element = oberste Karte) |
+| `get_cook_state` | kompletter Zustand (Flows, Steps mit IDs, Timer, Ingredients) + Feld `queue`: Reihenfolge der „Jetzt"-View (erstes Element = oberste Karte) + `now_ms`/`now_local` (lokale Uhrzeit) + `waiting` (ref, `ends_in_s`, `ends_at_local` je wartender Karte) — Zeitfragen ohne Epoch-Mathematik |
 | `add_flow` | neuer Flow: `name`, `icon`, `steps[]` mit `description`, `depends_on` (nur auf existierende Steps; Einträge optional mit `timer_seconds`), `priority`, `score` |
 | `add_step` | Step anhängen oder hinter `after_step_id` einfügen; optional `depends_on` (inkl. `timer_seconds` an den Kanten), `priority`, `score` |
 | `update_step` | `description` / `depends_on` (inkl. Kanten-`timer_seconds`) / `priority` / `score` ändern (nur angegebene Felder); Queue-Status wird neu bewertet |
