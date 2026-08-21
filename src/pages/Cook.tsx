@@ -360,37 +360,38 @@ export function Cook(props: {
     tick()
     return queueOrder(engine.cook)
   })
+  /* jetztCards gibt nur stabile step-Keys zurück ("`flowId:stepId`" Strings).
+     Primitive Strings → <For> erkennt Gleichheit korrekt → keine DOM-Neubauten
+     jede Sekunde durch tick(). Die Zustandskategorisierung bleibt tick-abhängig
+     (via queue()), aber das betrifft nur die Reihenfolge, nicht die Identität. */
   const jetztCards = createMemo(() => {
-    const byKey = new Map<string, { s: Flow; st: Step; i: number }>()
-    for (const s of flows()) {
-      if (flowDone(s)) continue
-      s.steps.forEach((st, i) => {
-        if (!st.done) byKey.set(`${s.id}:${st.id}`, { s, st, i })
-      })
-    }
-    const prio: { s: Flow; st: Step; i: number }[] = []
-    const normal: { s: Flow; st: Step; i: number }[] = []
-    const waiting: { s: Flow; st: Step; i: number }[] = []
-    const blocked: { s: Flow; st: Step; i: number }[] = []
+    const prio: string[] = []
+    const normal: string[] = []
+    const waiting: string[] = []
+    const blocked: string[] = []
     for (const q of queue()) {
-      const card = byKey.get(`${q.flowId}:${q.stepId}`)
-      if (!card) continue
-      if (q.state === 'active' && q.priority === 'high') prio.push(card)
-      else if (q.state === 'active') normal.push(card)
-      else if (q.state === 'waiting') waiting.push(card)
-      else blocked.push(card)
+      const key = `${q.flowId}:${q.stepId}`
+      if (q.state === 'active' && q.priority === 'high') prio.push(key)
+      else if (q.state === 'active') normal.push(key)
+      else if (q.state === 'waiting') waiting.push(key)
+      else blocked.push(key)
     }
     return { prio, normal, waiting, blocked }
   })
 
+  /* Lookup-Helfer: Flow + Step-Index aus einem "flowId:stepId"-Key */
+  function cardByKey(key: string): { s: Flow; i: number } | null {
+    const [flowId, stepId] = key.split(':')
+    const s = flows().find((x) => x.id === flowId)
+    if (!s) return null
+    const i = s.steps.findIndex((st) => st.id === stepId)
+    return i < 0 ? null : { s, i }
+  }
+
   /* Prio-Step wird aktiv → „Jetzt"-View öffnen + nach oben springen + Auto-Vorlesen */
   let jetztScroller: HTMLDivElement | undefined
   let jetztScrollerDesktop: HTMLDivElement | undefined
-  const prioActiveIds = createMemo(() =>
-    jetztCards()
-      .prio.map((c) => `${c.s.id}:${c.i}`)
-      .join('|'),
-  )
+  const prioActiveIds = createMemo(() => jetztCards().prio.join('|'))
   let prevPrioIds: string | null = null
   createEffect(() => {
     const cur = prioActiveIds()
@@ -400,7 +401,7 @@ export function Cook(props: {
     }
     const prev = new Set(prevPrioIds.split('|').filter(Boolean))
     prevPrioIds = cur
-    const added = cur.split('|').filter((id) => id && !prev.has(id))
+    const added = cur.split('|').filter((key) => key && !prev.has(key))
     if (added.length === 0) return
     setFlowView(null)
     requestAnimationFrame(() => {
@@ -408,20 +409,18 @@ export function Cook(props: {
       jetztScrollerDesktop?.scrollTo({ top: 0, behavior: 'smooth' })
     })
     // Erste neue Prio-Karte automatisch vorlesen
-    const first = added[0].split(':')
-    const pFlow = flows().find((x) => x.id === first[0])
-    const pStep = pFlow?.steps[parseInt(first[1])]
-    if (pStep?.description) speak(pStep.description)
+    const c = cardByKey(added[0])
+    if (c) speak(c.s.steps[c.i].description)
   })
 
   /* Karten die aktiv werden: ersten Satz vorgenerieren */
   const allActiveKeys = createMemo(() =>
     [...jetztCards().prio, ...jetztCards().normal]
-      .map((c) => ({ key: `${c.s.id}:${c.st.id}`, desc: c.st.description }))
   )
   createEffect(() => {
-    for (const { key, desc } of allActiveKeys()) {
-      pregenCard(key, desc)
+    for (const key of allActiveKeys()) {
+      const c = cardByKey(key)
+      if (c) pregenCard(key, c.s.steps[c.i].description)
     }
   })
 
@@ -853,7 +852,7 @@ export function Cook(props: {
     const visibleKeys = () => {
       const list = [...jetztCards().prio, ...jetztCards().normal, ...jetztCards().waiting]
       if (showBlocked()) list.push(...jetztCards().blocked)
-      return list.map((c) => `${c.s.id}:${c.st.id}`).join('|')
+      return list.join('|')
     }
     createEffect(() => {
       visibleKeys()
@@ -937,25 +936,29 @@ export function Cook(props: {
           )}
         </For>
         <For each={jetztCards().prio}>
-          {(c) => (
-            <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(c.s.id, c.st.id)} />
-          )}
+          {(key) => {
+            const c = cardByKey(key)
+            return c ? <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(key.split(':')[0], key.split(':')[1])} /> : null
+          }}
         </For>
         <For each={jetztCards().normal}>
-          {(c) => (
-            <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(c.s.id, c.st.id)} />
-          )}
+          {(key) => {
+            const c = cardByKey(key)
+            return c ? <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(key.split(':')[0], key.split(':')[1])} /> : null
+          }}
         </For>
         <For each={jetztCards().waiting}>
-          {(c) => (
-            <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(c.s.id, c.st.id)} />
-          )}
+          {(key) => {
+            const c = cardByKey(key)
+            return c ? <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(key.split(':')[0], key.split(':')[1])} /> : null
+          }}
         </For>
         <Show when={showBlocked()}>
           <For each={jetztCards().blocked}>
-            {(c) => (
-              <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(c.s.id, c.st.id)} />
-            )}
+            {(key) => {
+              const c = cardByKey(key)
+              return c ? <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(key.split(':')[0], key.split(':')[1])} /> : null
+            }}
           </For>
         </Show>
         <Show when={empty()}>
