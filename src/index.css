@@ -111,7 +111,7 @@
   .chip.is-urgent {
     --pulse-color: 245 158 11;
     color: #fcd34d;
-    animation: pulse-border 1.2s ease-in-out infinite;
+    animation: pulse-border 1.4s ease-in-out var(--pulse-offset, 0ms) infinite;
   }
   .chip.is-done {
     text-decoration: line-through;
@@ -208,7 +208,7 @@
     color: theme('colors.zinc.400');
   }
   .step-card.is-prio {
-    animation: prio-pulse 1.4s ease-in-out infinite;
+    animation: prio-pulse 1.4s ease-in-out var(--pulse-offset, 0ms) infinite;
   }
   /* Titelband: auf jeder Karte (Desktop + Flow-View + Mobile „Jetzt") */
   .step-card-band {
@@ -302,7 +302,7 @@
   }
   /* Laufender Timer auf einer wartenden Karte: Uhr pulsiert sanft */
   .clock-btn.is-running {
-    animation: timer-pulse 2.4s ease-in-out infinite;
+    animation: timer-pulse 2.4s ease-in-out var(--pulse-offset, 0ms) infinite;
   }
   .mic-btn {
     @apply relative w-9 h-9 rounded-full flex items-center justify-center text-base transition-all disabled:opacity-40;

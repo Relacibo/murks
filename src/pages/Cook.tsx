@@ -24,6 +24,15 @@ export function Cook(props: {
   const voice = props.voice ?? createAgentVoice({ configOpen })
   const engine = useContext(CookContext)!
 
+  /* Puls-Sync: alle CSS-Pulsanimationen starten bei derselben Phase.
+     Einmalig beim Mount --pulse-offset auf :root setzen = negativer delay
+     sodass alle Karten (egal wann gemountet) im gleichen Takt laufen. */
+  const PULSE_DURATION = 1400 // ms — muss mit prio-pulse-Duration in CSS übereinstimmen
+  document.documentElement.style.setProperty(
+    '--pulse-offset',
+    `-${(performance.now() % PULSE_DURATION).toFixed(0)}ms`,
+  )
+
   const [tick, setTick] = createSignal(Date.now())
   const [flowView, setFlowView] = createSignal<string | null>(null)
   // Übersicht (Desktop): Zustand kommt aus der URL; Mock fällt auf lokalen Signal zurück
