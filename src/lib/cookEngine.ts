@@ -293,7 +293,11 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
       s.steps.forEach((st) => {
         if (st.done || st.activatedAt === null) return
         if (!st.dependsOn.some((d) => refs.some((r) => r.flow_id === d.flow_id && r.step_id === d.step_id))) return
-        patchStep(s.id, st.id, { activatedAt: null })
+        // Karte wird (wieder) blocked — ihr Timer ist an den bisherigen Kontext
+        // gebunden: auch abgelaufene Timer (Tombstones) sterben hier, sonst
+        // überschreibt ein alter Fakt die frische Plan-Wartezeit nach dem
+        // erneuten Abschluss des Vorgängers.
+        patchStep(s.id, st.id, { activatedAt: null, timer: null })
       })
     }
   }
@@ -536,7 +540,9 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           if (!merged.done && depsDone(merged.dependsOn) && merged.activatedAt === null) {
             patchStep(id, stepId, { activatedAt: nextAct() })
           } else if (!merged.done && !depsDone(merged.dependsOn) && merged.activatedAt !== null) {
-            patchStep(id, stepId, { activatedAt: null })
+            // Karte wird durch die neuen Kanten (wieder) blocked — Timer verliert
+            // seinen Kontext (wie bei revert eines Vorgängers)
+            patchStep(id, stepId, { activatedAt: null, timer: null })
           }
 
           return JSON.stringify({ ok: true })
