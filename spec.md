@@ -271,9 +271,9 @@ Mehrere Karten stehen untereinander (Stapel).
   rechts neben dem Text (ausgeblendet, wenn eine abhängige Karte bereits abgeschlossen ist)
 - **prio (high, active)**: pulsiert (Outline, Kartenfarbe) und steht in „Jetzt"
   oben — greift beim Aktiv-Werden; blocked/waiting verhalten sich wie immer
-- **Alarm-Feedback:** läuft ein Timer ab, blinkt an der Stelle des Countdowns im Kartenband
-  eine ⏰-Uhr auf (max. ~6 s, Engine-Event) — nicht-prio in heller Kartenschriftfarbe,
-  prio in Rot (die Karte pulsiert dort ohnehin). Dazu Ton (Web-Audio-Synthese, keine
+- **Alarm-Feedback:** läuft ein Timer ab, blinkt an der Status-Position im Kartenband
+  (wo sonst 🔒/✓ stehen) eine ⏰-Uhr auf (max. ~6 s, Engine-Event) — nicht-prio in
+  heller Kartenschriftfarbe, prio in Rot (die Karte pulsiert dort ohnehin). Dazu Ton (Web-Audio-Synthese, keine
   Assets): prio = Klirren eines mechanischen Weckers (auch bei gemutetem TTS),
   nicht-prio = kurzes informatives Bing (stumm bei gemutetem TTS); danach liest die
   vorhandene TTS-Logik den Text vor.

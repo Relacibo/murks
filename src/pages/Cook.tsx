@@ -690,6 +690,11 @@ export function Cook(props: {
           <Show when={stateName() === 'done'}>
             <FiCheck size={12} class="shrink-0" />
           </Show>
+          {/* Alarm: Timer gerade abgelaufen → Uhr blinkt an der Status-Position
+              (wo sonst 🔒/✓ stehen); prio rot, sonst helle Kartenschriftfarbe */}
+          <Show when={alarmClock()}>
+            <FiClock size={12} class="alarm-clock shrink-0" />
+          </Show>
           <Show when={countdownEndsAt() !== null}>
             <span
               class="step-countdown font-mono text-sm font-semibold leading-none shrink-0 tabular-nums inline-flex items-center gap-1"
@@ -708,11 +713,6 @@ export function Cook(props: {
                 {fmtCountdown(countdownEndsAt()!)}
               </span>
             </span>
-          </Show>
-          {/* Alarm: Timer gerade abgelaufen → Uhr blinkt dort auf, wo der
-              Countdown stand (prio: rot, die Karte pulsiert ohnehin) */}
-          <Show when={alarmClock()}>
-            <FiClock size={12} class="alarm-clock shrink-0" />
           </Show>
           <span class="text-sm opacity-60 tabular-nums shrink-0">
             {i() + 1}/{s().steps.length}
