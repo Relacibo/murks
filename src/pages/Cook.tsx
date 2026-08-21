@@ -643,9 +643,13 @@ export function Cook(props: {
   }
 
   /* ── Schritt-Karte (flach, klein, nie verschachtelt) ──────────────── */
-  function StepCard(props: { s: Flow; i: number; onTitleClick?: () => void }) {
-    const s = () => props.s
-    const i = () => props.i
+  /* WICHTIG: StepCard bekommt flowId/stepId (Strings) statt Flow-/Step-Objekte.
+     Der Store ersetzt bei jedem Patch die Flow-Objekte (neue Proxies) — eine
+     eingefrorene Objekt-Referenz in den Props würde stale Daten lesen.
+     Lookup per ID liest flows() bei jedem Render frisch. */
+  function StepCard(props: { flowId: string; stepId: string; onTitleClick?: () => void }) {
+    const s = () => flows().find((x) => x.id === props.flowId)!
+    const i = () => s().steps.findIndex((st) => st.id === props.stepId)
     const st = () => s().steps[i()]
     const stateName = () => stepState(s(), st())
     /* Countdown im Band nur auf wartenden Karten (die den Timer als Bedingung haben) —
@@ -965,29 +969,41 @@ export function Cook(props: {
           )}
         </For>
         <For each={jetztCards().prio}>
-          {(key) => {
-            const c = cardByKey(key)
-            return c ? <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(key.split(':')[0], key.split(':')[1])} /> : null
-          }}
+          {(key) => (
+            <StepCard
+              flowId={key.split(':')[0]}
+              stepId={key.split(':')[1]}
+              onTitleClick={() => props.onTitleClick(key.split(':')[0], key.split(':')[1])}
+            />
+          )}
         </For>
         <For each={jetztCards().normal}>
-          {(key) => {
-            const c = cardByKey(key)
-            return c ? <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(key.split(':')[0], key.split(':')[1])} /> : null
-          }}
+          {(key) => (
+            <StepCard
+              flowId={key.split(':')[0]}
+              stepId={key.split(':')[1]}
+              onTitleClick={() => props.onTitleClick(key.split(':')[0], key.split(':')[1])}
+            />
+          )}
         </For>
         <For each={jetztCards().waiting}>
-          {(key) => {
-            const c = cardByKey(key)
-            return c ? <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(key.split(':')[0], key.split(':')[1])} /> : null
-          }}
+          {(key) => (
+            <StepCard
+              flowId={key.split(':')[0]}
+              stepId={key.split(':')[1]}
+              onTitleClick={() => props.onTitleClick(key.split(':')[0], key.split(':')[1])}
+            />
+          )}
         </For>
         <Show when={showBlocked()}>
           <For each={jetztCards().blocked}>
-            {(key) => {
-              const c = cardByKey(key)
-              return c ? <StepCard s={c.s} i={c.i} onTitleClick={() => props.onTitleClick(key.split(':')[0], key.split(':')[1])} /> : null
-            }}
+            {(key) => (
+              <StepCard
+                flowId={key.split(':')[0]}
+                stepId={key.split(':')[1]}
+                onTitleClick={() => props.onTitleClick(key.split(':')[0], key.split(':')[1])}
+              />
+            )}
           </For>
         </Show>
         <Show when={empty()}>
@@ -1018,7 +1034,7 @@ export function Cook(props: {
         </button>
         <div class="column-body">
           <For each={s().steps}>
-            {(_, i) => <StepCard s={s()} i={i()} />}
+            {(_, i) => <StepCard flowId={s().id} stepId={s().steps[i()].id} />}
           </For>
         </div>
       </div>
@@ -1168,7 +1184,7 @@ export function Cook(props: {
                   </div>
                   <div class="flex-1 min-h-0 overflow-y-auto pt-3 px-3 pb-28 flex flex-col gap-2">
                     <For each={s().steps}>
-                      {(_, i) => <StepCard s={s()} i={i()} />}
+                      {(_, i) => <StepCard flowId={s().id} stepId={s().steps[i()].id} />}
                     </For>
                   </div>
                 </div>
