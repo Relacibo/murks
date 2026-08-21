@@ -127,7 +127,8 @@
 
   /* ── Flow-Spalte (Desktop + Mobile-Flow-View): nur Gliederung ── */
   .column {
-    @apply w-[320px] shrink-0 flex flex-col min-h-0 max-h-full;
+    @apply shrink-0 flex flex-col min-h-0 max-h-full;
+    width: clamp(280px, 100%, 400px);
   }
   .column-header {
     @apply flex items-center gap-2 w-full text-left px-1 py-2 text-sm font-semibold text-zinc-300 transition-colors hover:text-zinc-100;
