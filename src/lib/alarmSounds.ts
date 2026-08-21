@@ -14,6 +14,7 @@
 
 let audioCtx: AudioContext | null = null
 const synthMasters = new Set<GainNode>()
+const SOUNDS_BASE = `${import.meta.env.BASE_URL}sounds/`
 
 function ctx(): AudioContext | null {
   try {
@@ -54,11 +55,11 @@ function playAsset(src: string, fallback: () => void): void {
 }
 
 export function playAlarmBell(): void {
-  playAsset('/sounds/microsammy-clock-alarm-8761.mp3', playSyntheticBell)
+  playAsset(SOUNDS_BASE + 'microsammy-clock-alarm-8761.mp3', playSyntheticBell)
 }
 
 export function playAlarmBing(): void {
-  playAsset('/sounds/freesound_community-ding-101492.mp3', playSyntheticBing)
+  playAsset(SOUNDS_BASE + 'freesound_community-ding-101492.mp3', playSyntheticBing)
 }
 
 /** Alle Alarm-Töne SOFORT stoppen (Nutzer klickt den Schritt weg) */
