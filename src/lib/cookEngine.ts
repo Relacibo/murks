@@ -1,5 +1,5 @@
-import { createContext, createSignal } from 'solid-js'
-import type { CookState, Step, StepRef, TimerOverride, Flow, FlowColor } from '../state/store'
+import { batch, createContext, createSignal } from 'solid-js'
+import type { CookState, Step, StepRef, StepTimer, Flow, FlowColor } from '../state/store'
 import { showToast } from './toast'
 import { fmtRemaining, stepLabel } from './tools'
 import { speak } from './tts'
@@ -7,11 +7,11 @@ import { speak } from './tts'
 export const FLOW_COLORS: FlowColor[] = ['cyan', 'violet', 'amber', 'emerald', 'rose', 'sky']
 
 /**
- * Effektive Endzeit eines Overrides: alarmAt; während einer Pause wandert die
+ * Effektive Endzeit eines Timers: alarmAt; während einer Pause wandert die
  * effektive Endzeit mit der Uhr mit (alarmAt + jetzt − Pausenbeginn) — die
  * Restzeit friert ein und der Timer läuft nie ab.
  */
-export function overrideEffectiveEnd(o: TimerOverride, now = Date.now()): number {
+export function timerEffectiveEnd(o: StepTimer, now = Date.now()): number {
   return o.pausedAt !== null ? o.alarmAt + (now - o.pausedAt) : o.alarmAt
 }
 
@@ -93,7 +93,7 @@ export function queueOrder(cook: CookState): QueueEntry[] {
     return null
   }
   const effEnd = (st: Step): number | null => {
-    if (st.override) return overrideEffectiveEnd(st.override, now)
+    if (st.timer) return timerEffectiveEnd(st.timer, now)
     let max: number | null = null
     for (const d of st.dependsOn) {
       const end = gateEndsAt(d)
@@ -439,7 +439,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             done: false,
             doneAt: null,
             dependsOn: st.dependsOn,
-            override: null,
+            timer: null,
             activatedAt: depsDone(st.dependsOn) ? nextAct() : null,
             priority: st.priority,
             score: st.score,
@@ -478,7 +478,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             done: false,
             doneAt: null,
             dependsOn,
-            override: null,
+            timer: null,
             activatedAt: depsDone(dependsOn) ? nextAct() : null,
             priority,
             score,
@@ -575,7 +575,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             done: false,
             doneAt: null,
             dependsOn: [{ flow_id: id, step_id: orig.id }],
-            override: null,
+            timer: null,
             activatedAt: null,
             priority: 'normal',
             score: 0,
@@ -617,7 +617,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
                   ...st,
                   done: true,
                   doneAt: Date.now(),
-                  override: null,
+                  timer: null,
                 }
               : st,
           )
@@ -650,7 +650,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               done: false,
               doneAt: null,
               activatedAt: nextAct(),
-              override: null,
+              timer: null,
             })
             patchFlow(id, { done: false })
             deactivateDependents([{ flow_id: id, step_id: stepId }])
@@ -678,21 +678,22 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             })
           }
           const now = Date.now()
-          // Timer gehört immer der Karte selbst: auf einer wartenden Karte
-          // übersteuert er die abgeleitete Wartezeit, auf einer aktiven
-          // Karte versetzt er sie in den Wartezustand (Sleep).
-          let override: TimerOverride
+          // Timer wird gesetzt/überschrieben — er gehört immer der Karte
+          // selbst: auf einer wartenden Karte ersetzt er die abgeleitete
+          // Wartezeit, auf einer aktiven Karte versetzt er sie in den
+          // Wartezustand (Sleep). Sein Ablauf macht die Karte frei.
+          let timer: StepTimer
           if (typeof args.delta_seconds === 'number') {
             const delta = Number(args.delta_seconds)
             if (!Number.isFinite(delta)) {
               return JSON.stringify({ error: 'delta_seconds muss eine Zahl sein' })
             }
             const base =
-              step.override !== null
-                ? overrideEffectiveEnd(step.override, now)
+              step.timer !== null
+                ? timerEffectiveEnd(step.timer, now)
                 : derivedWaitEnd(step)
             if (base === null) return JSON.stringify({ error: 'Kein laufender Timer' })
-            override = {
+            timer = {
               alarmAt: Math.max(now, base + delta * 1000),
               pausedAt: null,
             }
@@ -701,14 +702,14 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             if (!Number.isFinite(seconds) || seconds <= 0) {
               return JSON.stringify({ error: 'seconds muss positiv sein' })
             }
-            override = {
+            timer = {
               alarmAt: now + seconds * 1000,
               pausedAt: null,
             }
           }
-          patchStep(id, stepId, { override })
+          patchStep(id, stepId, { timer })
           toast(
-            `⏱ Timer: ${fmtRemaining(overrideEffectiveEnd(override, now))} (${flow.name}: ${stepLabel(step.description)})`,
+            `⏱ Timer: ${fmtRemaining(timerEffectiveEnd(timer, now))} (${flow.name}: ${stepLabel(step.description)})`,
           )
           return JSON.stringify({ ok: true })
         }
@@ -722,20 +723,20 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           const step = flow.steps[stepIdx]
           if (step.done) return JSON.stringify({ error: 'Schritt ist abgeschlossen' })
           const now = Date.now()
-          if (step.override) {
-            if (step.override.pausedAt !== null) {
+          if (step.timer) {
+            if (step.timer.pausedAt !== null) {
               return JSON.stringify({ error: 'Timer ist bereits pausiert' })
             }
-            patchStep(id, stepId, { override: { ...step.override, pausedAt: now } })
+            patchStep(id, stepId, { timer: { ...step.timer, pausedAt: now } })
           } else {
-            // Wartende Karte ohne Override: abgeleitete Wartezeit einfrieren
+            // Wartende Karte ohne Timer: abgeleitete Wartezeit einfrieren
             const end =
               depsDone(step.dependsOn) ? derivedWaitEnd(step) : null
             if (end === null || end <= now) {
               return JSON.stringify({ error: 'Kein laufender Timer' })
             }
             patchStep(id, stepId, {
-              override: { alarmAt: end, pausedAt: now },
+              timer: { alarmAt: end, pausedAt: now },
             })
           }
           toast(`⏸ Timer pausiert: ${flow.name} — ${stepLabel(step.description)}`)
@@ -749,32 +750,18 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           const stepIdx = stepIndexOf(id, stepId)
           if (stepIdx < 0) return JSON.stringify({ error: 'Unbekannter Schritt' })
           const step = flow.steps[stepIdx]
-          if (!step.override || step.override.pausedAt === null) {
+          if (!step.timer || step.timer.pausedAt === null) {
             return JSON.stringify({ error: 'Timer ist nicht pausiert' })
           }
           const now = Date.now()
-          const o: TimerOverride = {
-            alarmAt: step.override.alarmAt + (now - step.override.pausedAt),
+          const o: StepTimer = {
+            alarmAt: step.timer.alarmAt + (now - step.timer.pausedAt),
             pausedAt: null,
           }
-          patchStep(id, stepId, { override: o })
+          patchStep(id, stepId, { timer: o })
           toast(
-            `▶ Timer läuft weiter: ${fmtRemaining(overrideEffectiveEnd(o, now))} (${flow.name}: ${stepLabel(step.description)})`,
+            `▶ Timer läuft weiter: ${fmtRemaining(timerEffectiveEnd(o, now))} (${flow.name}: ${stepLabel(step.description)})`,
           )
-          return JSON.stringify({ ok: true })
-        }
-        case 'cancel_timer': {
-          const id = String(args.flow_id ?? '')
-          const stepId = String(args.step_id ?? '')
-          const flow = findFlow(id)
-          if (!flow) return JSON.stringify({ error: 'Unbekannter Flow' })
-          const stepIdx = stepIndexOf(id, stepId)
-          if (stepIdx < 0) return JSON.stringify({ error: 'Unbekannter Schritt' })
-          // Override entfernen — auf einer wartenden Karte übernimmt sofort
-          // wieder die ABGELEITETE Wartezeit (Reset auf die letzte Gate-Endzeit,
-          // „die höchste Zeit"); auf einer aktiven Karte wird sie aktiv.
-          patchStep(id, stepId, { override: null })
-          toast('⏱ Timer zurückgesetzt')
           return JSON.stringify({ ok: true })
         }
         case 'complete_flow': {
@@ -787,7 +774,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               ...st,
               done: true,
               doneAt: st.done ? st.doneAt : Date.now(),
-              override: null,
+              timer: null,
             })),
           })
           toast(`Fertig: ${flow.name}`)
@@ -909,13 +896,13 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
     }
   }
 
-  /* Einzige Wartung: explizite Overrides einsammeln, sobald sie ablaufen —
-     abgeleitete Wartezeiten brauchen nichts (die Karte wird von selbst aktiv,
-     sobald ihr Gate in der Vergangenheit liegt). Invariante: ein vorhandenes
-     Override ist pausiert oder liegt in der Zukunft. Für abgelaufene
-     abgeleitete Gates: Übergangs-Toast (Fenster ±2 s, damit er genau einmal
-     kommt und nach Reload nicht nachhallt) — dedupliziert pro Karte und
-     Endzeit, sonst feuert er auf jedem Tick im Fenster doppelt. */
+  /* Einzige Wartung: abgelaufene Timer melden. Der gesetzte Timer bleibt
+     als Fakt stehen („wurde gesetzt, ist abgelaufen") — sein Ablauf macht
+     die Karte frei, es gibt KEIN Zurückfallen auf die Plan-Wartezeit; erst
+     set_timer überschreibt ihn oder der Abschluss der Karte räumt ihn weg.
+     Abgeleitete Gates (kein Timer): Übergangs-Toast im ±2-s-Fenster, damit
+     er genau einmal kommt und nach Reload nicht nachhallt — dedupliziert
+     pro Karte und Endzeit, sonst feuert er auf jedem Tick doppelt. */
   const toastedEnds = new Map<string, number>()
   function fireAlarm(sId: string, stepId: string, now: number, prio: boolean) {
     setAlarmEvents([
@@ -927,13 +914,17 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
     const now = Date.now()
     for (const s of getCook().flows) {
       s.steps.forEach((step) => {
-        const ov = step.override
-        if (ov) {
-          if (ov.pausedAt !== null) return // pausiert läuft nie ab
-          if (ov.alarmAt > now) return
-          patchStep(s.id, step.id, { override: null })
-          showToast(`⏰ Timer abgelaufen: ${s.name} — ${stepLabel(step.description)}`)
-          fireAlarm(s.id, step.id, now, step.priority === 'high')
+        const t = step.timer
+        if (t) {
+          if (t.pausedAt !== null) return // pausiert läuft nie ab
+          if (t.alarmAt > now) return
+          // Ablauf genau einmal melden (pro Karte und Endzeit)
+          const key = `${s.id}:${step.id}`
+          if (toastedEnds.get(key) !== t.alarmAt) {
+            toastedEnds.set(key, t.alarmAt)
+            showToast(`⏰ Timer abgelaufen: ${s.name} — ${stepLabel(step.description)}`)
+            fireAlarm(s.id, step.id, now, step.priority === 'high')
+          }
           return
         }
         if (step.done || !depsDone(step.dependsOn)) return

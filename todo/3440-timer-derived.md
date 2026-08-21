@@ -11,21 +11,36 @@ Gespeichert wird nur noch, was Nutzer/KI explizit verlangen: `Step.override`
 
 ## Modell
 - Kartenzustand ist IMMER abgeleitet: `blocked` = irgendeine Dep nicht done;
-  `waiting` = effektives Ende (Kanten-Gates oder Override) in der Zukunft;
+  `waiting` = effektives Ende (Kanten-Gates oder Timer) in der Zukunft;
   `active` sonst. Kein Code „setzt" den Progress — er fällt aus den Fakten.
-- `set_timer` auf wartender Karte = Übersteuerung der abgeleiteten Wartezeit;
+- `set_timer` auf wartender Karte = ersetzt die Plan-Wartezeit;
   auf aktiver Karte = Sleep (die Karte selbst geht in den Wartezustand);
   auf blockierter/abgeschlossener Karte = Fehler.
-- `pause` ohne Override materialisiert die abgeleitete Wartezeit als Override
-  (friert ein); `cancel_timer` = Override löschen → abgeleitete Wartezeit
-  übernimmt sofort (Reset).
+- `pause` ohne Timer materialisiert die Plan-Wartezeit als Timer
+  (friert ein); `resume` schlägt die Pausendauer auf `alarmAt` auf.
 - `syncWaitTimers` + Max-Regel-Extension (3430) entfallen ersatzlos: neue,
   längere Bedingungen verlängern die Wartezeit automatisch, weil das Maximum
   stets frisch gerechnet wird.
-- Einzige Wartung: `expireTimers` sammelt abgelaufene Overrides ein (Toast);
+- Einzige Wartung: `expireTimers` meldet ablaufende Timer (Toast/Alarm);
   abgeleitete Gates brauchen nichts (Übergangs-Toast im ±2-s-Fenster).
 - Chips = eine pro wartender Karte (nicht mehr pro Timer-Objekt); Klick
   markiert die Karte selbst.
+
+## Revision (nach Ghosttimer-Bug im Mock): Timer statt Override
+Das Override-Konzept („explizite Übersteuerung + Plan greift nach Ablauf
+wieder") war eine nie entschiedene Semantik und erzeugte den Ghost: Man
+stellt 0:15 auf einer Karte mit 7-min-Plan-Wartezeit → Alarm nach 15 s,
+danach übernahm der Plan wieder (6:45). Außerdem zeigte die UI `max(Plan,
+Override)` statt des Overrides.
+
+- [x] `Step.timer` = der gesetzte Timer (ersetzt das Override-Feld); setzen
+      ÜBERSCHREIBT, Ablauf macht die Karte frei — kein Zurückfallen auf die
+      Plan-Wartezeit. Abgelaufene Timer bleiben als Fakt stehen.
+- [x] `cancel_timer` ersatzlos entfernt (kein Reset-Konzept).
+- [x] `pendingUntil` zeigt Timer ?? Plan (nicht mehr max) — identisch zur
+      Engine-Logik.
+- [x] Warte-Menü-Commit gehärtet: Enter ruft commitMins direkt, editSecs
+      wird beim Commit zurückgesetzt (kein Kleben alter Sekunden-Werte).
 
 ## Tasks
 - [x] `Step.timer` → `Step.override: TimerOverride | null`

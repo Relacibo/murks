@@ -2,7 +2,7 @@ import { For, Show, createEffect, createMemo, createSignal, onCleanup, useContex
 import { SolidMarkdown as Markdown } from 'solid-markdown'
 import { useConfig } from '../App'
 import { state, sendMessage, type Flow, type Step, type StepRef } from '../state/store'
-import { CookContext, FLOW_COLORS, queueOrder, overrideEffectiveEnd } from '../lib/cookEngine'
+import { CookContext, FLOW_COLORS, queueOrder, timerEffectiveEnd } from '../lib/cookEngine'
 import { fmtRemaining } from '../lib/tools'
 import { createAgentVoice } from '../lib/agentVoice'
 import {
@@ -194,12 +194,13 @@ export function Cook(props: {
     return depStepOf(dep)?.done === true
   }
 
-  /* Wann wird die Karte frei? Maximaler Gate-Endzeitpunkt über alle
-     abgeschlossenen Abhängigkeiten (Kanten-Verzögerung doneAt + timer_seconds)
-     plus ggf. eigenes Override. Reine Ableitung aus den Fakten — tick()-Read,
-     damit ablaufende Gates die Zustände pro Sekunde aktualisieren. */
+  /* Wann wird die Karte frei? Der gesetzte Timer (falls vorhanden) ERSETZT
+     die Plan-Wartezeit; ohne Timer gilt die Ableitung aus den Kanten
+     (doneAt + timer_seconds). tick()-Read, damit ablaufende Gates die
+     Zustände pro Sekunde aktualisieren. */
   function pendingUntil(s: Flow, step: Step): number | null {
     tick()
+    if (step.timer) return timerEffectiveEnd(step.timer)
     let max: number | null = null
     for (const d of step.dependsOn) {
       const dep = depStepOf(d)
@@ -209,10 +210,6 @@ export function Cook(props: {
         if (max === null || e > max) max = e
       }
     }
-    if (step.override) {
-      const e = overrideEffectiveEnd(step.override)
-      if (max === null || e > max) max = e
-    }
     return max
   }
 
@@ -220,8 +217,8 @@ export function Cook(props: {
     tick()
     if (step.done) return 'done'
     if (step.dependsOn.some((d) => !depDone(s, step, d))) return 'blocked'
-    /* waiting = effektives Ende (Kanten-Gates oder Override) liegt in der
-       Zukunft — rein abgeleitet, nichts wird imperativ gepflegt */
+    /* waiting = effektives Ende (gesetzter Timer oder Kanten-Gates) liegt in
+       der Zukunft — rein abgeleitet, nichts wird imperativ gepflegt */
     const end = pendingUntil(s, step)
     if (end !== null && end > Date.now()) return 'waiting'
     return 'active'
@@ -278,7 +275,7 @@ export function Cook(props: {
   }
 
   /* Topbar-Chips: ein Chip pro wartender Karte — abgeleitet aus den Kanten
-     bzw. dem Override der Karte selbst. */
+     bzw. dem gesetzten Timer der Karte selbst. */
   const chipTimers = createMemo(() => {
     tick()
     const now = Date.now()
@@ -486,6 +483,7 @@ export function Cook(props: {
       const m = Math.max(0, Math.min(99, parseInt(raw || '0', 10) || 0))
       const s = editSecs() ?? currentSecs()
       setEditMins(null)
+      setEditSecs(null)
       applyTimer(m, s)
     }
     function cycleSecs(dir: 1 | -1) {
@@ -504,7 +502,7 @@ export function Cook(props: {
       <Show when={card()}>
         {(c) => {
           const remaining = () => pendingUntil(c().s, st()!)
-          const paused = () => st()!.override?.pausedAt != null
+          const paused = () => st()!.timer?.pausedAt != null
           return (
             <div
               class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50"
@@ -551,8 +549,15 @@ export function Cook(props: {
                         onInput={(e) => setEditMins(e.currentTarget.value)}
                         onBlur={commitMins}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') { e.currentTarget.blur() }
-                          if (e.key === 'Escape') { setEditMins(null) }
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            commitMins()
+                            e.currentTarget.blur()
+                          }
+                          if (e.key === 'Escape') {
+                            setEditMins(null)
+                            setEditSecs(null)
+                          }
                         }}
                         ref={(el) => setTimeout(() => { el.focus(); el.select() }, 0)}
                       />
@@ -709,14 +714,14 @@ export function Cook(props: {
               class="step-countdown font-mono text-sm font-semibold leading-none shrink-0 tabular-nums inline-flex items-center gap-1"
               classList={{ 'animate-pulse': urgent() }}
             >
-              <Show when={st().override?.pausedAt != null}>
+              <Show when={st().timer?.pausedAt != null}>
                 <FiPause size={12} class="text-amber-400 shrink-0" />
               </Show>
               <span
                 class="translate-y-[1px]"
                 classList={{
-                  'text-amber-300': urgent() || st().override?.pausedAt == null,
-                  'text-zinc-400': !urgent() && st().override?.pausedAt != null,
+                  'text-amber-300': urgent() || st().timer?.pausedAt == null,
+                  'text-zinc-400': !urgent() && st().timer?.pausedAt != null,
                 }}
               >
                 {fmtCountdown(countdownEndsAt()!)}
@@ -754,7 +759,7 @@ export function Cook(props: {
             <Show when={stateName() === 'waiting'}>
               <button
                 class="clock-btn"
-                classList={{ 'is-running': st().override?.pausedAt == null }}
+                classList={{ 'is-running': st().timer?.pausedAt == null }}
                 title="Timer-Optionen"
                 aria-label="Timer-Optionen öffnen"
                 onClick={(e) => {
@@ -1032,7 +1037,7 @@ export function Cook(props: {
               >
                 {/* Emoji ausblenden wenn pausiert — ⏸ übernimmt den Platz
                     (gleicher 16-px-Footprint, damit nichts springt) */}
-                <Show when={x.st.override?.pausedAt != null} fallback={
+                <Show when={x.st.timer?.pausedAt != null} fallback={
                   <Show when={x.s.icon}>
                     <span class="chip-icon text-base leading-none shrink-0">{x.s.icon}</span>
                   </Show>
@@ -1043,7 +1048,7 @@ export function Cook(props: {
                 </Show>
                 <span
                   class="font-mono font-semibold tabular-nums"
-                  classList={{ 'text-zinc-400': x.st.override?.pausedAt != null }}
+                  classList={{ 'text-zinc-400': x.st.timer?.pausedAt != null }}
                 >
                   {fmtCountdown(x.endsAt)}
                 </span>

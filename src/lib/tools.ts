@@ -186,7 +186,7 @@ export const TOOLS: ToolDef[] = [
     function: {
       name: 'set_timer',
       description:
-        'Timer eines Schritts setzen oder anpassen. "seconds": Dauer ab jetzt — setzt den Startzeitpunkt komplett zurück und ersetzt einen laufenden Timer. Alternativ "delta_seconds" (signed): laufenden Timer um X Sekunden verschieben — positiv = „noch X Minuten länger", negativ = verkürzen. Auf einer wartenden Karte ohne eigenen Timer wird deren Wartezeit als Basis genommen. Auf einer wartenden Karte (alle Abhängigkeiten erledigt) betrifft der Timer die Wartezeit der Karte selbst; sonst die Wartezeit ihrer abhängigen Karten.',
+        'Timer eines Schritts setzen oder überschreiben — ein erneuter Aufruf ersetzt den bisherigen Timer. "seconds": Dauer ab jetzt. Alternativ "delta_seconds" (signed): aktuelles Ende um X Sekunden verschieben — positiv = „noch X länger", negativ = verkürzen (auf einer wartenden Karte ohne eigenen Timer ist die Basis deren Plan-Wartezeit). Auf einer wartenden Karte ersetzt der Timer die Plan-Wartezeit; auf einer aktiven Karte geht sie damit in den Wartezustand. Sein Ablauf macht die Karte frei — die Plan-Wartezeit kommt NICHT zurück.',
       parameters: {
         type: 'object',
         properties: {
@@ -222,21 +222,6 @@ export const TOOLS: ToolDef[] = [
     function: {
       name: 'resume_timer',
       description: 'Pausierten Timer eines Schritts fortsetzen.',
-      parameters: {
-        type: 'object',
-        properties: {
-          flow_id: { type: 'string' },
-          step_id: stepIdSchema('Der Schritt'),
-        },
-        required: ['flow_id', 'step_id'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'cancel_timer',
-      description: 'Timer eines Schritts abbrechen (abhängige Karten werden frei, sofern keine Kanten-Verzögerung läuft). Auf einer wartenden Karte: eigene Anpassung verwerfen — zurück zur abgeleiteten Wartezeit (Reset).',
       parameters: {
         type: 'object',
         properties: {

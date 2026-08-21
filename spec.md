@@ -37,8 +37,8 @@ interface StepRef {
   timer_seconds?: number | null // Verzögerung: Karte wird X s NACH Abschluss der Abhängigkeit frei
 }
 
-interface TimerOverride {
-  alarmAt: number          // Endzeitpunkt (Alarm) — „neu setzen" setzt ihn neu,
+interface StepTimer {
+  alarmAt: number          // Endzeitpunkt (Alarm) — set_timer setzt ihn neu,
                            // „+1 Min" verschiebt ihn
   pausedAt: number | null  // Pause-Beginn (Restzeit friert ein, Timer läuft nie ab)
 }
@@ -49,8 +49,8 @@ interface Step {
   done: boolean            // Schritt einzeln abschließbar (✓-Button / complete_step)
   doneAt: number | null    // Abschlusszeitpunkt — Basis der Verzögerungen an den Kanten
   dependsOn: StepRef[]     // Abhängigkeiten liegen im abhängigen Step → m:n ergibt sich von selbst
-  override: TimerOverride | null // explizite Wartezeit-Übersteuerung (set_timer/pause);
-                                 // abgeleitete Wartezeiten werden NIE gespeichert
+  timer: StepTimer | null  // der gesetzte Timer der Karte (set_timer überschreibt ihn);
+                           // null = abgeleitete Plan-Wartezeit (nie gespeichert)
   activatedAt: number | null // Zeitpunkt des Eintritts in „Jetzt" (innerhalb seiner Queue: neu → hinten)
   priority: 'normal' | 'high' // high: bei active in der Prio-Queue oben (FIFO) + pulsierend
   score: number               // Scheduling-Hinweis der KI (Default 0): höher = weiter oben
@@ -62,8 +62,8 @@ interface Step {
 > **unterschiedlichen Offsets** an derselben Abhängigkeit hängen (Soße +0, Spaghetti +10).
 > Der Schritt, auf den getimte Kanten zeigen, bekommt den
 > ⏱-Button; wartende Karten zeigen den Countdown. Die Wartezeit ist **rein abgeleitet**
-> (`doneAt + timer_seconds`, nie gespeichert); nur explizite Nutzer-/KI-Eingriffe
-> (set_timer/pause) landen als `override` auf der Karte selbst — ein Timer gehört
+> (`doneAt + timer_seconds`, nie gespeichert); setzt jemand einen Timer (`Step.timer`),
+> ERSETZT er die Plan-Wartezeit — sein Ablauf macht die Karte frei. Ein Timer gehört
 > immer der Karte, auf der er liegt, nie den Dependents.
 
 ### Abgeleitete Schritt-Zustände
@@ -358,27 +358,30 @@ Mehrere Karten stehen untereinander (Stapel).
   Kante ist `doneAt + timer_seconds`. Mehrere Karten können mit unterschiedlichen Offsets an
   derselben Karte hängen.
 - **Mehrere Gates:** Der zuletzt ablaufende entscheidet, wann die Karte frei wird (Maximum).
-- **Abgeleitet, nie gespeichert:** Wartezeiten sind eine reine Funktion der Fakten
-  (`doneAt + timer_seconds`) — es gibt kein Timer-Objekt und nichts zu synchronisieren.
-  Nur explizite Eingriffe (set_timer/pause) liegen als `override` (`alarmAt` + `pausedAt`)
-  auf der Karte selbst; ein Timer gehört immer der Karte, auf der er liegt. Neue, längere
-  Bedingungen verlängern die Wartezeit automatisch, weil das Maximum stets frisch
-  gerechnet wird.
+- **Timer wird gesetzt, Timer wird überschrieben:** Ohne eigenen Timer gilt die abgeleitete
+  Plan-Wartezeit (`doneAt + timer_seconds`, reine Funktion der Fakten — nichts zu
+  synchronisieren; neue, längere Bedingungen verlängern sie automatisch). `set_timer`
+  setzt den Timer der Karte (`Step.timer`: `alarmAt` + `pausedAt`) und ersetzt damit die
+  Plan-Wartezeit — ein erneuter Aufruf überschreibt ihn. **Sein Ablauf macht die Karte
+  frei; die Plan-Wartezeit kommt nicht zurück.** Den Timer gibt es nur einmal pro Karte,
+  er gehört immer der Karte, auf der er liegt. Abgelaufene Timer bleiben als Fakt stehen,
+  bis sie überschrieben oder die Karte abgeschlossen wird.
 - **Warte-Menü** (öffnet am Button der wartenden Karte): Pausieren/Fortsetzen,
-  +1/+5 Min (aufschlagen), „Neu: 5 Min" (Startzeitpunkt komplett zurücksetzen),
+  +1 Min (aufschlagen), „Neu: 5 Min" (Startzeitpunkt komplett zurücksetzen),
   **⏩ Vorspulen** (= früh abschließen, Wartezeit überspringen).
-- **Timer-Tools:** `set_timer` — `seconds` = neu setzen ab jetzt (`alarmAt` = jetzt +
-  Dauer), `delta_seconds` (signed) = aufschlagen/verkürzen relativ zum aktuellen Ende.
-  Auf einer wartenden Karte übersteuern die Tools deren Wartezeit (cancel_timer = zurück
-  zur abgeleiteten Wartezeit); auf einer **aktiven** Karte versetzt `set_timer` sie selbst
-  in den Wartezustand (Sleep, z.B. „muss noch 5 Minuten backen"). Auf blockierten oder
+- **Timer-Tools:** `set_timer` — `seconds` = neu ab jetzt (`alarmAt` = jetzt +
+  Dauer), `delta_seconds` (signed) = aufschlagen/verkürzen relativ zum aktuellen Ende
+  (Basis ohne Timer: die Plan-Wartezeit). Auf einer wartenden Karte ersetzt der Timer
+  die Plan-Wartezeit; auf einer **aktiven** Karte versetzt `set_timer` sie selbst in den
+  Wartezustand (Sleep, z.B. „muss noch 5 Minuten backen"). Auf blockierten oder
   abgeschlossenen Karten sind Timer-Tools nicht möglich — Wartezeit nach Abschluss
-  gehört als `timer_seconds` an die Kante.
+  gehört als `timer_seconds` an die Kante. Es gibt KEINEN Reset: wer zurück will, setzt
+  einfach neu.
   `pause_timer`/`resume_timer` frieren die Restzeit ein bzw. setzen fort (die Pausendauer
   wird beim Fortsetzen auf `alarmAt` aufgeschlagen); pausierte Timer laufen nie ab.
-- **Wartung:** einzig abgelaufene Overrides werden eingesammelt (Toast) — abgeleitete
-  Gates brauchen keine, die Karte wird von selbst aktiv, sobald ihr Ende vorbei ist
-  (Übergangs-Toast im ±2-s-Fenster).
+- **Wartung:** einzig das Ablaufen wird gemeldet (Toast/Alarm, einmal pro Karte und
+  Endzeit) — abgeleitete Gates brauchen keine Wartung, die Karte wird von selbst aktiv,
+  sobald ihr Ende vorbei ist (Übergangs-Toast im ±2-s-Fenster).
 - **Waiting-Karten** sind in „Jetzt" sichtbar (gedimmt wie blocked/done, Countdown in Flow-Farbe, ab < 30 s amber);
   ihr Button ist ein Uhr-Symbol (Kartenfarbe, pulsiert solange der Timer läuft) und öffnet das Warte-Menü (kein Direkt-Abschluss mehr).
 - **Sortierung:** waiting-Karten stehen **unter** den aktiven und **über** den blocked;
@@ -500,10 +503,9 @@ umbenennen/löschen/teilen, Timer neu setzen oder verlängern.
 | `split_step` | Step teilen: Teil 1 bleibt (mit Prio), Teil 2 folgt danach und hängt von Teil 1 ab; Verweise auf den Original-Step zeigen auf Teil 2. Nur nicht-done |
 | `complete_step` | `done` (+ `doneAt`); Verzögerungen der Dependents laufen ab hier; Abhängige kommen in „Jetzt" (waiting/active) |
 | `revert_step` | zurücknehmen — nur wenn keine abhängige Karte abgeschlossen ist; verwirft `doneAt`/Timer, Abhängige werden wieder blocked |
-| `set_timer` | Timer neu setzen („seconds" = Dauer ab jetzt, Startzeitpunkt wird zurückgesetzt) **oder aufschlagen** (`delta_seconds` signed: positiv = „noch X Minuten länger", negativ = verkürzen). Auf einer wartenden Karte: deren Wartezeit selbst |
+| `set_timer` | Timer der Karte setzen/ÜBERSCHREIBEN („seconds" = Dauer ab jetzt) **oder aufschlagen** (`delta_seconds` signed: positiv = „noch X Minuten länger", negativ = verkürzen; Basis ohne Timer = Plan-Wartezeit). Wartende Karte: ersetzt die Plan-Wartezeit; aktive Karte: Sleep. Ablauf macht die Karte frei — kein Zurückfallen auf den Plan |
 | `pause_timer` | laufenden Timer pausieren (Restzeit friert ein); auf wartender Karte ohne eigenen Timer: Wartezeit einfrieren |
 | `resume_timer` | pausierten Timer fortsetzen |
-| `cancel_timer` | Timer abbrechen (Abhängige werden frei, sofern keine Kanten-Verzögerung läuft); auf wartender Karte: Reset auf die abgeleitete Wartezeit |
 | `complete_flow` | alle Steps `done` (+ `doneAt`) + Flow `done` + alle Timer abbrechen |
 | `update_flow` | `name` / `icon` ändern |
 | `delete_flow` | Flow löschen; Refs anderer Flows auf seine Steps werden entfernt; Farben sind abgeleitet (FLOW_COLORS[Index]) — nichts zu pflegen |
