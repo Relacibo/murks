@@ -41,6 +41,14 @@ Override)` statt des Overrides.
       Engine-Logik.
 - [x] Warte-Menü-Commit gehärtet: Enter ruft commitMins direkt, editSecs
       wird beim Commit zurückgesetzt (kein Kleben alter Sekunden-Werte).
+- [x] Design-Notiz Reset: falls je ein „zurück zum Plan" gewünscht wäre,
+      braucht es KEIN startedAt — die Plan-Wartezeit ist eine reine Funktion
+      der Fakten (doneAt + timer_seconds) und damit jederzeit frisch
+      rekonstruierbar; Reset wäre schlicht Timer-löschen. Bewusst verworfen.
+      Grenzfall: ändert sich doneAt (Trigger-Schritt zurückgenommen + neu
+      abgeschlossen), liefert die Ableitung den Plan von JETZT, nicht das
+      historische Original — das wäre nur mit gespeichertem Ende möglich,
+      wird aber nicht gebraucht (der Koch will den aktuellen Plan).
 
 ## Tasks
 - [x] `Step.timer` → `Step.override: TimerOverride | null`
