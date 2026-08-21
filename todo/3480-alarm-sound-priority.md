@@ -23,6 +23,11 @@ sollen immer Vorrang haben, das informative Bing nie dazwischenfunken.
   Karten-Text (bestehende prioActiveIds-Logik).
 
 ## Tasks
+- [x] Alarm-Ton stoppt sofort, wenn der Schritt abgeschlossen oder ein
+      Vorgänger zurückgenommen wird (Karte verlässt „Jetzt"): Engine zählt
+      `quietNonce` bei complete_step/complete_flow/revert_step hoch, UI
+      ruft `stopAlarmSounds()` (Assets: pause+Reset; Synth-Fallback:
+      Master-Gains getrennt)
 - [ ] tts.ts: speaking/isSpeaking-Signal exportieren (oder Callback an
       alarmSounds)
 - [ ] alarmSounds: Koordinator mit Priorität; Wecker stoppt TTS, Bing wartet/

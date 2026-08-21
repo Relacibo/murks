@@ -13,6 +13,7 @@
  */
 
 let audioCtx: AudioContext | null = null
+const synthMasters = new Set<GainNode>()
 
 function ctx(): AudioContext | null {
   try {
@@ -60,6 +61,16 @@ export function playAlarmBing(): void {
   playAsset('/sounds/freesound_community-ding-101492.mp3', playSyntheticBing)
 }
 
+/** Alle Alarm-Töne SOFORT stoppen (Nutzer klickt den Schritt weg) */
+export function stopAlarmSounds(): void {
+  for (const p of assetPlayers.values()) {
+    p.audio.pause()
+    p.audio.currentTime = 0
+  }
+  for (const m of synthMasters) m.disconnect()
+  synthMasters.clear()
+}
+
 function playSyntheticBell(): void {
   const c = ctx()
   if (!c) return
@@ -71,6 +82,8 @@ function playSyntheticBell(): void {
   master.gain.exponentialRampToValueAtTime(0.4, now + 0.012)
   master.gain.exponentialRampToValueAtTime(0.0001, now + dur)
   master.connect(c.destination)
+  synthMasters.add(master)
+  setTimeout(() => synthMasters.delete(master), dur * 1000 + 200)
 
   // Klöppel-Tremolo (~12 Hz) auf den Gesamtklang
   const trem = c.createGain()
@@ -118,6 +131,8 @@ function playSyntheticBing(): void {
   master.gain.exponentialRampToValueAtTime(0.25, now + 0.008)
   master.gain.exponentialRampToValueAtTime(0.0001, now + dur)
   master.connect(c.destination)
+  synthMasters.add(master)
+  setTimeout(() => synthMasters.delete(master), dur * 1000 + 200)
 
   // A5 + E6 — freundliches „Bing"
   for (const [f, g] of [

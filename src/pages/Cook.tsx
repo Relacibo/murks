@@ -11,7 +11,7 @@ import {
   FiVolume2, FiVolumeX, FiPause, FiPlay, FiPlus, FiFastForward, FiSend, FiX,
 } from 'solid-icons/fi'
 import { toggleMuted, stopSpeaking, speak, pregenCard } from '../lib/tts'
-import { playAlarmBell, playAlarmBing } from '../lib/alarmSounds'
+import { playAlarmBell, playAlarmBing, stopAlarmSounds } from '../lib/alarmSounds'
 
 export function Cook(props: {
   voice?: ReturnType<typeof createAgentVoice>
@@ -137,6 +137,16 @@ export function Cook(props: {
     lastAlarmAt = fresh[fresh.length - 1].at
     if (fresh.some((e) => e.prio)) playAlarmBell()
     else if (!state.tts.muted) playAlarmBing()
+  })
+
+  /* Schritt abgeschlossen/zurückgenommen (auch via Agent) → laufende
+     Alarm-Töne sofort stoppen */
+  let lastQuiet = 0
+  createEffect(() => {
+    const n = engine.quietNonce
+    if (n === lastQuiet) return
+    lastQuiet = n
+    stopAlarmSounds()
   })
   function revealStep(flowId: string, stepId: string, view?: 'jetzt' | 'flow') {
     const s = flows().find((x) => x.id === flowId)

@@ -181,6 +181,8 @@ export interface CookEngine {
   readonly modalRequest: ModalRequest | null
   /** Kürzlich abgelaufene Timer (letzte ~6 s) — fürs Alarm-Feedback der Karten */
   readonly alarmEvents: AlarmEvent[]
+  /** Zähler für „Nutzer hat abgeschlossen/zurückgenommen" — UI stoppt laufende Alarm-Töne */
+  readonly quietNonce: number
   executeTool(name: string, args: Record<string, unknown>, opts?: { silent?: boolean }): string
   expireTimers(): void
 }
@@ -198,6 +200,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
   const [navTarget, setNavTarget] = createSignal<NavTarget | null>(null)
   const [modalRequest, setModalRequest] = createSignal<ModalRequest | null>(null)
   const [alarmEvents, setAlarmEvents] = createSignal<AlarmEvent[]>([])
+  const [quietNonce, setQuietNonce] = createSignal(0)
 
   function findFlow(id: string) {
     return getCook().flows.find((s) => s.id === id)
@@ -626,6 +629,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             patchFlow(id, { steps, done: allDone ? true : flow.done })
             activateDependents([{ flow_id: id, step_id: stepId }])
           })
+          setQuietNonce((n) => n + 1)
 
           toast(`${flow.name}: „${stepLabel(flow.steps[stepIdx].description)}" fertig`)
           return JSON.stringify({ ok: true })
@@ -655,6 +659,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             patchFlow(id, { done: false })
             deactivateDependents([{ flow_id: id, step_id: stepId }])
           })
+          setQuietNonce((n) => n + 1)
 
           toast(`${flow.name}: „${stepLabel(flow.steps[stepIdx].description)}" zurückgenommen`)
           return JSON.stringify({ ok: true })
@@ -777,6 +782,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               timer: null,
             })),
           })
+          setQuietNonce((n) => n + 1)
           toast(`Fertig: ${flow.name}`)
           // Abhängige aus anderen Flows freigeben (alle Schritte sind jetzt done)
           activateDependents(flow.steps.map((st) => ({ flow_id: id, step_id: st.id })))
@@ -953,6 +959,9 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
     },
     get alarmEvents() {
       return alarmEvents()
+    },
+    get quietNonce() {
+      return quietNonce()
     },
     executeTool,
     expireTimers,
