@@ -166,10 +166,21 @@ export interface ModalRequest {
   nonce: number
 }
 
+/** Timer-Ablauf-Event an die UI (ephemer) — die Band-Uhr blinkt dazu auf,
+    prio-Karten klingeln wie ein mechanischer Wecker */
+export interface AlarmEvent {
+  flowId: string
+  stepId: string
+  at: number
+  prio: boolean
+}
+
 export interface CookEngine {
   readonly cook: CookState
   readonly navTarget: NavTarget | null
   readonly modalRequest: ModalRequest | null
+  /** Kürzlich abgelaufene Timer (letzte ~6 s) — fürs Alarm-Feedback der Karten */
+  readonly alarmEvents: AlarmEvent[]
   executeTool(name: string, args: Record<string, unknown>, opts?: { silent?: boolean }): string
   expireTimers(): void
 }
@@ -186,6 +197,7 @@ type SetCookFn = (fn: (cook: CookState) => CookState) => void
 export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): CookEngine {
   const [navTarget, setNavTarget] = createSignal<NavTarget | null>(null)
   const [modalRequest, setModalRequest] = createSignal<ModalRequest | null>(null)
+  const [alarmEvents, setAlarmEvents] = createSignal<AlarmEvent[]>([])
 
   function findFlow(id: string) {
     return getCook().flows.find((s) => s.id === id)
@@ -905,6 +917,12 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
      kommt und nach Reload nicht nachhallt) — dedupliziert pro Karte und
      Endzeit, sonst feuert er auf jedem Tick im Fenster doppelt. */
   const toastedEnds = new Map<string, number>()
+  function fireAlarm(sId: string, stepId: string, now: number, prio: boolean) {
+    setAlarmEvents([
+      ...alarmEvents().filter((e) => now - e.at < 6000),
+      { flowId: sId, stepId, at: now, prio },
+    ])
+  }
   function expireTimers(): void {
     const now = Date.now()
     for (const s of getCook().flows) {
@@ -915,6 +933,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           if (ov.alarmAt > now) return
           patchStep(s.id, step.id, { override: null })
           showToast(`⏰ Timer abgelaufen: ${s.name} — ${stepLabel(step.description)}`)
+          fireAlarm(s.id, step.id, now, step.priority === 'high')
           return
         }
         if (step.done || !depsDone(step.dependsOn)) return
@@ -924,6 +943,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           if (toastedEnds.get(key) !== end) {
             toastedEnds.set(key, end)
             showToast(`⏰ Timer abgelaufen: ${s.name} — ${stepLabel(step.description)}`)
+            fireAlarm(s.id, step.id, now, step.priority === 'high')
           }
         }
       })
@@ -939,6 +959,9 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
     },
     get modalRequest() {
       return modalRequest()
+    },
+    get alarmEvents() {
+      return alarmEvents()
     },
     executeTool,
     expireTimers,

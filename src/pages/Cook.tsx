@@ -11,6 +11,7 @@ import {
   FiVolume2, FiVolumeX, FiPause, FiPlay, FiPlus, FiFastForward, FiSend, FiX,
 } from 'solid-icons/fi'
 import { toggleMuted, stopSpeaking, speak, pregenCard } from '../lib/tts'
+import { playAlarmBell, playAlarmBing } from '../lib/alarmSounds'
 
 export function Cook(props: {
   voice?: ReturnType<typeof createAgentVoice>
@@ -112,6 +113,22 @@ export function Cook(props: {
     clearTimeout(pulseTimer)
     pulseTimer = setTimeout(() => setPulses((p) => (p && p.nonce === nonce ? null : p)), 1600)
   }
+
+  /* Abgelaufene Timer (Engine-Events, letzte ~6 s) → Band-Uhr blinkt auf;
+     neue Events: Ton — prio = mechanischer Wecker (auch bei Mute), sonst
+     informatives Bing (bei gemutetem TTS still; Text wird danach vorgelesen) */
+  const [alarmEvents, setAlarmEvents] = createSignal<{ key: string; at: number; prio: boolean }[]>([])
+  let lastAlarmAt = Date.now()
+  createEffect(() => {
+    const evs = engine.alarmEvents
+    if (!evs.length) return
+    setAlarmEvents(evs.map((e) => ({ key: `${e.flowId}:${e.stepId}`, at: e.at, prio: e.prio })))
+    const fresh = evs.filter((e) => e.at > lastAlarmAt)
+    if (!fresh.length) return
+    lastAlarmAt = fresh[fresh.length - 1].at
+    if (fresh.some((e) => e.prio)) playAlarmBell()
+    else if (!state.tts.muted) playAlarmBing()
+  })
   function revealStep(flowId: string, stepId: string, view?: 'jetzt' | 'flow') {
     const s = flows().find((x) => x.id === flowId)
     if (!s || !s.steps.some((st) => st.id === stepId)) return
@@ -607,6 +624,15 @@ export function Cook(props: {
       const ends = countdownEndsAt()
       return ends !== null && ends - Date.now() < 30_000
     }
+    /* Uhr im Band: Timer dieser Karte ist gerade abgelaufen (Engine-Event,
+       max. 6 s) und die Karte ist dadurch aktiv geworden */
+    const alarmClock = () => {
+      tick()
+      if (stateName() !== 'active') return false
+      return alarmEvents().some(
+        (e) => e.key === `${s().id}:${st().id}` && Date.now() - e.at < 6000,
+      )
+    }
     return (
       <div
         class="step-card"
@@ -683,6 +709,11 @@ export function Cook(props: {
                 {fmtCountdown(countdownEndsAt()!)}
               </span>
             </span>
+          </Show>
+          {/* Alarm: Timer gerade abgelaufen → Uhr blinkt dort auf, wo der
+              Countdown stand (prio: rot, die Karte pulsiert ohnehin) */}
+          <Show when={alarmClock()}>
+            <FiClock size={12} class="alarm-clock shrink-0" />
           </Show>
           <span class="text-sm opacity-60 tabular-nums shrink-0">
             {i() + 1}/{s().steps.length}
