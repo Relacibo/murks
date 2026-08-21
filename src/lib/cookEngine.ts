@@ -909,7 +909,19 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
      Abgeleitete Gates (kein Timer): Übergangs-Toast im ±2-s-Fenster, damit
      er genau einmal kommt und nach Reload nicht nachhallt — dedupliziert
      pro Karte und Endzeit, sonst feuert er auf jedem Tick doppelt. */
+  /* Reload-Guard: abgelaufene Timer aus dem persistierten Zustand NICHT
+     erneut melden. Gesetzte Timer bleiben nach Ablauf als Fakt stehen
+     (Tombstone) — ohne Vorbefüllung würde jeder Reload den Alarm erneut
+     feuern. Abgeleitete Gates brauchen das nicht (±2-s-Fenster unten). */
   const toastedEnds = new Map<string, number>()
+  for (const s of getCook().flows) {
+    for (const step of s.steps) {
+      const t = step.timer
+      if (t && t.pausedAt === null && t.alarmAt <= Date.now()) {
+        toastedEnds.set(`${s.id}:${step.id}`, t.alarmAt)
+      }
+    }
+  }
   function fireAlarm(sId: string, stepId: string, now: number, prio: boolean) {
     setAlarmEvents([
       ...alarmEvents().filter((e) => now - e.at < 6000),
