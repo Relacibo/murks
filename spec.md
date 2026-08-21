@@ -274,7 +274,8 @@ Mehrere Karten stehen untereinander (Stapel).
 - **Alarm-Feedback:** läuft ein Timer ab, blinkt an der Status-Position im Kartenband
   (wo sonst 🔒/✓ stehen) eine ⏰-Uhr auf und **bleibt stehen**, bis die Karte
   abgeschlossen wird — nicht-prio in heller Kartenschriftfarbe, prio in Rot (die Karte
-  pulsiert dort ohnehin). Dazu Ton
+  pulsiert dort ohnehin). Die Uhr leitet sich aus dem Fakt `Step.alarmedAt` ab (wird
+  beim Alarm gesetzt, bei Abschluss/Revert gelöscht — übersteht Reloads). Dazu Ton
   (Pixabay-Assets in `public/sounds`, Lizenz: frei nutzbar, keine Namensnennung nötig;
   synthetischer Web-Audio-Fallback, falls die Datei fehlt): prio = mechanischer Wecker
   (auch bei gemutetem TTS), nicht-prio = kurzes informatives Ding (stumm bei gemutetem

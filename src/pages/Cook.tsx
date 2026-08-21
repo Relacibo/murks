@@ -123,25 +123,14 @@ export function Cook(props: {
     pulseTimer = setTimeout(() => setPulses((p) => (p && p.nonce === nonce ? null : p)), 1600)
   }
 
-  /* Abgelaufene Timer → Band-Uhr blinkt auf und BLEIBT stehen, bis die Karte
-     abgeschlossen wird (alarmedKeys ist persistent, nicht zeitbegrenzt).
-     Neue Events: Ton — prio = mechanischer Wecker (auch bei Mute), sonst
-     informatives Bing (bei gemutetem TTS still; Text wird danach vorgelesen) */
-  const [alarmedKeys, setAlarmedKeys] = createSignal<Set<string>>(new Set())
+  /* Abgelaufene Timer → Ton — prio = mechanischer Wecker (auch bei Mute),
+     sonst informatives Bing (bei gemutetem TTS still; Text wird danach
+     vorgelesen). Die ⏰-Uhr im Band leitet sich aus Step.alarmedAt ab
+     (Fakt im Store, übersteht Reloads). */
   let lastAlarmAt = Date.now()
   createEffect(() => {
     const evs = engine.alarmEvents
     if (!evs.length) return
-    const keys = new Set(alarmedKeys())
-    let added = false
-    for (const e of evs) {
-      const key = `${e.flowId}:${e.stepId}`
-      if (!keys.has(key)) {
-        keys.add(key)
-        added = true
-      }
-    }
-    if (added) setAlarmedKeys(keys)
     const fresh = evs.filter((e) => e.at > lastAlarmAt)
     if (!fresh.length) return
     lastAlarmAt = fresh[fresh.length - 1].at
@@ -661,12 +650,12 @@ export function Cook(props: {
       const ends = countdownEndsAt()
       return ends !== null && ends - Date.now() < 30_000
     }
-    /* Uhr im Band: Timer dieser Karte ist abgelaufen — sie blinkt auf und
-       bleibt stehen, bis die Karte abgeschlossen wird */
+    /* Uhr im Band: Timer dieser Karte ist abgelaufen (Fakt alarmedAt) — sie
+       blinkt auf und bleibt stehen, bis die Karte abgeschlossen wird */
     const alarmClock = () => {
       tick()
       if (stateName() !== 'active') return false
-      return alarmedKeys().has(`${s().id}:${st().id}`)
+      return st().alarmedAt !== null
     }
     return (
       <div

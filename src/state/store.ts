@@ -98,6 +98,9 @@ export interface Step {
   /** Der gesetzte Timer der Karte (set_timer überschreibt) — ohne Timer gilt
       die aus den Kanten abgeleitete Wartezeit. */
   timer: StepTimer | null
+  /** Zeitpunkt des letzten Timer-Alarms (Ablauf) — die ⏰-Uhr im Band leitet
+      sich daraus ab (übersteht Reloads); null = nie alarmiert */
+  alarmedAt: number | null
   activatedAt: number | null
   priority: 'normal' | 'high'
   /** Scheduling-Hinweis der KI (Default 0): höher = weiter oben in der aktiven
@@ -256,6 +259,7 @@ function hydrate(data: unknown): AppState {
                   timerOffsetMs?: number
                   timerExpired?: boolean
                   timerGatesSelf?: boolean
+                  alarmedAt?: number | null
                   activatedAt?: number | null
                   priority?: 'normal' | 'high'
                   score?: number
@@ -357,6 +361,10 @@ function hydrate(data: unknown): AppState {
                 doneAt,
                 dependsOn: [],
                 timer,
+                alarmedAt:
+                  typeof st === 'string' || typeof st?.alarmedAt !== 'number'
+                    ? null
+                    : st.alarmedAt,
                 activatedAt:
                   typeof st === 'string'
                     ? null
