@@ -1,10 +1,14 @@
 /**
- * Synthetische Alarm-Töne (Web Audio, keine Assets):
- * - playAlarmBell: Klirren eines mechanischen Doppelglocken-Weckers —
- *   inharmonische Metall-Partiale mit Schwebung + schnellem Klöppel-Tremolo,
- *   ~2.5 s, läuft auch bei gemutetem TTS (kritischer Alarm).
- * - playAlarmBing: informativer Zweiton-Bing (~0.35 s) für unkritische
- *   Abläufe — wird bei gemutetem TTS NICHT abgespielt (Prüfung im Aufrufer).
+ * Alarm-Töne:
+ * - playAlarmBell: Klirren eines mechanischen Doppelglocken-Weckers (Web
+ *   Audio, synthetisch — keine Assets), ~2.5 s, läuft auch bei gemutetem TTS
+ *   (kritischer Alarm).
+ * - playAlarmBing: informativer „Ding" für unkritische Abläufe — als Asset
+ *   public/sounds/ding.mp3 („Film special effects ding", Pixabay,
+ *   https://pixabay.com/sound-effects/film-special-effects-ding-101492/;
+ *   Pixabay Content License: frei nutzbar, keine Namensnennung nötig).
+ *   Fallback, falls die Datei fehlt: synthetischer Zweiton-Bing.
+ *   Wird bei gemutetem TTS NICHT abgespielt (Prüfung im Aufrufer).
  */
 
 let audioCtx: AudioContext | null = null
@@ -66,7 +70,7 @@ export function playAlarmBell(): void {
   }
 }
 
-export function playAlarmBing(): void {
+function playSyntheticBing(): void {
   const c = ctx()
   if (!c) return
   const now = c.currentTime
@@ -93,4 +97,31 @@ export function playAlarmBing(): void {
     o.start(now)
     o.stop(now + dur)
   }
+}
+
+let dingAudio: HTMLAudioElement | null = null
+let dingFailed = false
+
+/** Unkritischer Alarm: Pixabay-„Ding" als Asset, sonst synthetischer Fallback */
+export function playAlarmBing(): void {
+  if (!dingFailed) {
+    if (!dingAudio) {
+      dingAudio = new Audio('/sounds/ding.mp3')
+      dingAudio.addEventListener(
+        'error',
+        () => {
+          dingFailed = true
+          playSyntheticBing()
+        },
+        { once: true },
+      )
+    }
+    dingAudio.currentTime = 0
+    dingAudio.play().catch(() => {
+      dingFailed = true
+      playSyntheticBing()
+    })
+    return
+  }
+  playSyntheticBing()
 }
