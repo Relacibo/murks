@@ -182,23 +182,28 @@
   .step-countdown {
     color: var(--flow-text);
   }
-  /* Alarm-Uhr nach Timer-Ablauf: blinkt ein paar Mal am Platz des Countdowns.
-     Nicht-prio: helle Kartenschriftfarbe; prio: rot (Karte pulsiert ohnehin). */
-  @keyframes alarm-blink {
+  /* Alarm-Uhr nach Timer-Ablauf: sanftes Größer-Kleiner statt Blinken.
+     Tempo = doppelte Geschwindigkeit des Karten-Pulses (prio-pulse 1.4 s
+     → 0.7 s), synchron über --pulse-offset. Non-prio: ~3 Pulse, dann
+     statisch (die Karte pulsiert dort nicht mit); prio: rot + Dauerpuls. */
+  @keyframes alarm-scale-pulse {
     0%,
     100% {
-      opacity: 1;
+      transform: scale(1);
     }
     50% {
-      opacity: 0.2;
+      transform: scale(1.2);
     }
   }
   .alarm-clock {
     color: var(--flow-text);
-    animation: alarm-blink 0.9s ease-in-out 3;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: alarm-scale-pulse 0.7s ease-in-out var(--pulse-offset, 0ms) 3;
   }
   .step-card.is-prio .alarm-clock {
     color: #ef4444;
+    animation-iteration-count: infinite;
   }
   /* ✓/⏱ auf waiting-Karten: grau wie der ↺-Button */
   .check-btn.is-muted,
