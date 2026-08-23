@@ -34,17 +34,6 @@
   }
 }
 
-/* Sanfter Puls für laufende Timer (langsamer, halbtransparent) */
-@keyframes timer-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--flow-border-active) 0%, transparent);
-  }
-  50% {
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--flow-border-active) 40%, transparent);
-  }
-}
-
 @layer components {
   /* ── Flow-Farben (CSS-Variablen per data-color) ─────────────── */
   [data-color='cyan'] {
@@ -182,11 +171,11 @@
   .step-countdown {
     color: var(--flow-text);
   }
-  /* Alarm-Uhr nach Timer-Ablauf: sanftes Größer-Kleiner statt Blinken.
-     Tempo = doppelte Geschwindigkeit des Karten-Pulses (prio-pulse 1.4 s
-     → 0.7 s), synchron über --pulse-offset. Non-prio: ~3 Pulse, dann
-     statisch (die Karte pulsiert dort nicht mit); prio: rot + Dauerpuls. */
-  @keyframes alarm-scale-pulse {
+  /* Icon-Puls (Größer-Kleiner), synchron über --pulse-offset.
+     Alarm-Uhr nach Timer-Ablauf: Tempo = doppelte Geschwindigkeit des
+     Karten-Pulses (1.4 s → 0.7 s). Non-prio: ~3 Pulse, dann statisch
+     (die Karte pulsiert dort nicht mit); prio: rot + Dauerpuls. */
+  @keyframes icon-scale-pulse {
     0%,
     100% {
       transform: scale(1);
@@ -199,7 +188,7 @@
     color: var(--flow-text);
     transform-box: fill-box;
     transform-origin: center;
-    animation: alarm-scale-pulse 0.7s ease-in-out var(--pulse-offset, 0ms) 3;
+    animation: icon-scale-pulse 0.7s ease-in-out var(--pulse-offset, 0ms) 3;
   }
   .step-card.is-prio .alarm-clock {
     color: #ef4444;
@@ -313,9 +302,12 @@
   .clock-btn:hover {
     @apply brightness-125;
   }
-  /* Laufender Timer auf einer wartenden Karte: Uhr pulsiert sanft */
-  .clock-btn.is-running {
-    animation: timer-pulse 2.4s ease-in-out var(--pulse-offset, 0ms) infinite;
+  /* Laufender Timer auf einer wartenden Karte: das Uhr-Icon selbst pulsiert
+     sanft (gleicher Takt wie der Karten-Puls: 1.4 s, synchron) */
+  .clock-btn.is-running svg {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: icon-scale-pulse 1.4s ease-in-out var(--pulse-offset, 0ms) infinite;
   }
   .mic-btn {
     @apply relative w-9 h-9 rounded-full flex items-center justify-center text-base transition-all disabled:opacity-40;

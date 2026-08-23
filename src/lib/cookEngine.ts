@@ -841,14 +841,16 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           return JSON.stringify({ ok: true })
         }
         case 'start_new_recipe': {
+          /* loading NICHT anfassen: der Agent schaltet den Spinner vorher
+             an (set_loading(true) → start_new_recipe → Aufbau) — hier zu
+             löschen würde ihn sofort wieder unsichtbar machen */
           setCook((c) => ({
             ...c,
             flows: [],
             ingredients: [],
             focusedFlowId: null,
-            loading: { all: false, flows: [] },
           }))
-          toast('Alle Stränge gelöscht')
+          toast('Neues Gericht: Brett leer')
           return JSON.stringify({ ok: true })
         }
         case 'set_loading': {
