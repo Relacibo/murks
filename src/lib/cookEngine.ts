@@ -348,6 +348,54 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
     return typeof raw === 'number' && Number.isFinite(raw) ? raw : 0
   }
 
+  /* ── Schedule-Lint ─────────────────────────────────────────────────
+     Deterministischer Sanity-Check nach Struktur-Änderungen: Die Warnungen
+     landen im Tool-Ergebnis (Feld "warnings"), damit der Agent sie direkt
+     im Loop sieht und fixt — keine Prompt-Aufforderung zur Selbstkontrolle. */
+
+  /* Deutsche Zeitangaben — die EINHEIT zählt, egal ob mit Zahl („10 Minuten",
+     „25–30 Min."), ohne Zahl („eine Minute") oder vage („ein paar Minuten").
+     Lookaround verhindert Funde in Komposita wie „Minutensteak"/„Vortag". */
+  const TIME_RE =
+    /(?<![A-Za-zÄÖÜäöüß])(Min\.?|Minuten?|Std\.?|Stunden?|Sek\.?|Sekunden?|Tage?n?)(?![A-Za-zÄÖÜäöüß])/i
+
+  function lintFlows(cook: CookState, flowIds: string[]): string[] {
+    const warnings: string[] = []
+    for (const id of flowIds) {
+      const flow = cook.flows.find((f) => f.id === id)
+      if (!flow) continue
+      flow.steps.forEach((st, i) => {
+        const label = stepLabel(st.description)
+        /* Zeitangabe, auf die keine Folgekarte mit timer_seconds wartet */
+        if (TIME_RE.test(st.description)) {
+          const timed = cook.flows.some((f) =>
+            f.steps.some((x) =>
+              x.dependsOn.some(
+                (d) =>
+                  d.flow_id === id &&
+                  d.step_id === st.id &&
+                  d.timer_seconds !== null &&
+                  d.timer_seconds !== undefined,
+              ),
+            ),
+          )
+          if (!timed) {
+            warnings.push(
+              `„${label}" enthält eine Zeitangabe, aber keine Folgekarte wartet mit timer_seconds darauf`,
+            )
+          }
+        }
+        /* Keine Kante, aber nicht die erste Karte des Flows */
+        if (i > 0 && st.dependsOn.length === 0) {
+          warnings.push(
+            `„${label}" hat keine depends_on-Kante, ist aber nicht die erste Karte von „${flow.name}" — parallel gewollt? Sonst an den Vorgänger hängen`,
+          )
+        }
+      })
+    }
+    return warnings
+  }
+
   // Toasts nur bei KI-Aktionen / Engine-Events (Timer abgelaufen) — nicht bei
   // Nutzer-Aktionen aus der UI (der Nutzer sieht die Karte ja direkt).
   let silentToasts = false
@@ -460,7 +508,12 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           }))
           setCook((c) => ({ ...c, focusedFlowId: flowId }))
           toast(`Strang: ${flowName}`)
-          return JSON.stringify({ id: flowId, name: flowName })
+          const warnings = lintFlows(getCook(), [flowId])
+          return JSON.stringify({
+            id: flowId,
+            name: flowName,
+            ...(warnings.length > 0 ? { warnings } : {}),
+          })
         }
         case 'add_step': {
           const id = String(args.flow_id ?? '')
@@ -502,7 +555,12 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           patchFlow(id, { steps })
 
           toast(`${flow.name}: + „${stepLabel(description)}"`)
-          return JSON.stringify({ ok: true, step_id: step.id })
+          const warnings = lintFlows(getCook(), [id])
+          return JSON.stringify({
+            ok: true,
+            step_id: step.id,
+            ...(warnings.length > 0 ? { warnings } : {}),
+          })
         }
         case 'update_step': {
           const id = String(args.flow_id ?? '')
@@ -545,7 +603,11 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             patchStep(id, stepId, { activatedAt: null, timer: null })
           }
 
-          return JSON.stringify({ ok: true })
+          const warnings = lintFlows(getCook(), [id])
+          return JSON.stringify({
+            ok: true,
+            ...(warnings.length > 0 ? { warnings } : {}),
+          })
         }
         case 'delete_step': {
           const id = String(args.flow_id ?? '')
