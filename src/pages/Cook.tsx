@@ -1081,7 +1081,8 @@ export function Cook(props: {
   return (
     <div class="fixed inset-0 bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
       {/* ── Topbar: Timer-Chips + Buttons (eine Leiste) ────── */}
-      <header class="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-zinc-600">
+      {/* z-[60]: bleibt über Modals nutzbar (Timer-Chips/Buttons) */}
+      <header class="relative z-[60] shrink-0 flex items-center gap-2 px-3 py-2 border-b border-zinc-600">
         {/* Wortmarke nur auf dem Desktop — mobile verzichtet zugunsten der Chips */}
         <span class="hidden sm:block shrink-0 text-sm font-bold tracking-widest uppercase text-zinc-300 select-none">
           MURKS

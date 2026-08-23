@@ -227,7 +227,7 @@ export function ConfigModal(props: ConfigModalProps) {
   return (
     <Show when={props.open}>
       <div
-        class="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex flex-col justify-end sm:items-center sm:justify-center sm:p-4"
+        class="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex flex-col justify-end pb-[max(4.5rem,env(safe-area-inset-bottom))] sm:items-center sm:justify-center sm:p-4"
         onClick={(e) => {
           if (e.target === e.currentTarget && props.dismissible) props.onClose()
         }}

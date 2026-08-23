@@ -339,8 +339,9 @@
 
   /* ── Voice-Overlay ──────────────────────────────────────────────── */
   /* ── Composer-Bar: globale Eingabe (Text + Mikrofon), immer sichtbar ── */
+  /* z-[60]: bleibt über Modals nutzbar (Eingabe/Mic/Gesprächsmodus) */
   .composer {
-    @apply pointer-events-none fixed bottom-0 inset-x-0 z-40 px-3 flex flex-col items-end;
+    @apply pointer-events-none fixed bottom-0 inset-x-0 z-[60] px-3 flex flex-col items-end;
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   }
   .composer-inner {

@@ -38,7 +38,7 @@ export function AgentModal(props: AgentModalProps) {
   return (
     <Show when={props.open}>
       <div
-        class="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex flex-col justify-end sm:items-center sm:justify-center sm:p-4"
+        class="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex flex-col justify-end pb-[max(4.5rem,env(safe-area-inset-bottom))] sm:items-center sm:justify-center sm:p-4"
         onClick={(e) => e.target === e.currentTarget && props.onClose()}
       >
         <div class="bg-zinc-950 rounded-t-2xl sm:rounded-2xl sm:border sm:border-zinc-600 sm:shadow-2xl sm:w-full sm:max-w-2xl h-[85vh] sm:h-[80vh] flex flex-col modal-pop">
