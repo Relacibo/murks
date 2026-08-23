@@ -46,7 +46,7 @@ export function IngredientsModal(props: { open: boolean; onClose: () => void }) 
   return (
     <Show when={props.open}>
       <div
-        class="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex flex-col justify-end pb-[max(4.5rem,env(safe-area-inset-bottom))] sm:items-center sm:justify-center sm:p-4"
+        class="fixed inset-x-0 top-14 bottom-[max(4.5rem,env(safe-area-inset-bottom))] z-50 bg-zinc-950/80 backdrop-blur-sm flex flex-col justify-end sm:items-center sm:justify-center sm:p-4"
         onClick={(e) => e.target === e.currentTarget && props.onClose()}
       >
         <div class="bg-zinc-950 rounded-t-2xl sm:rounded-2xl sm:border sm:border-zinc-600 sm:shadow-2xl sm:w-full sm:max-w-md max-h-[80vh] overflow-y-auto modal-pop">
