@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, useContext } from 'solid-js'
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount, useContext } from 'solid-js'
 import { SolidMarkdown as Markdown } from 'solid-markdown'
 import { useConfig } from '../App'
 import { state, sendMessage, type Flow, type Step, type StepRef } from '../state/store'
@@ -6,7 +6,7 @@ import { CookContext, FLOW_COLORS, queueOrder, timerEffectiveEnd } from '../lib/
 import { fmtRemaining } from '../lib/tools'
 import { createAgentVoice } from '../lib/agentVoice'
 import {
-  FiMic, FiMicOff, FiMoreHorizontal, FiFileText, FiSettings, FiMessageSquare,
+  FiMic, FiMoreHorizontal, FiFileText, FiSettings, FiMessageSquare,
   FiCheck, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw, FiClock, FiSidebar,
   FiVolume2, FiVolumeX, FiPause, FiPlay, FiPlus, FiFastForward, FiSend, FiSquare, FiX,
 } from 'solid-icons/fi'
@@ -52,6 +52,13 @@ export function Cook(props: {
   const toggleOverview = () =>
     props.onToggleOverview ? props.onToggleOverview() : setLocalOverviewOpen((v) => !v)
   const [lastAgent, setLastAgent] = createSignal<{ text: string; at: number } | null>(null)
+  const [moreOpen, setMoreOpen] = createSignal(false)
+  let moreMenuRef: HTMLDivElement | undefined
+  function closeMoreOnOutside(e: MouseEvent) {
+    if (moreMenuRef && !moreMenuRef.contains(e.target as Node)) setMoreOpen(false)
+  }
+  onMount(() => document.addEventListener('mousedown', closeMoreOnOutside))
+  onCleanup(() => document.removeEventListener('mousedown', closeMoreOnOutside))
   const interval = setInterval(() => {
     setTick(Date.now())
     engine.expireTimers()
@@ -1137,22 +1144,17 @@ export function Cook(props: {
             onClick={() => voice.toggleMic()}
             disabled={!voice.suspended() && !voice.sttReady() && !voice.listening()}
             title={voice.micTitle()}
-            aria-label="Mikrofon umschalten"
+            aria-label="Gesprächsmodus umschalten"
           >
             <Show
               when={voice.transcribing()}
               fallback={
-                <Show
-                  when={voice.listening() || voice.suspended()}
-                  fallback={<FiMicOff size={20} />}
-                >
-                  <span class="relative inline-flex">
-                    <FiMic size={20} />
-                    <Show when={voice.suspended()}>
-                      <span class="mic-suspended-bar" />
-                    </Show>
-                  </span>
-                </Show>
+                <span class="relative inline-flex">
+                  <ConvBars />
+                  <Show when={voice.suspended()}>
+                    <span class="mic-suspended-bar" />
+                  </Show>
+                </span>
               }
             >
               <FiMoreHorizontal size={20} class="animate-pulse" />
@@ -1182,10 +1184,42 @@ export function Cook(props: {
           >
             <FiSidebar size={16} />
           </button>
-          <div class="flex items-center rounded-lg border border-zinc-600 overflow-hidden divide-x divide-zinc-600 shrink-0">
-            <button class="grouped-btn" onClick={() => props.onOpenIngredients()} title="Zutaten"><FiFileText size={16} /></button>
-            <button class="grouped-btn" onClick={() => props.onOpenChat()} title="Chat"><FiMessageSquare size={16} /></button>
-            <button class="grouped-btn" onClick={() => setConfigOpen(true)} title="Konfiguration"><FiSettings size={16} /></button>
+          <button
+            class="topbar-accent-btn shrink-0"
+            onClick={() => props.onOpenIngredients()}
+            title="Zutaten"
+            aria-label="Zutaten anzeigen"
+          >
+            <FiFileText size={15} />
+          </button>
+          <div class="relative shrink-0" ref={moreMenuRef}>
+            <button
+              class="mic-btn is-off"
+              classList={{ 'bg-zinc-700': moreOpen() }}
+              onClick={() => setMoreOpen((v) => !v)}
+              title="Mehr"
+              aria-label="Weitere Optionen"
+            >
+              <FiMoreHorizontal size={16} />
+            </button>
+            <Show when={moreOpen()}>
+              <div class="absolute right-0 top-full mt-1 z-50 min-w-max flex flex-col rounded-lg border border-zinc-700 bg-zinc-800 shadow-xl overflow-hidden">
+                <button
+                  class="more-menu-item"
+                  onClick={() => { props.onOpenChat(); setMoreOpen(false) }}
+                >
+                  <FiMessageSquare size={15} />
+                  <span>Chat-Verlauf</span>
+                </button>
+                <button
+                  class="more-menu-item"
+                  onClick={() => { setConfigOpen(true); setMoreOpen(false) }}
+                >
+                  <FiSettings size={15} />
+                  <span>Konfiguration</span>
+                </button>
+              </div>
+            </Show>
           </div>
         </div>
       </header>

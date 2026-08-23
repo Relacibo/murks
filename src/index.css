@@ -284,6 +284,14 @@
   .grouped-btn {
     @apply w-9 h-9 flex items-center justify-center bg-zinc-700 text-zinc-400 hover:bg-zinc-600 hover:text-zinc-100 transition-colors;
   }
+  /* Zutaten-Button: Akzent-Button (teal), gleiche Größe wie mic-btn */
+  .topbar-accent-btn {
+    @apply w-9 h-9 flex items-center justify-center rounded-full bg-teal-900/60 text-teal-300 border border-teal-700/50 hover:bg-teal-800/70 hover:text-teal-100 transition-colors;
+  }
+  /* Dropdown-Menü-Einträge */
+  .more-menu-item {
+    @apply flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 transition-colors text-left;
+  }
   .check-btn {
     @apply w-11 h-11 flex items-center justify-center rounded-full border transition-colors shrink-0;
     background-color: var(--flow-bg-active);
