@@ -10,7 +10,7 @@ import { Toasts } from './components/Toasts'
 import { IngredientsModal } from './components/IngredientsModal'
 import { createAgentVoice } from './lib/agentVoice'
 import { registerWebMCPTools } from './lib/webmcp'
-import { state, stateReady, cookEngine, sendMessage, clearMessages } from './state/store'
+import { state, stateReady, cookEngine, sendMessage, clearMessages, removeEmptyAgents } from './state/store'
 import { CookContext } from './lib/cookEngine'
 
 const base =
@@ -121,6 +121,7 @@ function CookingRoute() {
       <ConfigModal
         open={configOpen()}
         onClose={() => {
+          removeEmptyAgents()
           if (hasValidAgent()) setModal('config', false)
         }}
         dismissible={hasValidAgent()}

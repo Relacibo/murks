@@ -477,6 +477,8 @@ async function init() {
   } catch (e) {
     console.error('IndexedDB laden fehlgeschlagen', e)
   }
+  // Leere Agenten-Platzhalter aus früheren Sitzungen entsorgen
+  removeEmptyAgents()
   // Wartezeiten sind abgeleitet — nichts zu synchronisieren
   setReady(true)
 }
@@ -527,6 +529,17 @@ export function updateAgent(id: string, patch: Partial<AgentProfile>) {
 export function removeAgent(id: string) {
   if (id === state.defaultAgentId) return
   setState('agents', (a) => a.filter((x) => x.id !== id))
+}
+
+/** Leere Agenten-Platzhalter aufräumen („+ Neuer Agent" ohne Eingaben) —
+    nur komplett leere Agenten, der Default-Zeiger wird notfalls umgehängt */
+export function removeEmptyAgents() {
+  const isEmpty = (a: AgentProfile) => !a.name && !a.endpoint && !a.model && !a.key
+  if (!state.agents.some(isEmpty)) return
+  setState('agents', (a) => a.filter((x) => !isEmpty(x)))
+  if (state.defaultAgentId && !state.agents.some((a) => a.id === state.defaultAgentId)) {
+    setState('defaultAgentId', state.agents[0]?.id ?? null)
+  }
 }
 
 export function setDefaultAgent(id: string) {
