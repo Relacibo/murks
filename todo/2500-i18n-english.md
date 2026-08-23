@@ -11,7 +11,7 @@ Stellen: UI-Strings, System-Prompt, STT-Lang, TTS-Lang.
 
 - [ ] UI-Strings: hartkodierte deutsche Labels über ein `t()`-Dictionary
       (de/en) — Aufwand überschaubar, Strings sind übersichtlich verteilt
-- [ ] System-Prompt: **eine englische Variante reicht** (keine Zwei-Sprachen-Pflege) —
+- [x] System-Prompt: **eine englische Variante reicht** (keine Zwei-Sprachen-Pflege) —
       mit deutschem Vokabular-Glossar („Strang" = flow/component, Warte-Menü etc.,
       damit Tool-Namen/UI-Begriffe auf Deutsch bleiben können) und dem Hinweis,
       dass mit dem Nutzer Deutsch gesprochen wird (Antworten auf Deutsch)
