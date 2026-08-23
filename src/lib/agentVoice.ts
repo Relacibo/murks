@@ -11,11 +11,15 @@ export interface AgentVoice {
   suspended: Accessor<boolean>
   speaking: Accessor<boolean>
   transcribing: Accessor<boolean>
+  recording: Accessor<boolean>
+  ttsSpeaking: Accessor<boolean>
   sttReady: Accessor<boolean>
   lastTranscript: Accessor<{ text: string; at: number } | null>
   toggleMic: () => void
+  toggleRecord: () => void
   stop: () => void
   micTitle: () => string
+  recordTitle: () => string
 }
 
 const NOISE_WORDS = [
@@ -43,6 +47,7 @@ export function createAgentVoice(opts?: {
   const [listening, setListening] = createSignal(false)
   const [speaking, setSpeaking] = createSignal(false)
   const [transcribing, setTranscribing] = createSignal(false)
+  const [recording, setRecording] = createSignal(false)
   const [sttReady, setSttReady] = createSignal(false)
   const [lastTranscript, setLastTranscript] = createSignal<{ text: string; at: number } | null>(null)
   /* Agent spricht gerade (TTS) — solange wird nicht zugehört (Echo-Schutz) */
@@ -50,11 +55,19 @@ export function createAgentVoice(opts?: {
 
   let vad: MicVAD | null = null
   let recognition: ReturnType<typeof createWebSpeechRecognition> = null
+  let recordRecognition: ReturnType<typeof createWebSpeechRecognition> = null
   let lastSpoken: { text: string } | undefined = state.agent.messages[state.agent.messages.length - 1]
   let sttCheckToken = 0
   /* Gesprächsmodus gewünscht: Nutzer hat das Mic eingeschaltet — es bleibt
      (auch über Agent-Antworten hinweg) an, bis er es manuell ausmacht */
   const [wanted, setWanted] = createSignal(false)
+  /* Record-Modus (Push-to-Record): einmalige Aufnahme, danach sofort senden.
+     recordActive trennt die VAD-Callbacks vom Gesprächsmodus; recordFrames
+     sammelt Audio ab Sprachbeginn, damit ein manueller Stopp mitten in der
+     Äußerung trotzdem transkribieren kann. */
+  let recordActive = false
+  let recordSpeech = false
+  let recordFrames: Float32Array[] = []
 
   /* Suspendiert: Nutzer will zuhören (wanted), aber die KI spricht/denkt
      gerade — das Mic pausiert von selbst und setzt danach wieder ein.
@@ -78,11 +91,14 @@ export function createAgentVoice(opts?: {
     })()
   })
 
+  /* Auto-TTS nur im Gesprächsmodus: im manuellen Modus spricht die KI
+     nicht von selbst — der Nutzer spielt die Antwort manuell ab. */
   createEffect(() => {
     const messages = state.agent.messages
     const last = messages[messages.length - 1]
     if (last && last.role === 'agent' && !last.silent && last !== lastSpoken) {
       lastSpoken = last
+      if (!wanted()) return
       setTtsSpeaking(true)
       void speak(last.text).finally(() => setTtsSpeaking(false))
     }
@@ -118,7 +134,70 @@ export function createAgentVoice(opts?: {
     else sendMessage(text)
   }
 
+  async function transcribeAndSend(audio: Float32Array) {
+    setTranscribing(true)
+    try {
+      const text = await transcribeAudio(audio)
+      finishUtterance(text)
+    } catch (e) {
+      pushError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setTranscribing(false)
+    }
+  }
+
+  /* ── Gesprächsmodus ─────────────────────────────────────────────── */
+
+  async function ensureVad(): Promise<MicVAD | null> {
+    if (vad) return vad
+    try {
+      vad = await createVoice({
+        onSpeechStart: () => {
+          stopSpeaking()
+          setSpeaking(true)
+          if (recordActive) {
+            recordSpeech = true
+            recordFrames = []
+          }
+        },
+        onFrameProcessed: (_p, frame) => {
+          if (recordActive && recordSpeech) recordFrames.push(frame.slice())
+        },
+        onMisfire: () => setSpeaking(false),
+        onSpeechEnd: async (audio) => {
+          setSpeaking(false)
+          if (recordActive) {
+            /* Record-Modus: Stille beendet die Aufnahme → transkribieren + senden */
+            recordActive = false
+            recordSpeech = false
+            recordFrames = []
+            setRecording(false)
+            await transcribeAndSend(audio)
+            return
+          }
+          setTranscribing(true)
+          try {
+            const text = await transcribeAudio(audio)
+            finishUtterance(text)
+          } catch (e) {
+            pushError(e instanceof Error ? e.message : String(e))
+          } finally {
+            setTranscribing(false)
+            if (listening()) await vad?.start()
+          }
+        },
+        onError: pushError,
+      })
+      return vad
+    } catch (e) {
+      pushError(e instanceof Error ? e.message : String(e))
+      return null
+    }
+  }
+
   function toggleMic() {
+    /* Record-Aufnahme abbrechen, wenn stattdessen das Gespräch startet */
+    if (recording()) abortRecord()
     /* wanted ist die Nutzer-Absicht: auch im suspendierten Zustand
        (wanted = true, listening = false) schaltet ein Tipp das Mic
        hart aus statt es wieder zu starten */
@@ -154,36 +233,10 @@ export function createAgentVoice(opts?: {
       return
     }
 
-    if (!vad) {
-      try {
-        vad = await createVoice({
-          onSpeechStart: () => {
-            stopSpeaking()
-            setSpeaking(true)
-          },
-          onMisfire: () => setSpeaking(false),
-          onSpeechEnd: async (audio) => {
-            setSpeaking(false)
-            setTranscribing(true)
-            try {
-              const text = await transcribeAudio(audio)
-              finishUtterance(text)
-            } catch (e) {
-              pushError(e instanceof Error ? e.message : String(e))
-            } finally {
-              setTranscribing(false)
-              if (listening()) await vad?.start()
-            }
-          },
-          onError: pushError,
-        })
-      } catch (e) {
-        pushError(e instanceof Error ? e.message : String(e))
-        return
-      }
-    }
+    const v = await ensureVad()
+    if (!v) return
     try {
-      await vad.start()
+      await v.start()
       setListening(true)
     } catch (e) {
       pushError(e instanceof Error ? e.message : String(e))
@@ -199,9 +252,93 @@ export function createAgentVoice(opts?: {
     await vad?.pause()
   }
 
+  /* ── Record-Modus (Push-to-Record) ──────────────────────────────── */
+
+  function toggleRecord() {
+    if (recording()) {
+      void stopRecord()
+      return
+    }
+    void startRecord()
+  }
+
+  async function startRecord() {
+    /* Gespräch läuft? Erst beenden — das Mic kann nur einen Modus */
+    if (listening()) await stopVoice()
+
+    setRecording(true)
+    if (state.stt.mode === 'webspeech') {
+      recordRecognition = createWebSpeechRecognition(
+        (transcript, isFinal) => {
+          if (isFinal && transcript) finishUtterance(transcript)
+        },
+        pushError,
+        () => {
+          setRecording(false)
+          recordRecognition = null
+        },
+      )
+      recordRecognition?.start()
+      return
+    }
+
+    const v = await ensureVad()
+    if (!v) {
+      setRecording(false)
+      return
+    }
+    recordActive = true
+    recordFrames = []
+    recordSpeech = false
+    try {
+      await v.start()
+    } catch (e) {
+      recordActive = false
+      setRecording(false)
+      pushError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function stopRecord() {
+    if (state.stt.mode === 'webspeech') {
+      /* stop() feuert das finale Ergebnis → sendet über den onResult-Callback */
+      recordRecognition?.stop()
+      return
+    }
+    /* VAD: mitten in der Äußerung — aus den gesammelten Frames transkribieren */
+    const frames = recordFrames
+    recordActive = false
+    recordSpeech = false
+    recordFrames = []
+    setRecording(false)
+    await vad?.pause()
+    if (frames.length > 0) {
+      const total = frames.reduce((n, f) => n + f.length, 0)
+      const audio = new Float32Array(total)
+      let off = 0
+      for (const f of frames) {
+        audio.set(f, off)
+        off += f.length
+      }
+      await transcribeAndSend(audio)
+    }
+  }
+
+  /** Record-Aufnahme verwerfen (ohne zu senden) */
+  function abortRecord() {
+    recordActive = false
+    recordSpeech = false
+    recordFrames = []
+    setRecording(false)
+    recordRecognition?.stop()
+    recordRecognition = null
+    void vad?.pause()
+  }
+
   function onVisibilityChange() {
     if (document.hidden) {
       void stopVoice()
+      abortRecord()
       stopSpeaking()
     }
   }
@@ -209,6 +346,7 @@ export function createAgentVoice(opts?: {
 
   onCleanup(() => {
     recognition?.stop()
+    recordRecognition?.stop()
     vad?.destroy()
     stopSpeaking()
     document.removeEventListener('visibilitychange', onVisibilityChange)
@@ -219,12 +357,20 @@ export function createAgentVoice(opts?: {
     if (speaking()) return 'Sprache erkannt'
     if (suspended())
       return ttsSpeaking()
-        ? 'Pausiert — KI spricht. Tippen zum Ausschalten'
-        : 'Pausiert — KI antwortet. Tippen zum Ausschalten'
-    if (listening()) return 'Höre zu — tippen zum Stoppen'
+        ? 'Pausiert — KI spricht. Tippen zum Beenden'
+        : 'Pausiert — KI antwortet. Tippen zum Beenden'
+    if (listening()) return 'Gesprächsmodus: hört zu — tippen zum Beenden'
     if (state.stt.mode === 'server' && !state.stt.endpoint) return 'Kein STT-Endpoint konfiguriert'
     if (state.stt.mode === 'wasm' && !sttReady()) return 'STT-Modell nicht geladen'
-    return `Hören starten (${state.stt.mode === 'wasm' ? 'lokal' : state.stt.mode})`
+    return `Gesprächsmodus starten (${state.stt.mode === 'wasm' ? 'lokal' : state.stt.mode})`
+  }
+
+  function recordTitle() {
+    if (recording()) return 'Aufnahme stoppen'
+    if (transcribing()) return 'Transkribiere …'
+    if (state.stt.mode === 'server' && !state.stt.endpoint) return 'Kein STT-Endpoint konfiguriert'
+    if (state.stt.mode === 'wasm' && !sttReady()) return 'STT-Modell nicht geladen'
+    return 'Nachricht aufnehmen'
   }
 
   return {
@@ -232,10 +378,14 @@ export function createAgentVoice(opts?: {
     suspended,
     speaking,
     transcribing,
+    recording,
+    ttsSpeaking,
     sttReady,
     lastTranscript,
     toggleMic,
+    toggleRecord,
     stop: stopVoice,
     micTitle,
+    recordTitle,
   }
 }

@@ -116,6 +116,7 @@ function CookingRoute() {
       <AgentModal
         open={modals().includes('chat')}
         onClose={() => setModal('chat', false)}
+        voice={voice}
       />
       <ConfigModal
         open={configOpen()}

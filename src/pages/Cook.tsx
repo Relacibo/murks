@@ -8,10 +8,21 @@ import { createAgentVoice } from '../lib/agentVoice'
 import {
   FiMic, FiMicOff, FiMoreHorizontal, FiFileText, FiSettings, FiMessageSquare,
   FiCheck, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw, FiClock, FiSidebar,
-  FiVolume2, FiVolumeX, FiPause, FiPlay, FiPlus, FiFastForward, FiSend, FiX,
+  FiVolume2, FiVolumeX, FiPause, FiPlay, FiPlus, FiFastForward, FiSend, FiSquare, FiX,
 } from 'solid-icons/fi'
 import { toggleMuted, stopSpeaking, speak, pregenCard } from '../lib/tts'
 import { playAlarmBell, playAlarmBing, stopAlarmSounds } from '../lib/alarmSounds'
+
+/** Gesprächsmodus-Symbol (wie Gemini Live): drei Balken, mittlerer größer */
+function ConvBars() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+      <rect x="4.5" y="10" width="3" height="4" rx="1.5" />
+      <rect x="10.5" y="5" width="3" height="14" rx="1.5" />
+      <rect x="16.5" y="10" width="3" height="4" rx="1.5" />
+    </svg>
+  )
+}
 
 export function Cook(props: {
   voice?: ReturnType<typeof createAgentVoice>
@@ -66,7 +77,7 @@ export function Cook(props: {
   const showAgentText = () => {
     const a = lastAgent()
     return (
-      a !== null && tick() > 0 && (voice.speaking() || Date.now() - a.at < 12_000)
+      a !== null && tick() > 0 && (voice.ttsSpeaking() || Date.now() - a.at < 12_000)
     )
   }
 
@@ -86,6 +97,12 @@ export function Cook(props: {
   }
   function submitComposer(e: Event) {
     e.preventDefault()
+    /* Während der Aufnahme ist der Send-Button ein „Stopp + Senden":
+       Aufnahme beenden, das Transkript wird automatisch gesendet */
+    if (voice.recording()) {
+      voice.toggleRecord()
+      return
+    }
     const text = composerInput().trim()
     if (!text) return
     stopSpeaking()
@@ -1102,9 +1119,7 @@ export function Cook(props: {
                 !voice.transcribing() &&
                 !voice.speaking() &&
                 !voice.suspended(),
-              /* Mobile: verschwindet, wenn der Composer (mit eigenem Mic) offen ist;
-                 Desktop: immer sichtbar */
-              'max-sm:hidden': composerOpen(),
+              /* Gesprächsmodus-Toggle: immer sichtbar, auch auf Mobile */
             }}
             onClick={() => voice.toggleMic()}
             disabled={!voice.suspended() && !voice.sttReady() && !voice.listening()}
@@ -1256,10 +1271,26 @@ export function Cook(props: {
           </Show>
 
           {/* Letzte Agent-Antwort (TTS-Text) — sichtbar, solange gesprochen wird,
-              danach noch kurz */}
+              danach noch kurz. Im manuellen Modus spricht die KI nicht von
+              selbst → Abspielen-Button */}
           <Show when={showAgentText()}>
-            <div class="transcript-strip">
-              <p class="text-sm text-zinc-400 line-clamp-4">{lastAgent()!.text}</p>
+            <div class="transcript-strip gap-3">
+              <p class="flex-1 text-sm text-zinc-400 line-clamp-4">{lastAgent()!.text}</p>
+              <button
+                type="button"
+                class="shrink-0 text-xs text-zinc-400 hover:text-zinc-100 transition-colors inline-flex items-center gap-1"
+                onClick={() =>
+                  voice.ttsSpeaking() ? stopSpeaking() : void speak(lastAgent()!.text)
+                }
+                title={
+                  voice.ttsSpeaking() ? 'Sprachausgabe stoppen' : 'Antwort abspielen'
+                }
+              >
+                <Show when={voice.ttsSpeaking()} fallback={<FiPlay size={14} />}>
+                  <FiPause size={14} />
+                </Show>
+                {voice.ttsSpeaking() ? 'Stopp' : 'Abspielen'}
+              </button>
             </div>
           </Show>
 
@@ -1289,29 +1320,17 @@ export function Cook(props: {
             <button
               type="button"
               class="composer-mic"
-              classList={{
-                'is-listening': voice.listening() || voice.transcribing() || voice.suspended(),
-                'is-speaking': voice.speaking(),
-                'is-suspended': voice.suspended(),
-              }}
-              onClick={() => voice.toggleMic()}
-              disabled={!voice.suspended() && !voice.sttReady() && !voice.listening()}
-              title={voice.micTitle()}
-              aria-label="Mikrofon umschalten"
+              classList={{ 'is-recording': voice.recording() }}
+              onClick={() => voice.toggleRecord()}
+              disabled={!voice.sttReady() && !voice.recording()}
+              title={voice.recordTitle()}
+              aria-label="Nachricht aufnehmen"
             >
               <Show
-                when={voice.transcribing()}
+                when={voice.transcribing() && voice.recording()}
                 fallback={
-                  <Show
-                    when={voice.listening() || voice.suspended()}
-                    fallback={<FiMicOff size={20} />}
-                  >
-                    <span class="relative inline-flex">
-                      <FiMic size={20} />
-                      <Show when={voice.suspended()}>
-                        <span class="mic-suspended-bar" />
-                      </Show>
-                    </span>
+                  <Show when={voice.recording()} fallback={<FiMic size={20} />}>
+                    <FiSquare size={14} />
                   </Show>
                 }
               >
@@ -1328,31 +1347,49 @@ export function Cook(props: {
                 if (e.key === 'Escape') collapseComposer()
               }}
             />
-            {/* Leeres Feld: ✕ klappt ein (ersetzt den Senden-Button — kein Extra-Platz) */}
+            {/* Leeres Feld: Gesprächsmodus-Button (wie Gemini Live — nur ohne
+                Text in der Eingabe). Mit Text oder während der Aufnahme wird
+                der Platz zum Senden-Button. */}
             <Show
-              when={composerInput().trim() !== ''}
+              when={composerInput().trim() !== '' || voice.recording()}
               fallback={
                 <button
                   type="button"
-                  class="composer-x"
-                  onClick={collapseComposer}
-                  title="Eingabe einklappen"
-                  aria-label="Eingabe einklappen"
+                  class="composer-conv"
+                  classList={{
+                    'is-on':
+                      voice.listening() || voice.suspended() || voice.speaking(),
+                  }}
+                  onClick={() => voice.toggleMic()}
+                  disabled={
+                    !voice.listening() && !voice.suspended() && !voice.sttReady()
+                  }
+                  title={voice.micTitle()}
+                  aria-label="Gesprächsmodus"
                 >
-                  <FiX size={16} />
+                  <ConvBars />
                 </button>
               }
             >
               <button
                 type="submit"
                 class="composer-send"
-                disabled={state.agent.busy}
+                disabled={state.agent.busy && !voice.recording()}
                 title="Senden"
                 aria-label="Nachricht senden"
               >
                 <FiSend size={18} />
               </button>
             </Show>
+            <button
+              type="button"
+              class="composer-x"
+              onClick={collapseComposer}
+              title="Eingabe einklappen"
+              aria-label="Eingabe einklappen"
+            >
+              <FiX size={16} />
+            </button>
           </form>
           </Show>
         </div>

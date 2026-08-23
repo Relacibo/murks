@@ -1,10 +1,13 @@
 import { For, Show, createEffect, createMemo, onCleanup } from 'solid-js'
-import { FiX } from 'solid-icons/fi'
+import { FiPlay, FiPause, FiX } from 'solid-icons/fi'
 import { state, clearMessages } from '../state/store'
+import { speak, stopSpeaking } from '../lib/tts'
+import type { AgentVoice } from '../lib/agentVoice'
 
 interface AgentModalProps {
   open: boolean
   onClose: () => void
+  voice?: AgentVoice
 }
 
 /** Chat-Verlauf als Modal (nur Feed) — die Eingabe ist global in der Composer-Bar.
@@ -74,6 +77,30 @@ export function AgentModal(props: AgentModalProps) {
                   }`}
                 >
                   {m.text}
+                  <Show when={m.role === 'agent' && props.voice}>
+                    <button
+                      type="button"
+                      class="mt-2 inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-100 transition-colors"
+                      onClick={() =>
+                        props.voice!.ttsSpeaking()
+                          ? stopSpeaking()
+                          : void speak(m.text)
+                      }
+                      title={
+                        props.voice!.ttsSpeaking()
+                          ? 'Sprachausgabe stoppen'
+                          : 'Antwort abspielen'
+                      }
+                    >
+                      <Show
+                        when={props.voice!.ttsSpeaking()}
+                        fallback={<FiPlay size={12} />}
+                      >
+                        <FiPause size={12} />
+                      </Show>
+                      {props.voice!.ttsSpeaking() ? 'Stopp' : 'Abspielen'}
+                    </button>
+                  </Show>
                 </div>
               )}
             </For>

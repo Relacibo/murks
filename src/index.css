@@ -343,9 +343,15 @@
   .composer-mic {
     @apply h-10 w-10 shrink-0 rounded-full flex items-center justify-center text-base transition-all disabled:opacity-40 disabled:cursor-not-allowed text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 active:scale-95;
   }
-  .composer-mic.is-listening,
-  .composer-mic.is-speaking,
-  .composer-mic.is-suspended {
+  /* Record-Modus aktiv: roter Aufnahme-Knopf (wird zum Stopp-Button) */
+  .composer-mic.is-recording {
+    @apply bg-red-500 text-white ring-2 ring-red-300 hover:bg-red-500 hover:text-white;
+  }
+  /* Gesprächsmodus-Button: gleiche Optik wie das Mic, nur bei leerem Feld da */
+  .composer-conv {
+    @apply h-10 w-10 shrink-0 rounded-full flex items-center justify-center text-base transition-all disabled:opacity-40 disabled:cursor-not-allowed text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 active:scale-95;
+  }
+  .composer-conv.is-on {
     @apply bg-zinc-100 text-zinc-900 ring-2 ring-zinc-300 hover:bg-zinc-100;
   }
   .composer-send {
@@ -355,7 +361,7 @@
   .composer-fab {
     @apply pointer-events-auto self-end h-12 w-12 shrink-0 rounded-full border border-zinc-500 bg-zinc-100 text-zinc-900 shadow-lg flex items-center justify-center transition-all hover:bg-zinc-300 active:scale-95;
   }
-  /* ✕ zum Einklappen — ersetzt bei leerem Eingabefeld den Senden-Button */
+  /* ✕ zum Einklappen — immer rechts neben Senden/Gesprächsmodus */
   .composer-x {
     @apply h-10 w-10 shrink-0 rounded-full border border-zinc-600 text-zinc-400 flex items-center justify-center transition-colors hover:bg-zinc-600 hover:text-zinc-200 active:scale-95;
   }
