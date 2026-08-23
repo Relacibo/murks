@@ -77,7 +77,7 @@ export function AgentModal(props: AgentModalProps) {
                   }`}
                 >
                   {m.text}
-                  <Show when={m.role === 'agent' && props.voice}>
+                  <Show when={m.role === 'agent' && props.voice && !state.tts.muted}>
                     <button
                       type="button"
                       class="mt-2 inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-100 transition-colors"

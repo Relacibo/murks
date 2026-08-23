@@ -177,6 +177,7 @@ export function createWebSpeechRecognition(
   onResult: (transcript: string, isFinal: boolean) => void,
   onError: (message: string) => void,
   onEnd: () => void,
+  opts: { continuous?: boolean } = {},
 ): SpeechRecognitionLike | null {
   const w = window as unknown as {
     SpeechRecognition?: new () => SpeechRecognitionLike
@@ -189,17 +190,15 @@ export function createWebSpeechRecognition(
   }
   const rec = new Ctor()
   rec.lang = 'de-DE'
-  rec.continuous = false
+  rec.continuous = opts.continuous === true
   rec.interimResults = true
   rec.onresult = (e) => {
     let final = ''
-    let interim = ''
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const r = e.results[i]
       if (r.isFinal) final += r[0].transcript
-      else interim += r[0].transcript
     }
-    onResult((final + interim).trim(), final.length > 0)
+    onResult(final.trim(), final.length > 0)
   }
   rec.onerror = (e) => {
     if (e.error === 'aborted' || e.error === 'no-speech') return

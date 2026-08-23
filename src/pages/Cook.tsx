@@ -1344,21 +1344,23 @@ export function Cook(props: {
           <Show when={showAgentText()}>
             <div class="transcript-strip gap-3">
               <p class="flex-1 text-sm text-zinc-400 line-clamp-4">{lastAgent()!.text}</p>
-              <button
-                type="button"
-                class="shrink-0 text-xs text-zinc-400 hover:text-zinc-100 transition-colors inline-flex items-center gap-1"
-                onClick={() =>
-                  voice.ttsSpeaking() ? stopSpeaking() : void speak(lastAgent()!.text)
-                }
-                title={
-                  voice.ttsSpeaking() ? 'Sprachausgabe stoppen' : 'Antwort abspielen'
-                }
-              >
-                <Show when={voice.ttsSpeaking()} fallback={<FiPlay size={14} />}>
-                  <FiPause size={14} />
-                </Show>
-                {voice.ttsSpeaking() ? 'Stopp' : 'Abspielen'}
-              </button>
+              <Show when={!state.tts.muted}>
+                <button
+                  type="button"
+                  class="shrink-0 text-xs text-zinc-400 hover:text-zinc-100 transition-colors inline-flex items-center gap-1"
+                  onClick={() =>
+                    voice.ttsSpeaking() ? stopSpeaking() : void speak(lastAgent()!.text)
+                  }
+                  title={
+                    voice.ttsSpeaking() ? 'Sprachausgabe stoppen' : 'Antwort abspielen'
+                  }
+                >
+                  <Show when={voice.ttsSpeaking()} fallback={<FiPlay size={14} />}>
+                    <FiPause size={14} />
+                  </Show>
+                  {voice.ttsSpeaking() ? 'Stopp' : 'Abspielen'}
+                </button>
+              </Show>
             </div>
           </Show>
 

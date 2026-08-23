@@ -56,6 +56,9 @@ export function createAgentVoice(opts?: {
   let vad: MicVAD | null = null
   let recognition: ReturnType<typeof createWebSpeechRecognition> = null
   let recordRecognition: ReturnType<typeof createWebSpeechRecognition> = null
+  /* Record-Modus (WebSpeech): finale Teile über mehrere Äußerungen sammeln —
+     gesendet wird erst beim Stopp-Tap */
+  let recordText = ''
   let lastSpoken: { text: string } | undefined = state.agent.messages[state.agent.messages.length - 1]
   let sttCheckToken = 0
   /* Gesprächsmodus gewünscht: Nutzer hat das Mic eingeschaltet — es bleibt
@@ -156,8 +159,9 @@ export function createAgentVoice(opts?: {
           stopSpeaking()
           setSpeaking(true)
           if (recordActive) {
+            /* Record-Modus: Frames über mehrere Äußerungen akkumulieren —
+               nur der Stop-Tap beendet die Aufnahme */
             recordSpeech = true
-            recordFrames = []
           }
         },
         onFrameProcessed: (_p, frame) => {
@@ -167,12 +171,9 @@ export function createAgentVoice(opts?: {
         onSpeechEnd: async (audio) => {
           setSpeaking(false)
           if (recordActive) {
-            /* Record-Modus: Stille beendet die Aufnahme → transkribieren + senden */
-            recordActive = false
+            /* Record-Modus: Stille beendet NICHTS — weiter aufnehmen,
+               bis der Nutzer den Stopp-Tap drückt (stopRecord) */
             recordSpeech = false
-            recordFrames = []
-            setRecording(false)
-            await transcribeAndSend(audio)
             return
           }
           setTranscribing(true)
@@ -268,15 +269,22 @@ export function createAgentVoice(opts?: {
 
     setRecording(true)
     if (state.stt.mode === 'webspeech') {
+      recordText = ''
       recordRecognition = createWebSpeechRecognition(
-        (transcript, isFinal) => {
-          if (isFinal && transcript) finishUtterance(transcript)
+        (text, isFinal) => {
+          if (isFinal && text) recordText += (recordText ? ' ' : '') + text
         },
         pushError,
         () => {
-          setRecording(false)
+          /* Ende (Stopp-Tap oder Auto-Ende wie no-speech): gesammelten
+             Text senden — Stille allein beendet die Aufnahme nicht */
+          const text = recordText.trim()
+          recordText = ''
           recordRecognition = null
+          setRecording(false)
+          if (text) finishUtterance(text)
         },
+        { continuous: true },
       )
       recordRecognition?.start()
       return
@@ -301,7 +309,9 @@ export function createAgentVoice(opts?: {
 
   async function stopRecord() {
     if (state.stt.mode === 'webspeech') {
-      /* stop() feuert das finale Ergebnis → sendet über den onResult-Callback */
+      /* stop() spült die finalen Ergebnisse (onResult sammelt sie),
+         onend sendet den gesammelten Text */
+      setRecording(false)
       recordRecognition?.stop()
       return
     }
@@ -329,6 +339,7 @@ export function createAgentVoice(opts?: {
     recordActive = false
     recordSpeech = false
     recordFrames = []
+    recordText = ''
     setRecording(false)
     recordRecognition?.stop()
     recordRecognition = null
@@ -362,7 +373,7 @@ export function createAgentVoice(opts?: {
     if (listening()) return 'Gesprächsmodus: hört zu — tippen zum Beenden'
     if (state.stt.mode === 'server' && !state.stt.endpoint) return 'Kein STT-Endpoint konfiguriert'
     if (state.stt.mode === 'wasm' && !sttReady()) return 'STT-Modell nicht geladen'
-    return `Gesprächsmodus starten (${state.stt.mode === 'wasm' ? 'lokal' : state.stt.mode})`
+    return 'Gesprächsmodus starten'
   }
 
   function recordTitle() {
