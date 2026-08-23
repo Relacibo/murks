@@ -311,11 +311,17 @@
   .mic-btn.is-off {
     @apply text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200;
   }
-  /* Aktiv (TTS an / Mic hört zu oder erkennt Sprache): weißer Kreis */
+  /* Aktiv (TTS an / Mic hört zu oder erkennt Sprache): weißer Kreis.
+     is-suspended: Mic bleibt logisch an (Nutzer-Absicht), pausiert nur —
+     Button bleibt weiß, der Balken unter dem Mic zeigt „nimmt nicht auf". */
   .mic-btn.is-on,
   .mic-btn.is-listening,
-  .mic-btn.is-speaking {
+  .mic-btn.is-speaking,
+  .mic-btn.is-suspended {
     @apply bg-zinc-100 text-zinc-900 ring-2 ring-zinc-300;
+  }
+  .mic-suspended-bar {
+    @apply absolute bottom-[3px] left-1/2 -translate-x-1/2 w-2.5 h-[2px] rounded-full bg-zinc-500;
   }
 
   /* ── Voice-Overlay ──────────────────────────────────────────────── */
@@ -338,7 +344,8 @@
     @apply h-10 w-10 shrink-0 rounded-full flex items-center justify-center text-base transition-all disabled:opacity-40 disabled:cursor-not-allowed text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 active:scale-95;
   }
   .composer-mic.is-listening,
-  .composer-mic.is-speaking {
+  .composer-mic.is-speaking,
+  .composer-mic.is-suspended {
     @apply bg-zinc-100 text-zinc-900 ring-2 ring-zinc-300 hover:bg-zinc-100;
   }
   .composer-send {

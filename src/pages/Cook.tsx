@@ -1092,23 +1092,38 @@ export function Cook(props: {
             class="mic-btn"
             classList={{
               'is-on':
-                voice.listening() || voice.transcribing() || voice.speaking(),
+                voice.listening() ||
+                voice.transcribing() ||
+                voice.speaking() ||
+                voice.suspended(),
+              'is-suspended': voice.suspended(),
               'is-off':
-                !voice.listening() && !voice.transcribing() && !voice.speaking(),
+                !voice.listening() &&
+                !voice.transcribing() &&
+                !voice.speaking() &&
+                !voice.suspended(),
               /* Mobile: verschwindet, wenn der Composer (mit eigenem Mic) offen ist;
                  Desktop: immer sichtbar */
               'max-sm:hidden': composerOpen(),
             }}
             onClick={() => voice.toggleMic()}
-            disabled={state.agent.busy || (!voice.sttReady() && !voice.listening())}
+            disabled={!voice.suspended() && !voice.sttReady() && !voice.listening()}
             title={voice.micTitle()}
             aria-label="Mikrofon umschalten"
           >
             <Show
               when={voice.transcribing()}
               fallback={
-                <Show when={voice.listening()} fallback={<FiMicOff size={20} />}>
-                  <FiMic size={20} />
+                <Show
+                  when={voice.listening() || voice.suspended()}
+                  fallback={<FiMicOff size={20} />}
+                >
+                  <span class="relative inline-flex">
+                    <FiMic size={20} />
+                    <Show when={voice.suspended()}>
+                      <span class="mic-suspended-bar" />
+                    </Show>
+                  </span>
                 </Show>
               }
             >
@@ -1275,19 +1290,28 @@ export function Cook(props: {
               type="button"
               class="composer-mic"
               classList={{
-                'is-listening': voice.listening() || voice.transcribing(),
+                'is-listening': voice.listening() || voice.transcribing() || voice.suspended(),
                 'is-speaking': voice.speaking(),
+                'is-suspended': voice.suspended(),
               }}
               onClick={() => voice.toggleMic()}
-              disabled={state.agent.busy || (!voice.sttReady() && !voice.listening())}
+              disabled={!voice.suspended() && !voice.sttReady() && !voice.listening()}
               title={voice.micTitle()}
               aria-label="Mikrofon umschalten"
             >
               <Show
                 when={voice.transcribing()}
                 fallback={
-                  <Show when={voice.listening()} fallback={<FiMicOff size={20} />}>
-                    <FiMic size={20} />
+                  <Show
+                    when={voice.listening() || voice.suspended()}
+                    fallback={<FiMicOff size={20} />}
+                  >
+                    <span class="relative inline-flex">
+                      <FiMic size={20} />
+                      <Show when={voice.suspended()}>
+                        <span class="mic-suspended-bar" />
+                      </Show>
+                    </span>
                   </Show>
                 }
               >

@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup, type Accessor } from 'solid-js'
+import { createEffect, createMemo, createSignal, onCleanup, type Accessor } from 'solid-js'
 import type { MicVAD } from '@ricky0123/vad-web'
 import { state, sendMessage } from '../state/store'
 import { transcribeAudio, createWebSpeechRecognition, isSttModelCached } from './stt'
@@ -8,6 +8,7 @@ import { showToast } from './toast'
 
 export interface AgentVoice {
   listening: Accessor<boolean>
+  suspended: Accessor<boolean>
   speaking: Accessor<boolean>
   transcribing: Accessor<boolean>
   sttReady: Accessor<boolean>
@@ -53,7 +54,16 @@ export function createAgentVoice(opts?: {
   let sttCheckToken = 0
   /* Gesprächsmodus gewünscht: Nutzer hat das Mic eingeschaltet — es bleibt
      (auch über Agent-Antworten hinweg) an, bis er es manuell ausmacht */
-  let wanted = false
+  const [wanted, setWanted] = createSignal(false)
+
+  /* Suspendiert: Nutzer will zuhören (wanted), aber die KI spricht/denkt
+     gerade — das Mic pausiert von selbst und setzt danach wieder ein.
+     Davon abzugrenzen: echtes Nutzer-Aus (wanted = false). Nur relevant,
+     wenn das Mic dabei nicht tatsächlich weiterhört (WebSpeech-Modus —
+     der VAD-Modus hört währenddessen für Barge-in weiter). */
+  const suspended = createMemo(
+    () => wanted() && !listening() && (state.agent.busy || ttsSpeaking()),
+  )
 
   createEffect(() => {
     const mode = state.stt.mode
@@ -86,7 +96,7 @@ export function createAgentVoice(opts?: {
     ttsSpeaking()
     state.stt.mode
     if (
-      wanted &&
+      wanted() &&
       state.stt.mode === 'webspeech' &&
       !state.agent.busy &&
       !ttsSpeaking() &&
@@ -109,7 +119,10 @@ export function createAgentVoice(opts?: {
   }
 
   function toggleMic() {
-    if (listening()) {
+    /* wanted ist die Nutzer-Absicht: auch im suspendierten Zustand
+       (wanted = true, listening = false) schaltet ein Tipp das Mic
+       hart aus statt es wieder zu starten */
+    if (wanted()) {
       void stopVoice()
       return
     }
@@ -117,7 +130,7 @@ export function createAgentVoice(opts?: {
   }
 
   async function startVoice() {
-    wanted = true
+    setWanted(true)
     if (state.stt.mode === 'webspeech') {
       recognition = createWebSpeechRecognition(
         (transcript, isFinal) => {
@@ -128,7 +141,7 @@ export function createAgentVoice(opts?: {
           // Äußerung zu Ende: Gesprächsmodus — solange der Agent nicht
           // antwortet, direkt weiterhören; sonst übernimmt der Restart-Effekt
           setListening(false)
-          if (wanted && !state.agent.busy && !ttsSpeaking()) {
+          if (wanted() && !state.agent.busy && !ttsSpeaking()) {
             recognition?.start()
             setListening(true)
           }
@@ -178,7 +191,7 @@ export function createAgentVoice(opts?: {
   }
 
   async function stopVoice() {
-    wanted = false
+    setWanted(false)
     setListening(false)
     setSpeaking(false)
     recognition?.stop()
@@ -204,11 +217,25 @@ export function createAgentVoice(opts?: {
   function micTitle() {
     if (transcribing()) return 'Transkribiere …'
     if (speaking()) return 'Sprache erkannt'
+    if (suspended())
+      return ttsSpeaking()
+        ? 'Pausiert — KI spricht. Tippen zum Ausschalten'
+        : 'Pausiert — KI antwortet. Tippen zum Ausschalten'
     if (listening()) return 'Höre zu — tippen zum Stoppen'
     if (state.stt.mode === 'server' && !state.stt.endpoint) return 'Kein STT-Endpoint konfiguriert'
     if (state.stt.mode === 'wasm' && !sttReady()) return 'STT-Modell nicht geladen'
     return `Hören starten (${state.stt.mode === 'wasm' ? 'lokal' : state.stt.mode})`
   }
 
-  return { listening, speaking, transcribing, sttReady, lastTranscript, toggleMic, stop: stopVoice, micTitle }
+  return {
+    listening,
+    suspended,
+    speaking,
+    transcribing,
+    sttReady,
+    lastTranscript,
+    toggleMic,
+    stop: stopVoice,
+    micTitle,
+  }
 }
