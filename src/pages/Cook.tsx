@@ -116,6 +116,13 @@ export function Cook(props: {
 
   const flows = () => engine.cook.flows
 
+  /* Laufende Flow-Erweiterungen (set_loading) — für Spinner in Spalte/Streifen */
+  const loadingFlowNames = () =>
+    engine.cook.loading.flows.flatMap((id) => {
+      const f = flows().find((x) => x.id === id)
+      return f ? [`${f.icon ? `${f.icon} ` : ''}${f.name}`] : []
+    })
+
   /* Farbe ergibt sich aus der Flow-Position (Index) — kein gespeichertes Feld,
      dadurch nie Duplikate und keine Lücken nach delete_flow */
   const colorOf = (s: Flow) =>
@@ -1050,6 +1057,12 @@ export function Cook(props: {
           </Show>
         </button>
         <div class="column-body">
+          <Show when={engine.cook.loading.flows.includes(s().id)}>
+            <div class="flex items-center gap-2 px-3 py-2 text-xs text-zinc-400">
+              <span class="spinner spinner-sm shrink-0" />
+              wird erweitert …
+            </div>
+          </Show>
           <For each={s().steps}>
             {(_, i) => <StepCard flowId={s().id} stepId={s().steps[i()].id} />}
           </For>
@@ -1178,7 +1191,19 @@ export function Cook(props: {
       </header>
 
       {/* ── Karten ─────────────────────────────────────────────────────── */}
-      <main class="flex-1 min-h-0 flex flex-col">
+      <main class="relative flex-1 min-h-0 flex flex-col">
+        {/* Flow-Erweiterung läuft (set_loading mit flow_id): Mobile sieht in
+            der Regel nur „Jetzt" — deshalb ein schmaler, nicht-blockierender
+            Streifen über dem Inhalt statt des Spinners in der Flow-Spalte
+            (der ist Desktop-Sache). */}
+        <Show when={loadingFlowNames().length > 0}>
+          <div class="sm:hidden shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-zinc-600 bg-zinc-900/80 text-xs text-zinc-300">
+            <span class="spinner spinner-sm shrink-0" />
+            <span class="truncate">
+              {loadingFlowNames().join(' · ')} wird erweitert …
+            </span>
+          </div>
+        </Show>
         <Show
           when={flows().length > 0}
           fallback={
@@ -1252,6 +1277,15 @@ export function Cook(props: {
                 </For>
               </div>
             </Show>
+          </div>
+        </Show>
+
+        {/* Schedule-Generierung läuft (set_loading scope "all"): reiner
+            Hinweis — pointer-events-none, Timer/Karten bleiben bedienbar */}
+        <Show when={engine.cook.loading.all}>
+          <div class="pointer-events-none absolute inset-0 z-30 flex items-center justify-center gap-3 bg-zinc-950/60 backdrop-blur-[2px]">
+            <span class="spinner" />
+            <span class="text-sm text-zinc-200">Schedule wird generiert …</span>
           </div>
         </Show>
       </main>

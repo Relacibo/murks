@@ -86,7 +86,7 @@ function CookingRoute() {
     promptConsumed = p
     setParams({ prompt: undefined, reset: undefined })
     if (params.reset === '1') {
-      cookEngine.executeTool('reset_cook', {}, { silent: true })
+      cookEngine.executeTool('start_new_recipe', {}, { silent: true })
       clearMessages()
     }
     if (!hasValidAgent()) return

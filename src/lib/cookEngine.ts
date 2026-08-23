@@ -830,15 +830,55 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             ...c,
             flows,
             focusedFlowId: c.focusedFlowId === id ? (flows[0]?.id ?? null) : c.focusedFlowId,
+            loading: {
+              all: c.loading.all,
+              flows: c.loading.flows.filter((f) => f !== id),
+            },
           }))
           activateEligible()
 
           toast(`Gelöscht: ${flow.name}`)
           return JSON.stringify({ ok: true })
         }
-        case 'reset_cook': {
-          setCook((c) => ({ ...c, flows: [], ingredients: [], focusedFlowId: null }))
+        case 'start_new_recipe': {
+          setCook((c) => ({
+            ...c,
+            flows: [],
+            ingredients: [],
+            focusedFlowId: null,
+            loading: { all: false, flows: [] },
+          }))
           toast('Alle Stränge gelöscht')
+          return JSON.stringify({ ok: true })
+        }
+        case 'set_loading': {
+          const loading = args.loading !== false
+          const scope = args.scope === 'flow' ? 'flow' : 'all'
+          if (scope === 'flow') {
+            const id = String(args.flow_id ?? '').trim()
+            if (loading && !id) {
+              return JSON.stringify({ error: 'flow_id fehlt bei scope "flow"' })
+            }
+            if (loading && !findFlow(id)) {
+              return JSON.stringify({ error: 'Unbekannter Flow' })
+            }
+            setCook((c) => ({
+              ...c,
+              loading: {
+                all: c.loading.all,
+                flows: loading
+                  ? c.loading.flows.includes(id)
+                    ? c.loading.flows
+                    : [...c.loading.flows, id]
+                  : c.loading.flows.filter((f) => f !== id),
+              },
+            }))
+          } else {
+            setCook((c) => ({
+              ...c,
+              loading: { all: loading, flows: loading ? c.loading.flows : [] },
+            }))
+          }
           return JSON.stringify({ ok: true })
         }
         case 'show_step': {

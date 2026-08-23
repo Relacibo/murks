@@ -90,6 +90,7 @@ const MOCK_COOK: CookState = {
     { id: 'z2', name: 'Passierte Tomaten', amount: '400 g' },
   ],
   focusedFlowId: 's2',
+  loading: { all: false, flows: [] },
 }
 
 export function CookMock() {
@@ -104,7 +105,9 @@ export function CookMock() {
       const raw = localStorage.getItem(MOCK_KEY)
       if (raw) {
         const cook = JSON.parse(raw) as CookState
-        // Form-Guard: kaputte Timer-Shapes aus früheren Versionen entsorgen
+        // Form-Guard: kaputte Timer-Shapes aus früheren Versionen entsorgen;
+        // Ladeanzeige ist transient — nach Reload immer aus
+        cook.loading = { all: false, flows: [] }
         for (const s of cook.flows ?? []) {
           for (const st of s.steps ?? []) {
             const t = st.timer as unknown

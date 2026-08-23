@@ -275,9 +275,31 @@ export const TOOLS: ToolDef[] = [
   {
     type: 'function',
     function: {
-      name: 'reset_cook',
-      description: 'Alles verwerfen: alle Flows und Ingredients löschen (z.B. „wir fangen neu an").',
+      name: 'start_new_recipe',
+      description:
+        'Ein neues Gericht beginnen: alle Flows und alle Zutaten löschen (leeres Brett). Danach per add_flow/set_ingredients das neue Rezept aufbauen. Das alte Gericht wird verworfen (kein Backup). Beginne ein neues Gericht immer mit set_loading(true) → start_new_recipe → Aufbau → set_loading(false).',
       parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'set_loading',
+      description:
+        'Bau-Spinner steuern. loading=true VOR der Generierung einer Schedule (dauert oft lange): scope "all" (Standard) = Spinner-Overlay über dem gesamten Diagramm, auch über der mobilen „Jetzt"-Ansicht und dem leeren Dashboard — für neue Flows/neues Gericht. scope "flow" + flow_id = Spinner nur bei diesem bestehenden Flow. loading=false, sobald du fertig bist (auch bei Abbruch/Fehler); vergisst du es, verschwindet der Spinner spätestens bei der nächsten Nutzeräußerung. Rein visuell: Timer, Karten und Abschlüsse laufen normal weiter.',
+      parameters: {
+        type: 'object',
+        properties: {
+          scope: {
+            type: 'string',
+            enum: ['all', 'flow'],
+            description: '"all" = ganze Schedule (Standard), "flow" = einzelner Flow',
+          },
+          flow_id: { type: 'string', description: 'Nur bei scope "flow"' },
+          loading: { type: 'boolean', description: 'true = anzeigen, false = ausblenden' },
+        },
+        required: ['loading'],
+      },
     },
   },
   {

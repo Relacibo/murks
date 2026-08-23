@@ -29,7 +29,8 @@ export const SYSTEM_PROMPT = [
   'Weise Themen nie brüsk ab — Antworten wie „Kein Kochbezug" oder „Ende" sind verboten. Überleite stattdessen kurz und sachlich zu einer konkreten Kochfrage.',
   'Die Spracherkennung macht Fehler: Bei offensichtlich verrauschtem oder unsinnigem Input frage höchstens einmal kurz nach, danach übergehe ihn.',
   'Ist keine Antwort nötig (reine Bestätigung, Geräusch, verrauschtes Transkript), antworte ausschließlich mit „OK." — das wird weder vorgelesen noch angezeigt.',
-  'Deine Werkzeuge steuern die Kochoberfläche: add_flow, add_step, update_step, delete_step, split_step, complete_step, revert_step, set_timer, pause_timer, resume_timer, complete_flow, update_flow, delete_flow, reset_cook, show_step, focus_flow, set_ingredients, open_ingredients, close_ingredients, open_chat, close_chat, get_cook_state. Tool-Ergebnisse sind JSON-Strings; den aktuellen Zustand liefert get_cook_state — rufe es auf, wenn du ihn nicht kennst. Es enthält now_local (lokale Uhrzeit des Nutzers, mit Zeitzonen-Offset) sowie für jede wartende Karte ends_in_s und ends_at_local — nutze das für Zeitfragen („um 14:30 fertig", „wie lange läuft der Timer noch?"). set_timer nimmt immer relative Sekunden (seconds = neu ab jetzt, delta_seconds = aufschlagen) — nie absolute Zeitpunkte.',
+  'Deine Werkzeuge steuern die Kochoberfläche: add_flow, add_step, update_step, delete_step, split_step, complete_step, revert_step, set_timer, pause_timer, resume_timer, complete_flow, update_flow, delete_flow, start_new_recipe, show_step, focus_flow, set_ingredients, set_loading, open_ingredients, close_ingredients, open_chat, close_chat, get_cook_state. Tool-Ergebnisse sind JSON-Strings; den aktuellen Zustand liefert get_cook_state — rufe es auf, wenn du ihn nicht kennst. Es enthält now_local (lokale Uhrzeit des Nutzers, mit Zeitzonen-Offset) sowie für jede wartende Karte ends_in_s und ends_at_local — nutze das für Zeitfragen („um 14:30 fertig", „wie lange läuft der Timer noch?"). set_timer nimmt immer relative Sekunden (seconds = neu ab jetzt, delta_seconds = aufschlagen) — nie absolute Zeitpunkte.',
+  'Generierst du eine Schedule (neue Flows/Schritte, das dauert oft lange), rufe VOR dem ersten Aufruf set_loading({scope: "all", loading: true}) auf — das gilt auch, wenn du einen oder MEHRERE neue Flows anlegst: das Overlay liegt über dem ganzen Diagramm, auch auf Mobile. Erweiterst du nur einen bereits sichtbaren, bestehenden Flow, rufe stattdessen set_loading({scope: "flow", flow_id, loading: true}) auf. Sobald du fertig bist, IMMER set_loading({loading: false}) — auch bei Abbruch oder Fehler; vergisst du es, verschwindet der Spinner spätestens bei der nächsten Nutzeräußerung. Beginnt ein neues Gericht („wir machen jetzt X statt Y", „fangen wir neu an"): set_loading(true) → start_new_recipe (leeres Brett, altes Gericht verworfen) → neues Rezept aufbauen → set_loading(false). Der Spinner ist rein visuell: Timer, Karten und Abschlüsse laufen währenddessen normal weiter.',
   'Delegiere nie etwas in der App an den Nutzer — seine Hände gehören an den Herd, und in der App kannst du alles selbst: Navigation (show_step, focus_flow), Modals (open_ingredients/close_ingredients: Ingredients-Liste, open_chat/close_chat: Chat-Verlauf), Timer (set_timer/pause_timer/resume_timer) und Struktur. Sätze wie „stell den Timer auf …" oder „öffne mal die Flow-Ansicht" sind verboten — tu es einfach. Meldet der Nutzer Realität („die Sahne ist schon geschlagen", „der Ofen braucht länger"), spiegle sie sofort per Werkzeug ins Modell (complete_step, set_timer). Du darfst Flows jederzeit ad-hoc umbauen: Schritte einfügen (after_step_id), ändern (update_step), löschen (delete_step), teilen (split_step), Flows umbenennen (update_flow) oder löschen (delete_flow). show_step(step_id) zeigt dem Nutzer gezielt eine Karte (flow_id optional): view "jetzt" für aktive Schritte (Standard), view "flow" für blockierte/fertige; speak: true liest die description vor — nutze das bei „Was mache ich als Nächstes?" und antworte nur „OK.".',
   'Kommentiere Werkzeug-Aktionen nicht — die Oberfläche bestätigt sie selbst; antworte „OK." oder sprich nur, wenn es inhaltlich etwas zu sagen gibt. Antworte so kurz wie möglich. Handle mit Werkzeugen, statt Aktionen im Text zu beschreiben oder anzukündigen.',
 ].join(' ')
@@ -124,6 +125,9 @@ export interface CookState {
   flows: Flow[]
   ingredients: Ingredient[]
   focusedFlowId: string | null
+  /** Ladeanzeige (set_loading): Agent signalisiert lange Generierung.
+      Rein visuell — Timer, Abschlüsse und Flows laufen normal weiter. */
+  loading: { all: boolean; flows: string[] }
 }
 
 export interface AppState {
@@ -164,6 +168,7 @@ const defaults: AppState = {
     flows: [],
     ingredients: [],
     focusedFlowId: null,
+    loading: { all: false, flows: [] },
   },
   agent: {
     messages: [],
@@ -439,6 +444,9 @@ function hydrate(data: unknown): AppState {
         })(),
         ingredients: Array.isArray(cook.ingredients) ? (cook.ingredients as Ingredient[]) : [],
         focusedFlowId: (cook.focusedFlowId as string | null) ?? null,
+        // Ladeanzeige ist rein visuell und transient: nach einem Reload ist
+        // die KI-Session weg — der Spinner darf nicht stehen bleiben.
+        loading: { all: false, flows: [] },
       },
       agent: {
         messages: Array.isArray((raw.agent as Record<string, unknown> | null)?.messages)
@@ -546,6 +554,9 @@ interface RawToolCall {
 export async function sendMessage(text: string) {
   const agent = defaultAgent()
   if (!agent || !agent.endpoint || !agent.model || state.agent.busy) return
+  // Bau-Spinner (set_loading) verschwindet spätestens mit der nächsten
+  // Nutzeräußerung — Fallback, falls der Agent loading:false vergisst
+  setState('cook', (c) => ({ ...c, loading: { all: false, flows: [] } }))
   setState('agent', 'messages', (m) => [...m, msg('user', text)])
   setState('agent', 'busy', true)
   try {

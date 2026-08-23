@@ -512,7 +512,8 @@ umbenennen/löschen/teilen, Timer neu setzen oder verlängern.
 | `complete_flow` | alle Steps `done` (+ `doneAt`) + Flow `done` + alle Timer abbrechen |
 | `update_flow` | `name` / `icon` ändern |
 | `delete_flow` | Flow löschen; Refs anderer Flows auf seine Steps werden entfernt; Farben sind abgeleitet (FLOW_COLORS[Index]) — nichts zu pflegen |
-| `reset_cook` | alles verwerfen: alle Flows + Ingredients löschen |
+| `start_new_recipe` | neues Gericht: alle Flows + Ingredients löschen (leeres Brett, altes Gericht verworfen — kein Backup) |
+| `set_loading` | Bau-Spinner: `loading` true/false, `scope` "all" (Overlay, auch für neue Flows) oder "flow"+`flow_id`; rein visuell, Fallback-Off bei nächster Nutzeräußerung |
 | `show_step` | gezielt einen Schritt zeigen: Fokus + View-Wechsel (mobil) + Scroll in den sichtbaren Bereich + kurzer Puls — ersetzt `set_step`/`focus_flow`-Navigation |
 | `focus_flow` | Flow fokussieren (Spalten-Hervorhebung), ohne Schritt-Puls |
 | `set_ingredients` | komplette Zutatenliste ersetzen (absolute Liste): `ingredients[]` mit `name`, optional `amount` |
