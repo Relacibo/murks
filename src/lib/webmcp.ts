@@ -56,7 +56,7 @@ export async function registerWebMCPTools(): Promise<boolean> {
 
   try {
     await ctx.registerTool({
-      name: 'get_cook_rules',
+      name: 'get_system_prompt',
       description:
         'Vollständige MURKS-Regeln (System-Prompt): Modellierung von Kochsträngen, Schritten, depends_on-Kanten, Timern, Zutatenliste und Antwortverhalten. Rufe das auf, bevor du Gerichte anlegst oder umbaust, und folge den Regeln exakt.',
       inputSchema: { type: 'object', properties: {} },
@@ -64,7 +64,7 @@ export async function registerWebMCPTools(): Promise<boolean> {
     })
     count++
   } catch (e) {
-    console.error('WebMCP: Tool get_cook_rules nicht registriert', e)
+    console.error('WebMCP: Tool get_system_prompt nicht registriert', e)
   }
 
   if (count > 0) console.info(`WebMCP: ${count} Tools registriert`)
