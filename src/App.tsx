@@ -107,8 +107,10 @@ function CookingRoute() {
     <ConfigContext.Provider value={{ configOpen, setConfigOpen }}>
       <Cook
         voice={voice}
-        onOpenIngredients={() => setModal('ingredients', true)}
-        onOpenChat={() => setModal('chat', true)}
+        onOpenIngredients={() =>
+          setModal('ingredients', !modals().includes('ingredients'))
+        }
+        onOpenChat={() => setModal('chat', !modals().includes('chat'))}
         overviewOpen={!overviewHidden()}
         onToggleOverview={toggleOverview}
       />

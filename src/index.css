@@ -172,9 +172,12 @@
     color: var(--flow-text);
   }
   /* Icon-Puls (Größer-Kleiner), synchron über --pulse-offset.
-     Alarm-Uhr nach Timer-Ablauf: Tempo = doppelte Geschwindigkeit des
-     Karten-Pulses (1.4 s → 0.7 s). Non-prio: ~3 Pulse, dann statisch
-     (die Karte pulsiert dort nicht mit); prio: rot + Dauerpuls. */
+     Läuft auf einem HTML-Wrapper (inline-flex) statt auf dem SVG: HTML-
+     Transforms sind GPU-kompositiert und flüssig, SVG + transform-box:
+     fill-box hängt pro Frame vom Layout ab. Alarm-Uhr nach Timer-Ablauf:
+     Tempo = doppelte Geschwindigkeit des Karten-Pulses (1.4 s → 0.7 s).
+     Non-prio: ~3 Pulse, dann statisch (die Karte pulsiert dort nicht mit);
+     prio: rot + Dauerpuls. */
   @keyframes icon-scale-pulse {
     0%,
     100% {
@@ -184,14 +187,18 @@
       transform: scale(1.2);
     }
   }
+  .alarm-clock-wrap {
+    display: inline-flex;
+    align-items: center;
+    animation: icon-scale-pulse 0.7s ease-in-out var(--pulse-offset, 0ms) 3;
+  }
   .alarm-clock {
     color: var(--flow-text);
-    transform-box: fill-box;
-    transform-origin: center;
-    animation: icon-scale-pulse 0.7s ease-in-out var(--pulse-offset, 0ms) 3;
   }
   .step-card.is-prio .alarm-clock {
     color: #ef4444;
+  }
+  .step-card.is-prio .alarm-clock-wrap {
     animation-iteration-count: infinite;
   }
   /* ✓/⏱ auf waiting-Karten: grau wie der ↺-Button */
@@ -302,13 +309,6 @@
   .clock-btn:hover {
     @apply brightness-125;
   }
-  /* Laufender Timer auf einer wartenden Karte: das Uhr-Icon selbst pulsiert
-     sanft (gleicher Takt wie der Karten-Puls: 1.4 s, synchron) */
-  .clock-btn.is-running svg {
-    transform-box: fill-box;
-    transform-origin: center;
-    animation: icon-scale-pulse 1.4s ease-in-out var(--pulse-offset, 0ms) infinite;
-  }
   .mic-btn {
     @apply relative w-9 h-9 rounded-full flex items-center justify-center text-base transition-all disabled:opacity-40;
   }
@@ -339,6 +339,14 @@
   .composer-inner {
     @apply w-full mx-auto flex flex-col gap-2;
     max-width: theme('maxWidth.2xl');
+  }
+  /* Eingeklappt: Strips („Denke nach …", Transkript, Agent-Antwort) rücken
+     in die unterste Zeile neben den FAB statt über ihm zu schweben */
+  .composer.is-collapsed {
+    @apply flex-row items-end justify-end gap-2;
+  }
+  .composer.is-collapsed .composer-inner {
+    @apply w-auto flex-1 min-w-0 mx-0 items-start;
   }
   .composer-row {
     @apply pointer-events-auto flex items-center gap-2 rounded-xl border border-zinc-600 bg-zinc-800 px-2 py-2 shadow-lg;

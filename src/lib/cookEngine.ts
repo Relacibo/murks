@@ -359,6 +359,14 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
   const TIME_RE =
     /(?<![A-Za-zÄÖÜäöüß])(Min\.?|Minuten?|Std\.?|Stunden?|Sek\.?|Sekunden?|Tage?n?)(?![A-Za-zÄÖÜäöüß])/i
 
+  /* Arbeitsdauer statt Wartezeit: Bestimmt das ERGEBNIS das Ende („bis sämig",
+     „bis goldbraun") oder ist aktive Handarbeit im Spiel („unter Rühren"),
+     ist die Zeit keine Wartezeit → KEINE timer_seconds-Kante, kein Lint. */
+  const RESULT_END_RE =
+    /\bbis\b[^,.]{0,40}\b(sämig|goldbraun|weich|gar|dickflüssig|fest|braun|al dente|knusprig|zart|durch|knackig)\b/i
+  const ACTIVE_RE =
+    /(?:rühren|umrühren|aufkochen|anbraten|wenden|übergießen|abgießen|pürieren|schlagen|mixen|kneten)/i
+
   function lintFlows(cook: CookState, flowIds: string[]): string[] {
     const warnings: string[] = []
     for (const id of flowIds) {
@@ -366,8 +374,10 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
       if (!flow) continue
       flow.steps.forEach((st, i) => {
         const label = stepLabel(st.description)
-        /* Zeitangabe, auf die keine Folgekarte mit timer_seconds wartet */
-        if (TIME_RE.test(st.description)) {
+        /* Zeitangabe, auf die keine Folgekarte mit timer_seconds wartet —
+           aber nur bei echter Wartezeit (Ergebnis-Endpunkt/aktive Arbeit
+           schließen die Warnung aus, z.B. „köcheln lassen, bis sämig") */
+        if (TIME_RE.test(st.description) && !RESULT_END_RE.test(st.description) && !ACTIVE_RE.test(st.description)) {
           const timed = cook.flows.some((f) =>
             f.steps.some((x) =>
               x.dependsOn.some(

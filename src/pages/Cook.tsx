@@ -1,4 +1,5 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount, useContext } from 'solid-js'
+import { Portal } from 'solid-js/web'
 import { SolidMarkdown as Markdown } from 'solid-markdown'
 import { useConfig } from '../App'
 import { state, sendMessage, type Flow, type Step, type StepRef } from '../state/store'
@@ -548,8 +549,9 @@ export function Cook(props: {
           const remaining = () => pendingUntil(c().s, st()!)
           const paused = () => st()!.timer?.pausedAt != null
           return (
+            <Portal>
             <div
-              class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50"
+              class="fixed inset-x-0 top-14 bottom-[max(4.5rem,env(safe-area-inset-bottom))] z-[55] flex items-end sm:items-center justify-center bg-black/50"
               onClick={() => setWaitMenu(null)}
             >
               <div
@@ -660,6 +662,7 @@ export function Cook(props: {
                 </div>
               </div>
             </div>
+            </Portal>
           )
         }}
       </Show>
@@ -760,7 +763,9 @@ export function Cook(props: {
           {/* Alarm: Timer gerade abgelaufen → Uhr blinkt an der Status-Position
               (wo sonst 🔒/✓ stehen); prio rot, sonst helle Kartenschriftfarbe */}
           <Show when={alarmClock()}>
-            <FiClock size={12} class="alarm-clock shrink-0" />
+            <span class="alarm-clock-wrap shrink-0">
+              <FiClock size={12} class="alarm-clock" />
+            </span>
           </Show>
           <Show when={countdownEndsAt() !== null}>
             <span
@@ -812,7 +817,6 @@ export function Cook(props: {
             <Show when={stateName() === 'waiting'}>
               <button
                 class="clock-btn"
-                classList={{ 'is-running': st().timer?.pausedAt == null }}
                 title="Timer-Optionen"
                 aria-label="Timer-Optionen öffnen"
                 onClick={(e) => {
@@ -1328,7 +1332,7 @@ export function Cook(props: {
 
       {/* ── Composer-Bar: globale Eingabe (Text + Mikrofon), immer sichtbar.
              Strips darüber erscheinen nur bei Aktivität. ────────────── */}
-      <div class="composer">
+      <div class="composer" classList={{ 'is-collapsed': !composerOpen() }}>
         <div class="composer-inner">
           {/* Erkannte Eingabe (STT-Text) — kurze Zeit sichtbar */}
           <Show when={showTranscript()}>
