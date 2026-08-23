@@ -56,7 +56,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'add_flow',
-      description: 'Neuen Flow anlegen (parallele Komponente mit eigener Schrittfolge). Schritte können nur auf bereits existierende Schritte anderer Flows verweisen.',
+      description: 'Neuen Flow anlegen (parallele Komponente mit eigener Schrittfolge). Schritte können nur auf bereits existierende Schritte anderer Flows verweisen. JEDER Aufbau beginnt mit set_loading({scope:"all", loading:true}) und endet nach dem letzten Tool-Aufruf mit set_loading({loading:false}) — auch bei einem einzelnen Flow.',
       parameters: {
         type: 'object',
         properties: {
@@ -286,7 +286,7 @@ export const TOOLS: ToolDef[] = [
     function: {
       name: 'set_loading',
       description:
-        'Bau-Spinner steuern. loading=true VOR der Generierung einer Schedule (dauert oft lange): scope "all" (Standard) = Spinner-Overlay über dem gesamten Diagramm, auch über der mobilen „Jetzt"-Ansicht und dem leeren Dashboard — für neue Flows/neues Gericht. scope "flow" + flow_id = Spinner nur bei diesem bestehenden Flow. loading=false, sobald du fertig bist (auch bei Abbruch/Fehler); vergisst du es, verschwindet der Spinner spätestens bei der nächsten Nutzeräußerung. Rein visuell: Timer, Karten und Abschlüsse laufen normal weiter.',
+        'Bau-Spinner. JEDER Aufbau einer Schedule — auch ein einzelner add_flow — beginnt mit loading:true und endet nach dem letzten Tool-Aufruf mit loading:false, ohne Ausnahme. scope "all" (Standard) = kleiner Spinner links unten (der bestehende Plan bleibt sichtbar); scope "flow" + flow_id = Spinner nur bei diesem bestehenden Flow. loading=false, sobald du fertig bist (auch bei Abbruch/Fehler); vergisst du es, verschwindet der Spinner spätestens bei der nächsten Nutzeräußerung. Rein visuell: Timer, Karten und Abschlüsse laufen normal weiter.',
       parameters: {
         type: 'object',
         properties: {

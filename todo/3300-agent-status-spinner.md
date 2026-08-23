@@ -13,14 +13,18 @@ wird gerade was gebaut", ohne Timer, Karten oder Abschlüsse zu blockieren.
   über mehrere Antworten — Spinner soll bis zum fertigen Aufbau stehen bleiben)
 - Fallback: neue Nutzernachricht setzt loading zurück (sendMessage-Start);
   Reload: loading wird nicht rehydriert
-- Zustand `CookState.loading` (all + flows); `start_new_recipe`/`delete_flow` räumen auf
-- UI scope "all" (auch fürs Anlegen neuer Flows): Overlay-Spinner über dem
-  gesamten Diagramm (pointer-events-none), deckt Desktop + mobile „Jetzt" ab
+- Zustand `CookState.loading` (all + flows); `delete_flow` räumt seinen Flow aus
+  der Liste; `start_new_recipe` lässt loading bewusst stehen (Spinner kommt
+  vorher und geht erst mit loading:false / nächster Nutzernachricht weg)
+- UI scope "all": kleiner, nicht-blockierender Spinner-Badge links unten
+  (kein Blur — der bestehende Plan bleibt sichtbar), deckt Desktop + mobile
+  „Jetzt" ab
 - UI scope "flow": Spinner in der Flow-Spalte (Desktop); auf Mobile ein
   schmaler, nicht-blockierender Streifen über dem Inhalt („Jetzt" zeigt ja
   keine Spalten)
-- Neues-Gericht-Workflow im Prompt: set_loading(true) → start_new_recipe →
-  Aufbau → set_loading(false); `reset_cook` umbenannt in `start_new_recipe`
+- Prompt: feste Kopplung — JEDER Aufbau (auch ein einzelner add_flow) beginnt
+  mit set_loading(true) und endet mit set_loading(false), plus Abschluss-
+  Checkliste vor dem Senden; `reset_cook` umbenannt in `start_new_recipe`
 
 ## Offen
 - [ ] WebMCP-Test: verifizieren, dass externe Agenten das Tool sinnvoll setzen

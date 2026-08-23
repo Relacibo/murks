@@ -1315,12 +1315,13 @@ export function Cook(props: {
           </div>
         </Show>
 
-        {/* Schedule-Generierung läuft (set_loading scope "all"): reiner
-            Hinweis — pointer-events-none, Timer/Karten bleiben bedienbar */}
+        {/* Schedule-Generierung läuft (set_loading scope "all"): kleiner,
+            nicht-blockierender Indikator links unten — der bestehende Plan
+            bleibt voll sichtbar, nichts wird geblurrt */}
         <Show when={engine.cook.loading.all}>
-          <div class="pointer-events-none absolute inset-0 z-30 flex items-center justify-center gap-3 bg-zinc-950/60 backdrop-blur-[2px]">
-            <span class="spinner" />
-            <span class="text-sm text-zinc-200">Schedule wird generiert …</span>
+          <div class="pointer-events-none absolute left-3 bottom-[5rem] z-30 flex items-center gap-2 rounded-full border border-zinc-600 bg-zinc-800/95 px-3 py-1.5 text-xs text-zinc-200 shadow-lg">
+            <span class="spinner spinner-sm" />
+            Schedule wird generiert …
           </div>
         </Show>
       </main>
