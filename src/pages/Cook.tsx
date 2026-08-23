@@ -1319,7 +1319,7 @@ export function Cook(props: {
             nicht-blockierender Indikator links unten — der bestehende Plan
             bleibt voll sichtbar, nichts wird geblurrt */}
         <Show when={engine.cook.loading.all}>
-          <div class="pointer-events-none absolute left-3 bottom-[5rem] z-30 flex items-center gap-2 rounded-full border border-zinc-600 bg-zinc-800/95 px-3 py-1.5 text-xs text-zinc-200 shadow-lg">
+          <div class="pointer-events-none absolute left-3 bottom-[5rem] sm:bottom-3 z-30 flex items-center gap-2 rounded-full border border-zinc-600 bg-zinc-800/95 px-3 py-1.5 text-xs text-zinc-200 shadow-lg">
             <span class="spinner spinner-sm" />
             Schedule wird generiert …
           </div>

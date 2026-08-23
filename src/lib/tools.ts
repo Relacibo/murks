@@ -23,7 +23,7 @@ const depRefSchema = {
     required: ['flow_id', 'step_id'],
   },
   description:
-    'Optionale Abhängigkeiten (Schritte, die zuerst erledigt sein müssen). Es gibt KEINE implizite Reihenfolge — ohne depends_on läuft der Schritt sofort parallel. Verkette jeden Folgeschritt explizit an seinen Vorgänger (auch Schritt 2 → Schritt 1).',
+    'Optionale Abhängigkeiten (Schritte, die zuerst erledigt sein müssen). Es gibt KEINE implizite Reihenfolge — ohne depends_on läuft der Schritt sofort parallel. Verkette jeden Folgeschritt explizit an seinen Vorgänger (auch Schritt 2 → Schritt 1). JEDE Zeitangabe im Rezept MUSS als timer_seconds an der Kante zur Folgekarte stehen („10 Minuten kochen" → Folgekarte mit timer_seconds 600).',
 }
 
 const prioritySchema = {
