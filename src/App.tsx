@@ -1,4 +1,4 @@
-import { createSignal, createMemo, createEffect, createContext, useContext, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, createContext, useContext, untrack, Show } from 'solid-js'
 import type { Accessor, Setter } from 'solid-js'
 import { Router, Route, useSearchParams } from '@solidjs/router'
 import { AgentModal } from './pages/Agent'
@@ -69,10 +69,13 @@ function CookingRoute() {
   // Eine gemeinsame Voice-Instanz für Koch-Screen (Composer-Bar) + Chat-Modal
   const voice = createAgentVoice({ configOpen })
 
-  // KI öffnet/schließt Modals (open_chat / open_ingredients …) → URL spiegeln
+  // KI öffnet/schließt Modals (open_chat / open_ingredients …) → URL spiegeln.
+  // untrack: setModal liest params.modal — ohne untrack würde der Effekt auf
+  // JEDE URL-Änderung reagieren und den letzten offenen ModalRequest erneut
+  // anwenden (Modal öffnet sich nach dem Schließen sofort wieder).
   createEffect(() => {
     const r = cookEngine.modalRequest
-    if (r) setModal(r.modal, r.open)
+    if (r) untrack(() => setModal(r.modal, r.open))
   })
 
   // Deeplink: ?prompt=… startet eine Anfrage an den Agenten (z.B. Link aus
