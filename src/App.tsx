@@ -9,6 +9,7 @@ import { Setup } from './pages/Setup'
 import { Toasts } from './components/Toasts'
 import { IngredientsModal } from './components/IngredientsModal'
 import { createAgentVoice } from './lib/agentVoice'
+import { registerWebMCPTools } from './lib/webmcp'
 import { state, stateReady, cookEngine, sendMessage, clearMessages } from './state/store'
 import { CookContext } from './lib/cookEngine'
 
@@ -132,6 +133,15 @@ export default function App() {
   const initialValid = hasValidAgent()
 
   const showSetup = createMemo(() => !isMock && !state.setupDone && !initialValid)
+
+  // WebMCP: Cook-Tools für Browser-Agenten registrieren (einmal pro Dokument).
+  // Externer Modus — der Agent redet selbst mit dem Nutzer, kein Config-Zwang nötig.
+  let webmcpRegistered = false
+  createEffect(() => {
+    if (!stateReady() || webmcpRegistered) return
+    webmcpRegistered = true
+    void registerWebMCPTools()
+  })
 
   return (
     <div class="min-h-screen bg-zinc-950 text-zinc-100">

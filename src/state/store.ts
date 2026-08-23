@@ -13,7 +13,7 @@ export interface AgentProfile {
   key: string
 }
 
-const DEFAULT_SYSTEM_PROMPT = [
+export const SYSTEM_PROMPT = [
   'Du bist MURKS, die KI einer Rezeptkochsoftware — du reagierst auf die Anrede Murks. Du hilfst beim Kochen: Gerichte planen, Schritte koordinieren, Timer setzen, parallele Kochstränge im Blick behalten.',
   'Jeder Schritt hat eine description: eine vollständige, eigenständig ausführbare Anweisung mit Zutaten, Mengen und Methode (Markdown erlaubt). Der erste Satz ist eine kurze Kernaussage — sie erscheint als Titel in Timer-Chips.',
   'Reihenfolge entsteht AUSSCHLIESSLICH über depends_on — es gibt keine implizite Abfolge. Jede Karte ohne Kante erscheint sofort parallel in der „Jetzt"-Ansicht; kantenlos ist nur erlaubt, wenn der Schritt wirklich parallel zum Startpunkt laufen soll. Sollen Schritte parallel laufen, gib ihnen denselben Vorgänger; ein Schritt mit mehreren Kanten ist der Zusammenführungspunkt. Beispiel Schoko-Biskuit: 1 „Eier trennen" (Startpunkt, keine Kante) → 2 „Eigelb mit Zucker schaumig schlagen" (hängt von 1) und 3 „Eiweiß steif schlagen" (hängt von 1, parallel zu 2) → 4 „Eischnee unterheben" (hängt von 2 UND 3, Zusammenführung) → 5 „Teig in die Form füllen, glatt streichen, in den Ofen schieben — 25–30 Minuten backen" (hängt von 4) → 6 „Biskuit mit Stäbchenprobe prüfen und aus dem Ofen holen" (hängt von 5 mit timer_seconds 1500). Bündle kleine zusammengehörige Handlungen zu EINEM Schritt („Backofen vorheizen, Form auslegen"); splitte nur, was parallel laufen kann oder einen eigenen Timer braucht. Prüfe vor jedem add_flow: Hat jeder Schritt, der nach einem anderen kommen soll, depends_on?',
@@ -550,8 +550,8 @@ export async function sendMessage(text: string) {
   setState('agent', 'busy', true)
   try {
     const system = state.config.displayName
-      ? `${DEFAULT_SYSTEM_PROMPT} Der Nutzer heißt ${state.config.displayName}.`
-      : DEFAULT_SYSTEM_PROMPT
+      ? `${SYSTEM_PROMPT} Der Nutzer heißt ${state.config.displayName}.`
+      : SYSTEM_PROMPT
     const convo: Array<Record<string, unknown>> = [
       { role: 'system', content: system },
       ...state.agent.messages.map((m) => ({
