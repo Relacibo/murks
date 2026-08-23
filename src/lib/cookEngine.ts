@@ -398,7 +398,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
         /* Keine Kante, aber nicht die erste Karte des Flows */
         if (i > 0 && st.dependsOn.length === 0) {
           warnings.push(
-            `„${label}" hat keine depends_on-Kante, ist aber nicht die erste Karte von „${flow.name}" — parallel gewollt? Sonst an den Vorgänger hängen`,
+            `„${label}" hat keine depends_on-Kante (ist aber nicht die erste Karte von „${flow.name}") — parallel gedacht? Dann passt das so, nichts zu tun. Sonst an die passende Karte hängen (gleicher oder anderer Flow)`,
           )
         }
       })
@@ -455,6 +455,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           // Erst alle UUIDs vergeben, damit interne Abhängigkeiten (step_index) aufgelöst werden können
           const ids = rawSteps.map(() => crypto.randomUUID())
           const flowId = crypto.randomUUID()
+          let laterDep = false
 
           const parsed = rawSteps.map((st, i) => {
             const o = (st ?? {}) as Record<string, unknown>
@@ -466,6 +467,10 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
               if (typeof entry.step_index === 'number') {
                 const idx = entry.step_index
                 if (idx < 0 || idx >= ids.length || idx === i) return []
+                if (idx > i) {
+                  laterDep = true
+                  return []
+                }
                 const ref: StepRef = { flow_id: flowId, step_id: ids[idx] }
                 if (typeof entry.timer_seconds === 'number' && entry.timer_seconds > 0) {
                   ref.timer_seconds = entry.timer_seconds
@@ -483,6 +488,11 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             }
           })
 
+          if (laterDep) {
+            return JSON.stringify({
+              error: 'Ein Schritt kann nur von einem früheren Schritt desselben Flows abhängen',
+            })
+          }
           if (parsed.some((s) => s.description === '')) {
             return JSON.stringify({ error: 'steps brauchen mindestens eine description' })
           }
@@ -562,6 +572,12 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           } else {
             steps.push(step)
           }
+          const newIdx = steps.findIndex((st) => st.id === step.id)
+          if (dependsOn.some((d) => d.flow_id === id && stepIndexOf(id, d.step_id) >= newIdx)) {
+            return JSON.stringify({
+              error: 'Ein Schritt kann nur von einem früheren Schritt desselben Flows abhängen',
+            })
+          }
           patchFlow(id, { steps })
 
           toast(`${flow.name}: + „${stepLabel(description)}"`)
@@ -589,6 +605,12 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             const deps = parseDepRefs(args.depends_on)
             if (deps.some((d) => !depStep(d) || (d.flow_id === id && d.step_id === stepId))) {
               return JSON.stringify({ error: 'Ungültige Abhängigkeit' })
+            }
+            const myIdx = flow.steps.findIndex((st) => st.id === stepId)
+            if (deps.some((d) => d.flow_id === id && stepIndexOf(id, d.step_id) > myIdx)) {
+              return JSON.stringify({
+                error: 'Ein Schritt kann nur von einem früheren Schritt desselben Flows abhängen',
+              })
             }
             patch.dependsOn = deps
           }
