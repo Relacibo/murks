@@ -194,6 +194,16 @@ export function Cook(props: {
     else setFlowView(null)                        // 'jetzt' → Queue bleibt sichtbar
     const key = `${flowId}:${stepId}`
     pulseCards([key])
+    /* Desktop-Standalone (Übersicht zu): Übersicht öffnen, damit die
+       Ziel-Spalte existiert — sonst gibt es kein Scrollziel. Mobile
+       (Detail-View statt Spalten) und „jetzt"-View bleiben unberührt. */
+    if (
+      view !== 'jetzt' &&
+      !overviewOpen() &&
+      window.matchMedia('(min-width: 640px)').matches
+    ) {
+      props.onToggleOverview?.()
+    }
     /* Ziel-Karte in den sichtbaren Bereich scrollen — nur im Flow-Kontext
        (Desktop-Spalte bzw. mobile Flow-View), nicht in der „Jetzt"-Liste */
     requestAnimationFrame(() => {
@@ -1294,7 +1304,8 @@ export function Cook(props: {
           </div>
 
           {/* Desktop: „Jetzt"-Spalte links + Übersicht (eine Spalte pro Flow) */}
-          {/* Übersicht ein-/ausblendbar; zu → „Jetzt" allein, zentriert, breitere Karten */}
+          {/* Übersicht ein-/ausblendbar; zu → „Jetzt" allein wie Mobile:
+              gleiche Queue (inkl. geblockter Karten unten, gemutet) */}
           {/* Horizontales Scrollen nur im Flow-Bereich — „Jetzt" bleibt stehen */}
           <div class="hidden sm:flex flex-1 min-h-0" classList={{ 'justify-center': !overviewOpen() }}>
             <div class="w-[400px] shrink-0 flex flex-col min-h-0" classList={{ 'bg-zinc-900/50': overviewOpen() }}>
@@ -1306,8 +1317,8 @@ export function Cook(props: {
               <JetztQueue
                 onTitleClick={(flowId, stepId) => revealStep(flowId, stepId)}
                 scrollerRef={(el) => (jetztScrollerDesktop = el)}
-                showBlocked={false}
-                dense
+                showBlocked={!overviewOpen()}
+                dense={overviewOpen()}
               />
             </div>
             <Show when={overviewOpen()}>
