@@ -330,8 +330,9 @@ Mehrere Karten stehen untereinander (Stapel).
 
 - **Hauptscreen ist immer der Koch-Screen.** Chat, Zutatenliste und **Konfiguration** sind
   **nur Modals** (Bottom-Sheet mobil, zentriertes Dialog desktop).
-- **Sichtbarkeit steht in der URL:** `?modal=chat`, `?modal=ingredients`, `?modal=config`,
-  kombiniert `?modal=chat,ingredients`; **versteckte Übersicht: `?overview=hidden`** —
+- **Sichtbarkeit steht in der URL:** `?modal=chat`, `?modal=ingredients`, `?modal=config` —
+  **genau ein Modal gleichzeitig:** Öffnen schließt die anderen;
+  **versteckte Übersicht: `?overview=hidden`** —
   öffnen/schließen ist back/forward-fähig.
 - **KI kann die Modals öffnen und schließen:** `open_chat`/`close_chat`,
   `open_ingredients`/`close_ingredients` (Engine-Signal → URL).

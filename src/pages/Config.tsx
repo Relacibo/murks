@@ -1,4 +1,4 @@
-import { For, Show, createSignal, onMount } from 'solid-js'
+import { For, Show, createSignal, createEffect, onCleanup, onMount } from 'solid-js'
 import { FiX, FiExternalLink } from 'solid-icons/fi'
 import {
   state,
@@ -161,6 +161,15 @@ export function ConfigModal(props: ConfigModalProps) {
   onMount(() => {
     isSttModelCached().then(setSttCached)
     isTtsModelCached().then(setTtsCached)
+  })
+
+  createEffect(() => {
+    if (!props.open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && props.dismissible) props.onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    onCleanup(() => window.removeEventListener('keydown', onKey))
   })
 
   async function handleSttCache() {

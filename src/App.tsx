@@ -30,7 +30,7 @@ export function useConfig() {
 
 type ModalName = 'chat' | 'ingredients' | 'config'
 
-/** Hauptscreen = Cook. Chat, Ingredients und Konfiguration sind immer nur Modals — ihr Zustand steht in der URL (?modal=chat,ingredients). */
+/** Hauptscreen = Cook. Chat, Ingredients und Konfiguration sind immer nur Modals — ihr Zustand steht in der URL (?modal=…). Genau eins ist offen: Öffnen schließt die anderen. */
 function CookingRoute() {
   const [params, setParams] = useSearchParams<{
     modal?: string
@@ -40,19 +40,22 @@ function CookingRoute() {
     webmcp?: string
   }>()
 
-  const modals = () =>
-    (typeof params.modal === 'string' ? params.modal.split(',').filter(Boolean) : []) as ModalName[]
+  // Genau ein Modal: ?modal= enthält exakt einen bekannten Namen.
+  const modals = () => {
+    const v = params.modal
+    return v === 'chat' || v === 'ingredients' || v === 'config' ? [v] : []
+  }
 
   const overviewHidden = () => params.overview === 'hidden'
   const toggleOverview = () =>
     setParams({ overview: overviewHidden() ? undefined : 'hidden' })
 
   const setModal = (m: ModalName, open: boolean) => {
-    const cur = new Set(modals())
-    if (open) cur.add(m)
-    else cur.delete(m)
-    const val = [...cur].join(',')
-    setParams(val ? { modal: val } : { modal: undefined })
+    if (open) {
+      setParams({ modal: m })
+      return
+    }
+    if (modals().includes(m)) setParams({ modal: undefined })
   }
 
   // Konfiguration ist auch nur ein URL-Modal — über den Context zugänglich
