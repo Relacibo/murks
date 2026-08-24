@@ -49,7 +49,7 @@ export function IngredientsModal(props: { open: boolean; onClose: () => void }) 
         class="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex flex-col justify-end pb-[max(4.5rem,env(safe-area-inset-bottom))] sm:items-center sm:justify-center sm:p-4"
         onClick={(e) => e.target === e.currentTarget && props.onClose()}
       >
-        <div class="bg-zinc-950 rounded-t-2xl sm:rounded-2xl sm:border sm:border-zinc-600 sm:shadow-2xl sm:w-full sm:max-w-md max-h-[80vh] overflow-y-auto modal-pop">
+        <div class="bg-zinc-950 w-full h-[85vh] sm:h-auto rounded-t-2xl sm:rounded-2xl sm:border sm:border-zinc-600 sm:shadow-2xl sm:w-full sm:max-w-md sm:max-h-[80vh] overflow-y-auto modal-pop">
           <div class="flex items-center gap-2 px-5 py-4 border-b border-zinc-600 sticky top-0 bg-zinc-950">
             <h2 class="text-base font-semibold flex-1">Zutaten</h2>
             <button

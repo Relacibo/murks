@@ -245,7 +245,7 @@ export function ConfigModal(props: ConfigModalProps) {
         }}
       >
         <div
-          class="bg-zinc-950 w-full max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl sm:border sm:border-zinc-600 sm:shadow-2xl sm:max-w-lg sm:max-h-[85vh] modal-pop"
+          class="bg-zinc-950 w-full h-[85vh] sm:h-auto overflow-y-auto rounded-t-2xl sm:rounded-2xl sm:border sm:border-zinc-600 sm:shadow-2xl sm:max-w-lg sm:max-h-[85vh] modal-pop"
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
       >
