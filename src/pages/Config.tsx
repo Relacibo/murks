@@ -226,14 +226,14 @@ export function ConfigModal(props: ConfigModalProps) {
 
   return (
     <Show when={props.open}>
-      <div class="fixed inset-x-0 top-14 bottom-[max(4.5rem,env(safe-area-inset-bottom))] z-[61] bg-zinc-950/80 backdrop-blur-sm pointer-events-none" />
       <div
-        class="fixed inset-x-0 top-14 bottom-[max(4.5rem,env(safe-area-inset-bottom))] z-[51]"
-        onClick={() => { if (props.dismissible) props.onClose() }}
-      />
-      <div class="fixed inset-x-0 top-14 bottom-[max(4.5rem,env(safe-area-inset-bottom))] z-[62] flex flex-col justify-end sm:items-center sm:justify-center sm:p-4 pointer-events-none">
+        class="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex flex-col justify-end pb-[max(4.5rem,env(safe-area-inset-bottom))] sm:items-center sm:justify-center sm:p-4"
+        onClick={(e) => {
+          if (e.target === e.currentTarget && props.dismissible) props.onClose()
+        }}
+      >
         <div
-          class="bg-zinc-950 w-full max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl sm:border sm:border-zinc-600 sm:shadow-2xl sm:max-w-lg sm:max-h-[85vh] modal-pop pointer-events-auto"
+          class="bg-zinc-950 w-full max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl sm:border sm:border-zinc-600 sm:shadow-2xl sm:max-w-lg sm:max-h-[85vh] modal-pop"
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
       >

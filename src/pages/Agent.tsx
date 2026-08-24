@@ -37,13 +37,11 @@ export function AgentModal(props: AgentModalProps) {
 
   return (
     <Show when={props.open}>
-      <div class="fixed inset-x-0 top-14 bottom-[max(4.5rem,env(safe-area-inset-bottom))] z-[61] bg-zinc-950/80 backdrop-blur-sm pointer-events-none" />
       <div
-        class="fixed inset-x-0 top-14 bottom-[max(4.5rem,env(safe-area-inset-bottom))] z-[51]"
-        onClick={props.onClose}
-      />
-      <div class="fixed inset-x-0 top-14 bottom-[max(4.5rem,env(safe-area-inset-bottom))] z-[62] flex flex-col justify-end sm:items-center sm:justify-center sm:p-4 pointer-events-none">
-        <div class="bg-zinc-950 rounded-t-2xl sm:rounded-2xl sm:border sm:border-zinc-600 sm:shadow-2xl sm:w-full sm:max-w-2xl h-[85vh] sm:h-[80vh] flex flex-col modal-pop pointer-events-auto">
+        class="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex flex-col justify-end pb-[max(4.5rem,env(safe-area-inset-bottom))] sm:items-center sm:justify-center sm:p-4"
+        onClick={(e) => e.target === e.currentTarget && props.onClose()}
+      >
+        <div class="bg-zinc-950 rounded-t-2xl sm:rounded-2xl sm:border sm:border-zinc-600 sm:shadow-2xl sm:w-full sm:max-w-2xl h-[85vh] sm:h-[80vh] flex flex-col modal-pop">
           {/* Header */}
           <div class="flex items-center gap-3 px-5 py-3 border-b border-zinc-600 shrink-0">
             <span class="text-sm text-zinc-400 truncate flex-1">{agent()?.name || 'Chat'}</span>

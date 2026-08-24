@@ -1,8 +1,11 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount, useContext } from 'solid-js'
 import { Portal } from 'solid-js/web'
 import { SolidMarkdown as Markdown } from 'solid-markdown'
+import { IngredientsModal } from '../components/IngredientsModal'
+import { AgentModal } from './Agent'
+import { ConfigModal } from './Config'
 import { useConfig } from '../App'
-import { state, sendMessage, type Flow, type Step, type StepRef } from '../state/store'
+import { state, sendMessage, removeEmptyAgents, type Flow, type Step, type StepRef } from '../state/store'
 import { CookContext, FLOW_COLORS, queueOrder, timerEffectiveEnd } from '../lib/cookEngine'
 import { fmtRemaining } from '../lib/tools'
 import { createAgentVoice } from '../lib/agentVoice'
@@ -29,13 +32,21 @@ export function Cook(props: {
   voice?: ReturnType<typeof createAgentVoice>
   onOpenIngredients: () => void
   onOpenChat: () => void
-  onMoreMenuOpen?: () => void
+  ingredientsOpen: boolean
+  onCloseIngredients: () => void
+  chatOpen: boolean
+  onCloseChat: () => void
   overviewOpen?: boolean
   onToggleOverview?: () => void
 }) {
   const { configOpen, setConfigOpen } = useConfig()
   const voice = props.voice ?? createAgentVoice({ configOpen })
   const engine = useContext(CookContext)!
+
+  function hasValidAgent() {
+    const agent = state.agents.find((a) => a.id === state.defaultAgentId)
+    return Boolean(agent?.endpoint && agent?.model)
+  }
 
   /* Puls-Sync: alle CSS-Pulsanimationen starten bei derselben Phase.
      Einmalig beim Mount --pulse-offset auf :root setzen = negativer delay
@@ -1202,11 +1213,7 @@ export function Cook(props: {
             <button
               class="mic-btn is-off"
               classList={{ 'bg-zinc-700': moreOpen() }}
-              onClick={() => {
-                const opening = !moreOpen()
-                setMoreOpen(opening)
-                if (opening) props.onMoreMenuOpen?.()
-              }}
+              onClick={() => setMoreOpen((v) => !v)}
               title="Mehr"
               aria-label="Weitere Optionen"
             >
@@ -1487,6 +1494,13 @@ export function Cook(props: {
         </Show>
       </div>
 
+      <IngredientsModal open={props.ingredientsOpen} onClose={props.onCloseIngredients} />
+      <AgentModal open={props.chatOpen} onClose={props.onCloseChat} voice={voice} />
+      <ConfigModal
+        open={configOpen()}
+        onClose={() => { removeEmptyAgents(); if (hasValidAgent()) setConfigOpen(false) }}
+        dismissible={hasValidAgent()}
+      />
       <WaitMenu />
     </div>
   )

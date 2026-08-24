@@ -1,16 +1,13 @@
 import { createSignal, createMemo, createEffect, createContext, useContext, untrack, Show } from 'solid-js'
 import type { Accessor, Setter } from 'solid-js'
 import { Router, Route, useSearchParams } from '@solidjs/router'
-import { AgentModal } from './pages/Agent'
-import { ConfigModal } from './pages/Config'
 import { CookMock } from './pages/CookMock'
 import { Cook } from './pages/Cook'
 import { Setup } from './pages/Setup'
 import { Toasts } from './components/Toasts'
-import { IngredientsModal } from './components/IngredientsModal'
 import { createAgentVoice } from './lib/agentVoice'
 import { registerWebMCPTools } from './lib/webmcp'
-import { state, stateReady, cookEngine, sendMessage, clearMessages, removeEmptyAgents } from './state/store'
+import { state, stateReady, cookEngine, sendMessage, clearMessages } from './state/store'
 import { CookContext } from './lib/cookEngine'
 
 const base =
@@ -111,29 +108,12 @@ function CookingRoute() {
           setModal('ingredients', !modals().includes('ingredients'))
         }
         onOpenChat={() => setModal('chat', !modals().includes('chat'))}
-        onMoreMenuOpen={() => {
-          setModal('ingredients', false)
-          setModal('chat', false)
-        }}
+        ingredientsOpen={modals().includes('ingredients')}
+        onCloseIngredients={() => setModal('ingredients', false)}
+        chatOpen={modals().includes('chat')}
+        onCloseChat={() => setModal('chat', false)}
         overviewOpen={!overviewHidden()}
         onToggleOverview={toggleOverview}
-      />
-      <IngredientsModal
-        open={modals().includes('ingredients')}
-        onClose={() => setModal('ingredients', false)}
-      />
-      <AgentModal
-        open={modals().includes('chat')}
-        onClose={() => setModal('chat', false)}
-        voice={voice}
-      />
-      <ConfigModal
-        open={configOpen()}
-        onClose={() => {
-          removeEmptyAgents()
-          if (hasValidAgent()) setModal('config', false)
-        }}
-        dismissible={hasValidAgent()}
       />
     </ConfigContext.Provider>
   )
