@@ -1121,18 +1121,23 @@ export function Cook(props: {
         classList={{ relative: props.centered }}
         data-flow-id={props.s.id}
       >
-        {/* Desktop: Zurück + Name schweben links oben über dem Content —
-            die zentrierte Spalte beginnt ganz oben. Mobile: volle Border-Zeile. */}
+        {/* Desktop: schmal (< md) volle Zeile mit Border (kein Überlappen
+            der Karten), ab md schwebende Pill links oben über dem Content.
+            Mobile: immer volle Border-Zeile. */}
         <div
           class="shrink-0"
           classList={{
             'border-b border-zinc-600': !props.centered,
-            'absolute left-0 top-0 z-10': props.centered,
+            'border-b border-zinc-600 md:border-b-0 md:absolute md:left-0 md:top-0 md:z-10':
+              props.centered,
           }}
         >
           <div
             class="flex items-center gap-2 px-3 py-2"
-            classList={{ 'bg-zinc-950/85 backdrop-blur-sm rounded-b-2xl pr-5': props.centered }}
+            classList={{
+              'md:bg-zinc-950/85 md:backdrop-blur-sm md:rounded-b-2xl md:pr-5':
+                props.centered,
+            }}
           >
             <button
               class="icon-btn"
@@ -1142,8 +1147,8 @@ export function Cook(props: {
               <FiChevronLeft size={16} class="-translate-x-[0.5px]" />
             </button>
             <span
-              class="font-semibold truncate"
-              classList={{ 'text-base': props.centered, 'text-sm': !props.centered }}
+              class="font-semibold truncate text-sm"
+              classList={{ 'md:text-base': props.centered }}
             >
               {props.s.icon ? `${props.s.icon} ${props.s.name}` : props.s.name}
             </span>
