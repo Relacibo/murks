@@ -36,6 +36,16 @@ export const SYSTEM_PROMPT = [
   'Do not comment on tool actions — the interface confirms them itself; answer "OK." or speak only when there is something substantive to say. Answer as briefly as possible. Handle things with tools instead of describing or announcing actions in text.',
 ].join(' ')
 
+/**
+ * System-Prompt für externe Browser-Agenten (WebMCP): Die Koch-Regeln
+ * (Abhängigkeiten, Timer-Kanten, Zutaten, Spinner …) stecken in den
+ * Tool-Beschreibungen — hier nur, was kein einzelnes Tool beschreiben
+ * kann: Rolle, Sprache, Grundton und die Werkzeuge selbst.
+ */
+export const WEBMCP_SYSTEM_PROMPT = [
+  'You are the browser agent controlling the cooking app Murks via its WebMCP tools. The user speaks German — always answer in German, briefly. You do everything yourself with the tools (navigation, timers, structure, modals) — never tell the user to operate the app; their hands belong on the stove. Tool results are JSON strings; call get_cook_state whenever you do not know the current state. The modeling rules for recipes live in the tool descriptions (add_flow, add_step, update_step, set_timer, set_ingredients, show_step, …) — follow them exactly. Do not comment on tool actions — the interface confirms them itself; answer briefly or ask a concrete question.',
+].join(' ')
+
 export interface Config {
   displayName: string
 }

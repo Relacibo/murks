@@ -11,6 +11,13 @@ Zeiten als Fakten an die Karten statt sie im Kopf zu behalten.
 ## Konzept (Idee)
 - Optionales Feld am Schritt, z.B. `planned_at: "17:30"` (Wanduhr, lokal) —
   vom Agenten beim Planen gesetzt (add_flow/update_step), nicht vom Nutzer
+- **Warum am Schritt statt am Flow:** Abhängigkeiten/Timer/Priorität hängen
+  am Schritt; „Flow beginnt um 17:00" = geplante Zeit am ersten Schritt des
+  Flows. Ein Flow-Feld bräuchte eh eine Übersetzung auf die Einstiegsschritte.
+- **Abhängigkeiten bleiben erlaubt:** `planned_at` ist ein Planungs-Fakt
+  (Hinweis/Warnung bei Drift), KEIN erzwungener Start — die Abhängigkeit
+  bleibt der harte Gate. Erzwungene Starts könnten sonst mit Abhängigkeiten
+  deadlocken (Zeit da, aber Dep nicht fertig).
 - Anzeige in der Karte/Chips: „geplant 17:30" als stiller Hinweis; überfällig
   (> geplant + Puffer) → dezente Warnung (kein Alarm — dafür ist priority da)
 - Scheduling bleibt Modell-Planung: Zeiten sind Planungs-Fakten, keine

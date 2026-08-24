@@ -6,8 +6,6 @@ PWA auf Basis von Vite + SolidJS + Tailwind. Man spricht, Murks koordiniert:
 Die KI führt den Kochfluss — Kochstränge, Schritte, Timer — bei minimalem Input.
 Hände frei. Trocken, direkt. Keine Höflichkeitsfloskeln.
 
-<!-- Alternative, rekursiv elegant: **M**inimal **u**nterwürfig, **r**echt **k**östlich, **s**elten Murks -->
-
 ## Features
 
 - **Voice-First**: Spracherkennung (Whisper lokal via WASM oder Server-Whisper,

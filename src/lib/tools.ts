@@ -23,7 +23,7 @@ const depRefSchema = {
     required: ['flow_id', 'step_id'],
   },
   description:
-    'Optionale Abhängigkeiten (Schritte, die zuerst erledigt sein müssen). Es gibt KEINE implizite Reihenfolge — ohne depends_on läuft der Schritt sofort parallel. Verkette jeden Folgeschritt explizit an seinen Vorgänger (auch Schritt 2 → Schritt 1). JEDE Zeitangabe im Rezept MUSS als timer_seconds an der Kante zur Folgekarte stehen („10 Minuten kochen" → Folgekarte mit timer_seconds 600).',
+    'Optionale Abhängigkeiten (Schritte, die zuerst erledigt sein müssen). Es gibt KEINE implizite Reihenfolge — ohne depends_on läuft der Schritt sofort parallel. Verkette jeden Folgeschritt explizit an seinen Vorgänger (auch Schritt 2 → Schritt 1). JEDE Zeitangabe im Rezept MUSS als timer_seconds an der Kante zur Folgekarte stehen („10 Minuten kochen" → Folgekarte mit timer_seconds 600). WARTEZEIT vs. aktive Arbeit: Die Kante bedeutet passives Warten (backen, ziehen lassen, kühlen). Bestimmt das ERGEBNIS das Ende („bis goldbraun", „bis sämig") oder ist der Koch aktiv („unter Rühren aufkochen"), gibt es KEINE Kante — die Zeit steht in der Beschreibung der Karte selbst. Zeitangaben stehen am ENDE der auslösenden Karte (Kernaussage zuerst); die wartende Folgekarte nennt KEINE Zeit, nur was nach Ablauf zu tun ist. Endet ein Rezept mit einer Wartezeit, hänge einen finalen Schritt an, der mit timer_seconds darauf wartet („Anschneiden und servieren"). Über Flow-Grenzen ist die Kante das Scheduling-Werkzeug: „Sahne steif schlagen" hängt mit kleinerem timer_seconds am GLEICHEN Anker wie die Wartekarte — erscheint kurz davor.',
 }
 
 const prioritySchema = {
@@ -48,7 +48,8 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'get_cook_state',
-      description: 'Aktuellen Kochzustand abrufen: alle Flows, Schritte (mit stabilen IDs), Timer, Ingredients-Modal.',
+      description:
+        'Aktuellen Kochzustand abrufen: alle Flows, Schritte (mit stabilen IDs), Timer, Ingredients-Modal. Enthält now_local (lokale Wanduhrzeit des Nutzers) und für jede wartende Karte ends_in_s/ends_at_local — rufe das für Zeitfragen auf („fertig um 14:30?", „wie lange läuft der Timer noch?") und immer dann, wenn du den Zustand nicht kennst.',
       parameters: { type: 'object', properties: {} },
     },
   },
@@ -56,7 +57,8 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'add_flow',
-      description: 'Neuen Flow anlegen (parallele Komponente mit eigener Schrittfolge). Schritte können nur auf bereits existierende Schritte anderer Flows verweisen. JEDER Aufbau beginnt mit set_loading({scope:"all", loading:true}) als ERSTEM Tool-Aufruf deiner Antwort (bevor du die Schedule durchdenkst — nicht erst, wenn du anfängst Flows anzulegen) und endet nach dem letzten Tool-Aufruf mit set_loading({loading:false}) — auch bei einem einzelnen Flow.',
+      description:
+        'Neuen Flow anlegen (parallele Komponente mit eigener Schrittfolge). Schritte können nur auf bereits existierende Schritte anderer Flows verweisen. JEDER Aufbau beginnt mit set_loading({scope:"all", loading:true}) als ERSTEM Tool-Aufruf deiner Antwort (bevor du die Schedule durchdenkst — nicht erst, wenn du anfängst Flows anzulegen) und endet nach dem letzten Tool-Aufruf mit set_loading({loading:false}) — auch bei einem einzelnen Flow. Das Tool-Ergebnis kann "warnings" enthalten (z.B. eine Zeitangabe, auf die keine Folgekarte mit timer_seconds wartet) — behebe sie sofort in derselben Antwort per update_step/add_step, außer die Situation ist gewollt (z.B. eine Karte, die wirklich sofort parallel laufen soll).',
       parameters: {
         type: 'object',
         properties: {
@@ -85,7 +87,8 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'add_step',
-      description: 'Schritt an einen bestehenden Flow anhängen oder hinter einem bestimmten Schritt einfügen (after_step_id).',
+      description:
+        'Schritt an einen bestehenden Flow anhängen oder hinter einem bestimmten Schritt einfügen (after_step_id). Das Tool-Ergebnis kann "warnings" enthalten (z.B. eine Zeitangabe ohne Folgekarte mit timer_seconds) — behebe sie sofort per update_step/add_step, außer die Situation ist gewollt.',
       parameters: {
         type: 'object',
         properties: {
@@ -104,7 +107,8 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'update_step',
-      description: 'Schritt bearbeiten: Beschreibung, Abhängigkeiten (inkl. Verzögerung an den Kanten), Priorität oder Score ändern (nur angegebene Felder).',
+      description:
+        'Schritt bearbeiten: Beschreibung, Abhängigkeiten (inkl. Verzögerung an den Kanten), Priorität oder Score ändern (nur angegebene Felder). Wartezeit nach Abschluss einer Karte gehört als timer_seconds an die Kante (depends_on) — nicht auf die abgeschlossene Karte. Das Tool-Ergebnis kann "warnings" enthalten — behebe sie sofort in derselben Antwort.',
       parameters: {
         type: 'object',
         properties: {
@@ -306,14 +310,21 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'show_step',
-      description: 'Dem Nutzer gezielt einen Schritt zeigen: Fokus auf den Flow, Ansicht wechseln, Schritt in den sichtbaren Bereich scrollen und kurz pulsieren lassen.',
+      description:
+        'Dem Nutzer gezielt einen Schritt zeigen: Fokus auf den Flow, Ansicht wechseln, Schritt in den sichtbaren Bereich scrollen und kurz pulsieren lassen. view: "jetzt" (Standard) für aktive Schritte, "flow" für blockierte/fertige; speak:true liest die Beschreibung vor. Sagt der Nutzer „weiter" oder „nächster Schritt" ohne Kontext, meint er die oberste Karte in „Jetzt" (erstes Element des queue-Felds von get_cook_state — exakt die Anzeige-Reihenfolge) — zeige sie mit view "jetzt" und antworte nur "OK.".',
       parameters: {
         type: 'object',
         properties: {
           flow_id: { type: 'string' },
           step_id: stepIdSchema('Der Schritt'),
+          view: {
+            type: 'string',
+            enum: ['jetzt', 'flow'],
+            description: '"jetzt" (Standard) für aktive Schritte, "flow" für blockierte/fertige',
+          },
+          speak: { type: 'boolean', description: 'Beschreibung der Karte vorlesen (z.B. für „Was mache ich als Nächstes?")' },
         },
-        required: ['flow_id', 'step_id'],
+        required: ['step_id'],
       },
     },
   },

@@ -1,6 +1,6 @@
 import { createSignal } from 'solid-js'
 import { TOOLS } from './tools'
-import { cookEngine, SYSTEM_PROMPT } from '../state/store'
+import { cookEngine, WEBMCP_SYSTEM_PROMPT } from '../state/store'
 
 /**
  * WebMCP (https://github.com/webmachinelearning/webmcp): Tools direkt im
@@ -74,9 +74,9 @@ export async function registerWebMCPTools(opts?: {
     await ctx.registerTool({
       name: 'get_system_prompt',
       description:
-        'Vollständige Murks-Regeln (System-Prompt): Modellierung von Kochsträngen, Schritten, depends_on-Kanten, Timern, Zutatenliste und Antwortverhalten. Rufe das auf, bevor du Gerichte anlegst oder umbaust, und folge den Regeln exakt.',
+        'Verbindliche Murks-Regeln für dich als externen Agenten: Rolle, Sprache und Grundton. Die Koch-Regeln (Abhängigkeiten, Timer-Kanten, Zutaten, Spinner) stehen direkt in den Beschreibungen der anderen Tools — folge ihnen exakt. Rufe dieses Tool auf, bevor du Gerichte anlegst oder umbaust.',
       inputSchema: { type: 'object', properties: {} },
-      execute: () => SYSTEM_PROMPT,
+      execute: () => WEBMCP_SYSTEM_PROMPT,
     })
     count++
   } catch (e) {
