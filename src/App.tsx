@@ -30,11 +30,12 @@ export function useConfig() {
 
 type ModalName = 'chat' | 'ingredients' | 'config'
 
-/** Hauptscreen = Cook. Chat, Ingredients und Konfiguration sind immer nur Modals — ihr Zustand steht in der URL (?modal=…). Genau eins ist offen: Öffnen schließt die anderen. */
+/** Hauptscreen = Cook. Chat, Ingredients und Konfiguration sind immer nur Modals — ihr Zustand steht in der URL (?modal=…). Genau eins ist offen: Öffnen schließt die anderen. Ansicht: ?view=now | ?view=flow&flow=<id> | default (Übersicht). */
 function CookingRoute() {
   const [params, setParams] = useSearchParams<{
     modal?: string
-    overview?: string
+    view?: string
+    flow?: string
     prompt?: string
     reset?: string
     webmcp?: string
@@ -46,9 +47,15 @@ function CookingRoute() {
     return v === 'chat' || v === 'ingredients' || v === 'config' ? [v] : []
   }
 
-  const overviewHidden = () => params.overview === 'hidden'
+  // Ansicht: default = Übersicht (Desktop; mobil identisch zu „now"),
+  // ?view=now = Jetzt-Queue allein, ?view=flow&flow=<id> = Flow-Detail-View.
+  // Unbekannte view-Werte fallen auf den Default zurück.
+  const overviewOpen = () => params.view !== 'now' && params.view !== 'flow'
+  const flowViewId = () => (params.view === 'flow' && params.flow ? params.flow : null)
   const toggleOverview = () =>
-    setParams({ overview: overviewHidden() ? undefined : 'hidden' })
+    setParams(overviewOpen() ? { view: 'now', flow: undefined } : { view: undefined, flow: undefined })
+  const setFlowViewParam = (id: string | null) =>
+    setParams(id ? { view: 'flow', flow: id } : { view: 'now', flow: undefined })
 
   const setModal = (m: ModalName, open: boolean) => {
     if (open) {
@@ -148,8 +155,10 @@ function CookingRoute() {
           onCloseIngredients={() => setModal('ingredients', false)}
           chatOpen={!webmcpMode() && modals().includes('chat')}
           onCloseChat={() => setModal('chat', false)}
-          overviewOpen={!overviewHidden()}
+          overviewOpen={overviewOpen()}
           onToggleOverview={toggleOverview}
+          flowView={flowViewId()}
+          onFlowViewChange={setFlowViewParam}
           webmcpMode={webmcpMode()}
           onToggleWebmcp={() => setWebmcpMode(!webmcpMode())}
         />

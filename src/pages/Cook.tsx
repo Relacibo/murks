@@ -38,6 +38,9 @@ export function Cook(props: {
   onCloseChat: () => void
   overviewOpen?: boolean
   onToggleOverview?: () => void
+  /** Flow-Detail-View (aus der URL, ?view=flow&flow=…); Mock fällt auf lokales Signal zurück */
+  flowView?: string | null
+  onFlowViewChange?: (id: string | null) => void
   webmcpMode?: boolean
   onToggleWebmcp?: () => void
 }) {
@@ -58,7 +61,12 @@ export function Cook(props: {
   )
 
   const [tick, setTick] = createSignal(Date.now())
-  const [flowView, setFlowView] = createSignal<string | null>(null)
+  const [localFlowView, setLocalFlowView] = createSignal<string | null>(null)
+  const flowView = () => props.flowView ?? localFlowView()
+  const setFlowView = (id: string | null) => {
+    if (props.onFlowViewChange) props.onFlowViewChange(id)
+    else setLocalFlowView(id)
+  }
   // Übersicht (Desktop): Zustand kommt aus der URL; Mock fällt auf lokalen Signal zurück
   const [localOverviewOpen, setLocalOverviewOpen] = createSignal(true)
   const overviewOpen = () => props.overviewOpen ?? localOverviewOpen()
@@ -221,7 +229,7 @@ export function Cook(props: {
     /* Flow-Kontext: Detail-View (volle Breite) — wie mobil. Ausnahme
        Desktop mit offener Übersicht: dort bleibt die Ziel-Spalte stehen. */
     if (view === 'jetzt') {
-      setFlowView(null)
+      if (flowView()) setFlowView(null)
     } else if (!(overviewOpen() && window.matchMedia('(min-width: 640px)').matches)) {
       setFlowView(flowId)
     }
@@ -494,7 +502,7 @@ export function Cook(props: {
     prevPrioIds = cur
     const added = cur.split('|').filter((key) => key && !prev.has(key))
     if (added.length === 0) return
-    setFlowView(null)
+    if (flowView()) setFlowView(null)
     requestAnimationFrame(() => {
       jetztScroller?.scrollTo({ top: 0, behavior: 'smooth' })
       jetztScrollerDesktop?.scrollTo({ top: 0, behavior: 'smooth' })
