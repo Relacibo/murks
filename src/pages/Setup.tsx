@@ -5,6 +5,7 @@ import {
   setSetupDone,
   addAgent,
   updateAgent,
+  removeEmptyAgents,
   setStt,
   setTts,
 } from '../state/store'
@@ -127,8 +128,10 @@ export function Setup() {
   const [ttsCached, setTtsCached] = createSignal<boolean | null>(null)
 
   onMount(() => {
+    // Keinen Agenten vorab anlegen — erst wenn der Agent-Schritt betreten
+    // wird. Überspringen hinterlässt sonst eine leere Agenten-Zeile.
     const existing = state.agents[0]
-    setAgentId(existing ? existing.id : addAgent())
+    setAgentId(existing ? existing.id : null)
     /* Browser-Sprachfunktionen vorhanden → vorauswählen (online ohne Key,
        über die Server des Browser-Herstellers). Nur der unberührte
        wasm-Default wird überschrieben — explizite Auswahl bleibt. */
@@ -151,6 +154,7 @@ export function Setup() {
   const needsDownloads = () => state.stt.mode === 'wasm' || state.tts.mode === 'wasm'
 
   function next() {
+    if (step() === 0 && !agentId()) setAgentId(addAgent())
     setStep((s) => Math.min(s + 1, STEPS.length - 1))
   }
 
@@ -159,6 +163,8 @@ export function Setup() {
   }
 
   function finish() {
+    // Beim Überspringen keine leeren Agenten-Platzhalter zurücklassen.
+    removeEmptyAgents()
     setSetupDone(true)
   }
 

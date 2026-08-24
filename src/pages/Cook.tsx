@@ -1022,6 +1022,7 @@ export function Cook(props: {
         }}
         data-card-list
         class={`relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col gap-2 ${props.dense ? 'p-1' : 'p-3'}`}
+        style={{ 'padding-bottom': 'calc(var(--composer-h, 0px) + 1rem)' }}
       >
         <For each={leaving().filter((g) => g.container === listRef)}>
           {(g) => (
@@ -1353,7 +1354,10 @@ export function Cook(props: {
                       {s().icon ? `${s().icon} ${s().name}` : s().name}
                     </span>
                   </div>
-                  <div class="flex-1 min-h-0 overflow-y-auto pt-3 px-3 pb-28 flex flex-col gap-2">
+                  <div
+                    class="flex-1 min-h-0 overflow-y-auto pt-3 px-3 flex flex-col gap-2"
+                    style={{ 'padding-bottom': 'calc(var(--composer-h, 0px) + 1rem)' }}
+                  >
                     <For each={s().steps}>
                       {(_, i) => <StepCard flowId={s().id} stepId={s().steps[i()].id} />}
                     </For>
