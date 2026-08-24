@@ -1,5 +1,5 @@
-import { For, Show, createSignal, createEffect, onCleanup, onMount } from 'solid-js'
-import { FiX, FiExternalLink } from 'solid-icons/fi'
+import { For, Show, createSignal, onMount } from 'solid-js'
+import { FiExternalLink } from 'solid-icons/fi'
 import {
   state,
   setConfig,
@@ -15,6 +15,7 @@ import { inputCls } from '../components/fields'
 import { ModelPicker } from '../components/ModelPicker'
 import { SttSettings } from '../components/SttSettings'
 import { TtsSettings } from '../components/TtsSettings'
+import { SheetModal } from '../components/SheetModal'
 
 interface ConfigModalProps {
   open: boolean
@@ -163,15 +164,6 @@ export function ConfigModal(props: ConfigModalProps) {
     isTtsModelCached().then(setTtsCached)
   })
 
-  createEffect(() => {
-    if (!props.open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && props.dismissible) props.onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    onCleanup(() => window.removeEventListener('keydown', onKey))
-  })
-
   async function handleSttCache() {
     if (sttBusy()) return
     setSttBusy(true)
@@ -230,41 +222,16 @@ export function ConfigModal(props: ConfigModalProps) {
     removeAgent(id)
   }
 
-  let touchStartY = 0
-  function onTouchStart(e: TouchEvent) { touchStartY = e.touches[0].clientY }
-  function onTouchEnd(e: TouchEvent) {
-    if (e.changedTouches[0].clientY - touchStartY > 80 && props.dismissible) props.onClose()
-  }
-
   return (
-    <Show when={props.open}>
-      <div
-        class="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex flex-col justify-end pb-[max(4.5rem,env(safe-area-inset-bottom))] sm:items-center sm:justify-center sm:p-4"
-        onClick={(e) => {
-          if (e.target === e.currentTarget && props.dismissible) props.onClose()
-        }}
-      >
-        <div
-          class="bg-zinc-950 w-full h-[85vh] sm:h-auto overflow-y-auto rounded-t-2xl sm:rounded-2xl sm:border sm:border-zinc-600 sm:shadow-2xl sm:max-w-lg sm:max-h-[85vh] modal-pop"
-          onTouchStart={onTouchStart}
-          onTouchEnd={onTouchEnd}
-      >
-        {/* Header */}
-        <div class="flex items-center justify-between px-5 py-4 border-b border-zinc-600 sticky top-0 bg-zinc-950 z-10">
-          <h1 class="text-base font-semibold text-zinc-100">Konfiguration</h1>
-          <Show when={props.dismissible}>
-            <button
-              class="icon-btn"
-              onClick={() => props.onClose()}
-              title="Schließen"
-              aria-label="Schließen"
-            >
-              <FiX size={16} />
-            </button>
-          </Show>
-        </div>
-
-        <div class="px-5 py-5 space-y-8">
+    <SheetModal
+      open={props.open}
+      onClose={props.onClose}
+      title="Konfiguration"
+      sheetClass="sm:h-auto sm:max-w-lg"
+      bodyClass="px-5 py-5 space-y-8"
+      dismissible={props.dismissible}
+    >
+      <div class="space-y-8">
           {/* Externer Modus (WebMCP): Browser-Agent steuert Murks — Toggle
               nur sichtbar, wenn die API verfügbar ist */}
           <Show when={webmcpAvailable()}>
@@ -439,9 +406,7 @@ export function ConfigModal(props: ConfigModalProps) {
             <FiExternalLink size={14} />
             Feedback / Bug melden
           </a>
-        </div>
       </div>
-    </div>
-    </Show>
+    </SheetModal>
   )
 }
