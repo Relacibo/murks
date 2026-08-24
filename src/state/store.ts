@@ -187,11 +187,11 @@ function hydrate(data: unknown): AppState {
       defaultAgentId = agents[0]?.id ?? null
     }
     const cook = (raw.cook ?? {}) as Record<string, unknown>
-    // Auto-Heilung: gültiger Agent vorhanden, aber Setup nie abgeschlossen
-    // (z.B. Wizard mittendrin geschlossen) → als abgeschlossen behandeln.
+    // setupDone folgt der Agenten-Gültigkeit: gültiger Default-Agent ⇒
+    // abgeschlossen (heilt „Wizard mittendrin geschlossen"), kein gültiger
+    // Agent ⇒ nicht abgeschlossen (Wizard startet trotz altem setupDone).
     const defaultAgent = agents.find((a) => a.id === defaultAgentId)
-    const setupDone =
-      raw.setupDone === true || Boolean(defaultAgent?.endpoint && defaultAgent?.model)
+    const setupDone = Boolean(defaultAgent?.endpoint && defaultAgent?.model)
     return {
       config: { displayName: loadedConfig.displayName ? String(loadedConfig.displayName) : '' },
       setupDone,
@@ -467,6 +467,11 @@ function hydrate(data: unknown): AppState {
 }
 
 export const [state, setState] = createStore<AppState>(defaults)
+
+// setupDone bleibt synchron zur Agenten-Gültigkeit — auch mitten in der
+// Sitzung: kein gültiger Agent ⇒ false (Wizard startet), gültiger ⇒ true
+// (Deeplinks & Co. funktionieren ohne extra Fertigstellen).
+createEffect(() => setSetupDone(hasValidAgent()))
 
 // Kochlogik gegen den echten CookState (Mock-Seite nutzt eine eigene Engine)
 export const cookEngine = createCookEngine(
