@@ -134,6 +134,8 @@ export function CookMock() {
     () => cook,
     (fn) => setCook(fn),
   )
+  // Mock-Store wird synchron geladen → abgelaufene Alt-Timer sofort stilllegen
+  engine.seedExpiredTimers()
   createEffect(() => {
     localStorage.setItem(MOCK_KEY, JSON.stringify(cook))
   })

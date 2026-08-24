@@ -185,6 +185,10 @@ export interface CookEngine {
   readonly quietNonce: number
   executeTool(name: string, args: Record<string, unknown>, opts?: { silent?: boolean }): string
   expireTimers(): void
+  /** Nach dem Laden des persistierten Zustands aufrufen: abgelaufene Timer
+      (Tombstones) als „bereits gemeldet" markieren, damit sie nach Reload
+      keinen Toast/Alarm mehr auslösen. */
+  seedExpiredTimers(): void
 }
 
 export const CookContext = createContext<CookEngine>()
@@ -1053,14 +1057,21 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
      pro Karte und Endzeit, sonst feuert er auf jedem Tick doppelt. */
   /* Reload-Guard: abgelaufene Timer aus dem persistierten Zustand NICHT
      erneut melden. Gesetzte Timer bleiben nach Ablauf als Fakt stehen
-     (Tombstone) — ohne Vorbefüllung würde jeder Reload den Alarm erneut
-     feuern. Abgeleitete Gates brauchen das nicht (±2-s-Fenster unten). */
+     (Tombstone) — die Vorbefüllung markiert sie als „bereits gemeldet",
+     sonst würde jeder Reload den Alarm erneut feuern. WICHTIG: erst nach
+     der Zustands-Hydrierung aufrufen (store.init()) — bei Engine-Erzeugung
+     ist der Store noch der Default und der erste Tick würde die Alt-Timer
+     trotzdem melden. Abgeleitete Gates brauchen das nicht (±2-s-Fenster
+     unten). */
   const toastedEnds = new Map<string, number>()
-  for (const s of getCook().flows) {
-    for (const step of s.steps) {
-      const t = step.timer
-      if (t && t.pausedAt === null && t.alarmAt <= Date.now()) {
-        toastedEnds.set(`${s.id}:${step.id}`, t.alarmAt)
+  function seedExpiredTimers(): void {
+    const now = Date.now()
+    for (const s of getCook().flows) {
+      for (const step of s.steps) {
+        const t = step.timer
+        if (t && t.pausedAt === null && t.alarmAt <= now) {
+          toastedEnds.set(`${s.id}:${step.id}`, t.alarmAt)
+        }
       }
     }
   }
@@ -1119,5 +1130,6 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
     },
     executeTool,
     expireTimers,
+    seedExpiredTimers,
   }
 }

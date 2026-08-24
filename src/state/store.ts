@@ -478,6 +478,10 @@ async function init() {
   } catch (e) {
     console.error('IndexedDB laden fehlgeschlagen', e)
   }
+  // Reload-Guard: abgelaufene Timer aus dem geladenen Zustand als „bereits
+  // gemeldet" markieren — sonst feuern sie beim ersten Tick Toast + Sound
+  // erneut (die Engine wurde vor der Hydrierung erzeugt).
+  cookEngine.seedExpiredTimers()
   // Leere Agenten-Platzhalter aus früheren Sitzungen entsorgen
   removeEmptyAgents()
   // Wartezeiten sind abgeleitet — nichts zu synchronisieren
