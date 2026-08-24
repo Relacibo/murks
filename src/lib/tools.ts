@@ -56,7 +56,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'add_flow',
-      description: 'Neuen Flow anlegen (parallele Komponente mit eigener Schrittfolge). Schritte können nur auf bereits existierende Schritte anderer Flows verweisen. JEDER Aufbau beginnt mit set_loading({scope:"all", loading:true}) und endet nach dem letzten Tool-Aufruf mit set_loading({loading:false}) — auch bei einem einzelnen Flow.',
+      description: 'Neuen Flow anlegen (parallele Komponente mit eigener Schrittfolge). Schritte können nur auf bereits existierende Schritte anderer Flows verweisen. JEDER Aufbau beginnt mit set_loading({scope:"all", loading:true}) als ERSTEM Tool-Aufruf deiner Antwort (bevor du die Schedule durchdenkst — nicht erst, wenn du anfängst Flows anzulegen) und endet nach dem letzten Tool-Aufruf mit set_loading({loading:false}) — auch bei einem einzelnen Flow.',
       parameters: {
         type: 'object',
         properties: {
@@ -286,7 +286,7 @@ export const TOOLS: ToolDef[] = [
     function: {
       name: 'set_loading',
       description:
-        'Bau-Spinner. JEDER Aufbau einer Schedule — auch ein einzelner add_flow — beginnt mit loading:true und endet nach dem letzten Tool-Aufruf mit loading:false, ohne Ausnahme. scope "all" (Standard) = kleiner Spinner links unten (der bestehende Plan bleibt sichtbar); scope "flow" + flow_id = Spinner nur bei diesem bestehenden Flow. loading=false, sobald du fertig bist (auch bei Abbruch/Fehler); vergisst du es, verschwindet der Spinner spätestens bei der nächsten Nutzeräußerung. Rein visuell: Timer, Karten und Abschlüsse laufen normal weiter.',
+        'Bau-Spinner. JEDER Aufbau einer Schedule — auch ein einzelner add_flow — beginnt mit loading:true als ERSTEM Tool-Aufruf deiner Antwort, BEVOR du die Schedule durchdenkst und aufbaust — der Nutzer soll den Spinner sehen, solange du arbeitest; nie erst denken/bauen und den Spinner später einschalten. Reine Antworten/Fragen ohne Planänderung bekommen keinen Spinner. scope "all" (Standard) = kleiner Spinner links unten (der bestehende Plan bleibt sichtbar); scope "flow" + flow_id = Spinner nur bei diesem bestehenden Flow. loading=false nach dem letzten Tool-Aufruf des Aufbaus (auch bei Abbruch/Fehler); vergisst du es, verschwindet der Spinner spätestens bei der nächsten Nutzeräußerung. Rein visuell: Timer, Karten und Abschlüsse laufen normal weiter.',
       parameters: {
         type: 'object',
         properties: {
