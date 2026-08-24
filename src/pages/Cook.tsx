@@ -927,8 +927,12 @@ export function Cook(props: {
     scrollerRef?: (el: HTMLDivElement) => void
     showBlocked?: boolean
     dense?: boolean
+    centered?: boolean
   }) {
     const showBlocked = () => props.showBlocked !== false
+    /* Zentriert (Desktop-Standalone): Karten schmal in der Mitte, der
+       Scroll-Container bleibt volle Breite (Scrollbalken am Fensterrand) */
+    const cardWrapCls = () => (props.centered ? 'mx-auto w-full max-w-[400px]' : '')
     const empty = () =>
       jetztCards().prio.length === 0 &&
       jetztCards().normal.length === 0 &&
@@ -1027,39 +1031,47 @@ export function Cook(props: {
         </For>
         <For each={jetztCards().prio}>
           {(key) => (
-            <StepCard
-              flowId={key.split(':')[0]}
-              stepId={key.split(':')[1]}
-              onTitleClick={() => props.onTitleClick(key.split(':')[0], key.split(':')[1])}
-            />
-          )}
-        </For>
-        <For each={jetztCards().normal}>
-          {(key) => (
-            <StepCard
-              flowId={key.split(':')[0]}
-              stepId={key.split(':')[1]}
-              onTitleClick={() => props.onTitleClick(key.split(':')[0], key.split(':')[1])}
-            />
-          )}
-        </For>
-        <For each={jetztCards().waiting}>
-          {(key) => (
-            <StepCard
-              flowId={key.split(':')[0]}
-              stepId={key.split(':')[1]}
-              onTitleClick={() => props.onTitleClick(key.split(':')[0], key.split(':')[1])}
-            />
-          )}
-        </For>
-        <Show when={showBlocked()}>
-          <For each={jetztCards().blocked}>
-            {(key) => (
+            <div class={cardWrapCls()}>
               <StepCard
                 flowId={key.split(':')[0]}
                 stepId={key.split(':')[1]}
                 onTitleClick={() => props.onTitleClick(key.split(':')[0], key.split(':')[1])}
               />
+            </div>
+          )}
+        </For>
+        <For each={jetztCards().normal}>
+          {(key) => (
+            <div class={cardWrapCls()}>
+              <StepCard
+                flowId={key.split(':')[0]}
+                stepId={key.split(':')[1]}
+                onTitleClick={() => props.onTitleClick(key.split(':')[0], key.split(':')[1])}
+              />
+            </div>
+          )}
+        </For>
+        <For each={jetztCards().waiting}>
+          {(key) => (
+            <div class={cardWrapCls()}>
+              <StepCard
+                flowId={key.split(':')[0]}
+                stepId={key.split(':')[1]}
+                onTitleClick={() => props.onTitleClick(key.split(':')[0], key.split(':')[1])}
+              />
+            </div>
+          )}
+        </For>
+        <Show when={showBlocked()}>
+          <For each={jetztCards().blocked}>
+            {(key) => (
+              <div class={cardWrapCls()}>
+                <StepCard
+                  flowId={key.split(':')[0]}
+                  stepId={key.split(':')[1]}
+                  onTitleClick={() => props.onTitleClick(key.split(':')[0], key.split(':')[1])}
+                />
+              </div>
             )}
           </For>
         </Show>
@@ -1330,23 +1342,32 @@ export function Cook(props: {
 
           {/* Desktop: „Jetzt"-Spalte links + Übersicht (eine Spalte pro Flow) */}
           {/* Übersicht ein-/ausblendbar; zu → „Jetzt" allein wie Mobile:
-              gleiche Queue (inkl. geblockter Karten unten, gemutet) */}
+              gleiche Queue (inkl. geblockter Karten unten, gemutet) über die
+              volle Breite — Scrollbalken am Fensterrand, Karten zentriert */}
           {/* Horizontales Scrollen nur im Flow-Bereich — „Jetzt" bleibt stehen */}
-          <div class="hidden sm:flex flex-1 min-h-0" classList={{ 'justify-center': !overviewOpen() }}>
-            <div class="w-[400px] shrink-0 flex flex-col min-h-0" classList={{ 'bg-zinc-900/50': overviewOpen() }}>
-              <Show when={overviewOpen()}>
+          <div class="hidden sm:flex flex-1 min-h-0">
+            <Show
+              when={overviewOpen()}
+              fallback={
+                <JetztQueue
+                  onTitleClick={(flowId, stepId) => revealStep(flowId, stepId)}
+                  scrollerRef={(el) => (jetztScrollerDesktop = el)}
+                  showBlocked
+                  centered
+                />
+              }
+            >
+              <div class="w-[400px] shrink-0 flex flex-col min-h-0 bg-zinc-900/50">
                 <div class="shrink-0 px-3 py-2 border-b border-zinc-700 text-xs uppercase tracking-widest text-zinc-500">
                   Jetzt
                 </div>
-              </Show>
-              <JetztQueue
-                onTitleClick={(flowId, stepId) => revealStep(flowId, stepId)}
-                scrollerRef={(el) => (jetztScrollerDesktop = el)}
-                showBlocked={!overviewOpen()}
-                dense={overviewOpen()}
-              />
-            </div>
-            <Show when={overviewOpen()}>
+                <JetztQueue
+                  onTitleClick={(flowId, stepId) => revealStep(flowId, stepId)}
+                  scrollerRef={(el) => (jetztScrollerDesktop = el)}
+                  showBlocked={false}
+                  dense
+                />
+              </div>
               <div class="columns-area flex flex-1 min-h-0 gap-3 pt-3 px-3 pb-3 overflow-x-auto items-stretch">
                 <For each={flows()}>
                   {(s) => (
