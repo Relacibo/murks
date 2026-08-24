@@ -186,7 +186,7 @@ export function Setup() {
         {/* Header */}
         <div class="mb-4 flex items-start justify-between gap-4">
           <div>
-            <h1 class="text-xl font-semibold text-zinc-100">Willkommen bei MURKS</h1>
+            <h1 class="text-xl font-semibold text-zinc-100">Willkommen bei Murks</h1>
             <p class="text-sm text-zinc-400 mt-1">
               Schritt {step() + 1} von {STEPS.length}: {STEPS[step()]}
             </p>

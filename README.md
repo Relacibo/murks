@@ -1,8 +1,8 @@
-# MURKS
+# Murks
 
-> **M**URKS — **u**nterwürfige **R**ezept**k**och**s**oftware
+> Murks — unterwürfige Rezeptkochsoftware
 
-PWA auf Basis von Vite + SolidJS + Tailwind. Man spricht, MURKS koordiniert:
+PWA auf Basis von Vite + SolidJS + Tailwind. Man spricht, Murks koordiniert:
 Die KI führt den Kochfluss — Kochstränge, Schritte, Timer — bei minimalem Input.
 Hände frei. Trocken, direkt. Keine Höflichkeitsfloskeln.
 

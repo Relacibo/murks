@@ -74,7 +74,7 @@ export async function registerWebMCPTools(opts?: {
     await ctx.registerTool({
       name: 'get_system_prompt',
       description:
-        'Vollständige MURKS-Regeln (System-Prompt): Modellierung von Kochsträngen, Schritten, depends_on-Kanten, Timern, Zutatenliste und Antwortverhalten. Rufe das auf, bevor du Gerichte anlegst oder umbaust, und folge den Regeln exakt.',
+        'Vollständige Murks-Regeln (System-Prompt): Modellierung von Kochsträngen, Schritten, depends_on-Kanten, Timern, Zutatenliste und Antwortverhalten. Rufe das auf, bevor du Gerichte anlegst oder umbaust, und folge den Regeln exakt.',
       inputSchema: { type: 'object', properties: {} },
       execute: () => SYSTEM_PROMPT,
     })

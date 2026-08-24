@@ -1146,8 +1146,8 @@ export function Cook(props: {
       {/* z-[60]: bleibt über Modals nutzbar (Timer-Chips/Buttons) */}
       <header class="relative z-[60] shrink-0 flex items-center gap-2 px-3 py-2 border-b border-zinc-600 bg-zinc-950">
         {/* Wortmarke nur auf dem Desktop — mobile verzichtet zugunsten der Chips */}
-        <span class="hidden sm:block shrink-0 text-sm font-bold tracking-widest uppercase text-zinc-300 select-none">
-          MURKS
+        <span class="hidden sm:block shrink-0 text-sm font-bold tracking-widest text-zinc-300 select-none">
+          Murks
         </span>
         <div
           ref={(el) => (chipsRow = el)}

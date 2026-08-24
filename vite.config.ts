@@ -30,8 +30,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: 'MURKS',
-        short_name: 'MURKS',
+        name: 'Murks',
+        short_name: 'Murks',
         description: 'Minimal unterwürfige Rezeptkochsoftware',
         lang: 'de',
         theme_color: '#18181b',

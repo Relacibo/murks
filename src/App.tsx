@@ -171,7 +171,7 @@ export default function App() {
         when={stateReady()}
         fallback={
           <div class="min-h-screen flex items-center justify-center">
-            <span class="text-sm font-bold tracking-widest uppercase text-zinc-300">MURKS</span>
+            <span class="text-sm font-bold tracking-widest text-zinc-300">Murks</span>
           </div>
         }
       >

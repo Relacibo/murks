@@ -1,4 +1,4 @@
-# MURKS — UI/UX Spec v3 (Konzept C)
+# Murks — UI/UX Spec v3 (Konzept C)
 
 Voice-first Kochassistent-PWA. KI navigiert primär per Tool, Nutzer übersteuert per Touch.
 
@@ -458,7 +458,7 @@ Mehrere Karten stehen untereinander (Stapel).
 ## Topbar
 
 - **Eine einzige Leiste** — keine zweite Timer-Leiste darunter.
-- Wortmarke „MURKS" nur auf dem Desktop (≥ 640px), links vor den Chips; mobile verzichtet darauf.
+- Wortmarke „Murks" nur auf dem Desktop (≥ 640px), links vor den Chips; mobile verzichtet darauf.
 - Links: Timer-Chips (Emoji + Zeit — keine Beschreibung), scrollbar; rechts: 🔇 **Mute**
   (schaltet nur die Sprachausgabe stumm — Timer-Alarmtöne bleiben an; das Mikrofon sitzt
   in der Composer-Bar unten) + eine

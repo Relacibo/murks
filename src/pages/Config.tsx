@@ -265,7 +265,7 @@ export function ConfigModal(props: ConfigModalProps) {
         </div>
 
         <div class="px-5 py-5 space-y-8">
-          {/* Externer Modus (WebMCP): Browser-Agent steuert MURKS — Toggle
+          {/* Externer Modus (WebMCP): Browser-Agent steuert Murks — Toggle
               nur sichtbar, wenn die API verfügbar ist */}
           <Show when={webmcpAvailable()}>
             <section class="space-y-2">
@@ -274,7 +274,7 @@ export function ConfigModal(props: ConfigModalProps) {
               </h2>
               <div class="flex items-center gap-3 rounded-xl border border-zinc-600 bg-zinc-800 px-4 py-3">
                 <div class="min-w-0 flex-1">
-                  <p class="text-sm text-zinc-300">Browser-Agent steuert MURKS</p>
+                  <p class="text-sm text-zinc-300">Browser-Agent steuert Murks</p>
                   <p class="text-xs text-zinc-500 mt-0.5">
                     {webmcpToolCount() > 0
                       ? `${webmcpToolCount()} Tools registriert`
