@@ -163,7 +163,7 @@ export function Setup() {
   }
 
   function finish() {
-    // Beim Überspringen keine leeren Agenten-Platzhalter zurücklassen.
+    // Sicherheitsnetz: keine leeren Agenten-Platzhalter hinterlassen.
     removeEmptyAgents()
     setSetupDone(true)
   }
@@ -191,11 +191,12 @@ export function Setup() {
               Schritt {step() + 1} von {STEPS.length}: {STEPS[step()]}
             </p>
           </div>
-          {/* Nur der Agent-Schritt ist Pflicht — alles andere überspringbar */}
-          <Show when={step() !== 1}>
+          {/* Überspringen überspringt nur DIESEN Schritt — der Agent-Schritt (1)
+              ist Pflicht (kein Skip), auf dem letzten Schritt übernimmt „Fertig" */}
+          <Show when={step() !== 1 && !lastStep()}>
             <button
               class="text-xs text-zinc-500 hover:text-zinc-300 transition-colors shrink-0 pt-1"
-              onClick={finish}
+              onClick={next}
             >
               Überspringen
             </button>

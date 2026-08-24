@@ -10,7 +10,6 @@ import {
 } from '../state/store'
 import { isSttModelCached, downloadSttModel, deleteSttModel } from '../lib/stt'
 import { isTtsModelCached, downloadTtsModel, deleteTtsModel } from '../lib/tts'
-import { webmcpAvailable, webmcpToolCount } from '../lib/webmcp'
 import { inputCls } from '../components/fields'
 import { ModelPicker } from '../components/ModelPicker'
 import { SttSettings } from '../components/SttSettings'
@@ -20,7 +19,6 @@ import { SheetModal } from '../components/SheetModal'
 interface ConfigModalProps {
   open: boolean
   onClose: () => void
-  onToggleWebmcp: () => void
 }
 
 // ── Agent accordion row ───────────────────────────────────────────────────────
@@ -229,35 +227,6 @@ export function ConfigModal(props: ConfigModalProps) {
       bodyClass="px-5 py-5 space-y-8"
     >
       <div class="space-y-8">
-          {/* Externer Modus (WebMCP): Browser-Agent steuert Murks — Einstieg
-              nur sichtbar, wenn die API verfügbar ist. Im externen Modus
-              gibt es keine Config — zurück geht es über die Topbar. */}
-          <Show when={webmcpAvailable()}>
-            <section class="space-y-2">
-              <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                Externer Modus (WebMCP)
-              </h2>
-              <div class="flex items-center gap-3 rounded-xl border border-zinc-600 bg-zinc-800 px-4 py-3">
-                <div class="min-w-0 flex-1">
-                  <p class="text-sm text-zinc-300">Browser-Agent steuert Murks</p>
-                  <p class="text-xs text-zinc-500 mt-0.5">
-                    {webmcpToolCount() > 0
-                      ? `${webmcpToolCount()} Tools registriert`
-                      : 'Keine Tools registriert'}{' '}
-                    — Dialog, Sprache und Chat übernimmt der externe Agent; App-TTS/STT und
-                    Composer sind aus.
-                  </p>
-                </div>
-                <button
-                  class="shrink-0 h-9 rounded-lg border border-zinc-600 px-3 text-sm text-zinc-300 hover:border-zinc-400 hover:text-zinc-100 transition-colors"
-                  onClick={props.onToggleWebmcp}
-                >
-                  Aktivieren
-                </button>
-              </div>
-            </section>
-          </Show>
-
           {/* Agents */}
           <section class="space-y-2">
             <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Agenten</h2>

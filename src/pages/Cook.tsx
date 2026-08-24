@@ -42,7 +42,6 @@ export function Cook(props: {
   flowView?: string | null
   onFlowViewChange?: (id: string | null) => void
   webmcpMode?: boolean
-  onToggleWebmcp?: () => void
 }) {
   const { configOpen, setConfigOpen } = useConfig()
   const voice = props.voice ?? createAgentVoice({ configOpen })
@@ -1622,7 +1621,6 @@ export function Cook(props: {
       <ConfigModal
         open={!external() && configOpen()}
         onClose={() => { removeEmptyAgents(); setConfigOpen(false) }}
-        onToggleWebmcp={() => props.onToggleWebmcp?.()}
       />
       <WaitMenu />
     </div>
