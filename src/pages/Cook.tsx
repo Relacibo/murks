@@ -1121,7 +1121,7 @@ export function Cook(props: {
             Zeile) — der zentrierte Content beginnt direkt darunter.
             Mobile: volle Border-Zeile. */}
         <div class="shrink-0" classList={{ 'border-b border-zinc-600': !props.centered }}>
-          <div class={`flex items-center gap-2 px-3 ${props.centered ? 'pt-2 pb-1' : 'py-2'}`}>
+          <div class="flex items-center gap-2 px-3 py-2">
             <button
               class="icon-btn"
               onClick={props.onBack}
@@ -1129,7 +1129,10 @@ export function Cook(props: {
             >
               <FiChevronLeft size={16} class="-translate-x-[0.5px]" />
             </button>
-            <span class="text-sm font-semibold truncate">
+            <span
+              class="font-semibold truncate"
+              classList={{ 'text-base': props.centered, 'text-sm': !props.centered }}
+            >
               {props.s.icon ? `${props.s.icon} ${props.s.name}` : props.s.name}
             </span>
           </div>
