@@ -29,6 +29,7 @@ export function Cook(props: {
   voice?: ReturnType<typeof createAgentVoice>
   onOpenIngredients: () => void
   onOpenChat: () => void
+  onMoreMenuOpen?: () => void
   overviewOpen?: boolean
   onToggleOverview?: () => void
 }) {
@@ -1086,7 +1087,7 @@ export function Cook(props: {
     <div class="fixed inset-0 bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
       {/* ── Topbar: Timer-Chips + Buttons (eine Leiste) ────── */}
       {/* z-[60]: bleibt über Modals nutzbar (Timer-Chips/Buttons) */}
-      <header class="relative z-[60] shrink-0 flex items-center gap-2 px-3 py-2 border-b border-zinc-600">
+      <header class="relative z-[60] shrink-0 flex items-center gap-2 px-3 py-2 border-b border-zinc-600 bg-zinc-950">
         {/* Wortmarke nur auf dem Desktop — mobile verzichtet zugunsten der Chips */}
         <span class="hidden sm:block shrink-0 text-sm font-bold tracking-widest uppercase text-zinc-300 select-none">
           MURKS
@@ -1201,7 +1202,11 @@ export function Cook(props: {
             <button
               class="mic-btn is-off"
               classList={{ 'bg-zinc-700': moreOpen() }}
-              onClick={() => setMoreOpen((v) => !v)}
+              onClick={() => {
+                const opening = !moreOpen()
+                setMoreOpen(opening)
+                if (opening) props.onMoreMenuOpen?.()
+              }}
               title="Mehr"
               aria-label="Weitere Optionen"
             >

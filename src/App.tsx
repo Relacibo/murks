@@ -111,6 +111,10 @@ function CookingRoute() {
           setModal('ingredients', !modals().includes('ingredients'))
         }
         onOpenChat={() => setModal('chat', !modals().includes('chat'))}
+        onMoreMenuOpen={() => {
+          setModal('ingredients', false)
+          setModal('chat', false)
+        }}
         overviewOpen={!overviewHidden()}
         onToggleOverview={toggleOverview}
       />

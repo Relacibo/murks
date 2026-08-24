@@ -45,11 +45,16 @@ export function IngredientsModal(props: { open: boolean; onClose: () => void }) 
 
   return (
     <Show when={props.open}>
+      {/* 1. Visueller Blur — pointer-events-none, deckt alles inkl. Composer ab */}
+      <div class="fixed inset-0 z-[61] bg-zinc-950/80 backdrop-blur-sm pointer-events-none" />
+      {/* 2. Backdrop-Catcher für „außen klicken = schließen" (hinter Panel, vor Blur da pe-none) */}
       <div
-        class="fixed inset-x-0 top-14 bottom-[max(4.5rem,env(safe-area-inset-bottom))] z-50 bg-zinc-950/80 backdrop-blur-sm flex flex-col justify-end sm:items-center sm:justify-center sm:p-4"
-        onClick={(e) => e.target === e.currentTarget && props.onClose()}
-      >
-        <div class="bg-zinc-950 rounded-t-2xl sm:rounded-2xl sm:border sm:border-zinc-600 sm:shadow-2xl sm:w-full sm:max-w-md max-h-[80vh] overflow-y-auto modal-pop">
+        class="fixed inset-x-0 top-14 bottom-[max(4.5rem,env(safe-area-inset-bottom))] z-[51]"
+        onClick={props.onClose}
+      />
+      {/* 3. Panel-Container — über Blur, pe-none damit Klicks daneben zum Catcher durchfallen */}
+      <div class="fixed inset-x-0 top-14 bottom-[max(4.5rem,env(safe-area-inset-bottom))] z-[62] flex flex-col justify-end sm:items-center sm:justify-center sm:p-4 pointer-events-none">
+        <div class="bg-zinc-950 rounded-t-2xl sm:rounded-2xl sm:border sm:border-zinc-600 sm:shadow-2xl sm:w-full sm:max-w-md max-h-[80vh] overflow-y-auto modal-pop pointer-events-auto">
           <div class="flex items-center gap-2 px-5 py-4 border-b border-zinc-600 sticky top-0 bg-zinc-950">
             <h2 class="text-base font-semibold flex-1">Zutaten</h2>
             <button
