@@ -20,7 +20,6 @@ import { SheetModal } from '../components/SheetModal'
 interface ConfigModalProps {
   open: boolean
   onClose: () => void
-  dismissible: boolean
   webmcpMode: boolean
   onToggleWebmcp: () => void
 }
@@ -229,7 +228,6 @@ export function ConfigModal(props: ConfigModalProps) {
       title="Konfiguration"
       sheetClass="sm:h-auto sm:max-w-lg"
       bodyClass="px-5 py-5 space-y-8"
-      dismissible={props.dismissible}
     >
       <div class="space-y-8">
           {/* Externer Modus (WebMCP): Browser-Agent steuert Murks — Toggle

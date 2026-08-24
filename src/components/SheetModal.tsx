@@ -12,8 +12,6 @@ interface SheetModalProps extends ParentProps {
   bodyClass?: string
   /** Buttons links neben dem X im Header */
   headerActions?: JSX.Element
-  /** false → nicht schließbar (kein X, kein Backdrop-Klick, kein Esc/Swipe) */
-  dismissible?: boolean
   /** Zugriff auf den Body-Scroller (z.B. Auto-Scroll) */
   bodyRef?: (el: HTMLDivElement) => void
 }
@@ -22,12 +20,10 @@ interface SheetModalProps extends ParentProps {
     mobil (85vh), zentrierter Dialog auf dem Desktop. Der Header liegt
     außerhalb des Scrollbereichs — die Scrollbar läuft nicht über den Titel. */
 export function SheetModal(props: SheetModalProps) {
-  const dismissible = () => props.dismissible !== false
-
   createEffect(() => {
     if (!props.open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && dismissible()) props.onClose()
+      if (e.key === 'Escape') props.onClose()
     }
     window.addEventListener('keydown', onKey)
     onCleanup(() => window.removeEventListener('keydown', onKey))
@@ -38,7 +34,7 @@ export function SheetModal(props: SheetModalProps) {
     touchStartY = e.touches[0].clientY
   }
   function onTouchEnd(e: TouchEvent) {
-    if (e.changedTouches[0].clientY - touchStartY > 80 && dismissible()) props.onClose()
+    if (e.changedTouches[0].clientY - touchStartY > 80) props.onClose()
   }
 
   return (
@@ -46,7 +42,7 @@ export function SheetModal(props: SheetModalProps) {
       <div
         class="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex flex-col justify-end pb-[max(4.5rem,env(safe-area-inset-bottom))] sm:items-center sm:justify-center sm:p-4"
         onClick={(e) => {
-          if (e.target === e.currentTarget && dismissible()) props.onClose()
+          if (e.target === e.currentTarget) props.onClose()
         }}
       >
         <div
@@ -59,16 +55,14 @@ export function SheetModal(props: SheetModalProps) {
               {props.title}
             </h2>
             {props.headerActions}
-            <Show when={dismissible()}>
-              <button
-                class="icon-btn"
-                onClick={() => props.onClose()}
-                title="Schließen"
-                aria-label="Schließen"
-              >
-                <FiX size={16} />
-              </button>
-            </Show>
+            <button
+              class="icon-btn"
+              onClick={() => props.onClose()}
+              title="Schließen"
+              aria-label="Schließen"
+            >
+              <FiX size={16} />
+            </button>
           </div>
           <div
             ref={props.bodyRef}

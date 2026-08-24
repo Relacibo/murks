@@ -5,7 +5,7 @@ import { IngredientsModal } from '../components/IngredientsModal'
 import { AgentModal } from './Agent'
 import { ConfigModal } from './Config'
 import { useConfig } from '../App'
-import { state, sendMessage, removeEmptyAgents, hasValidAgent, type Flow, type Step, type StepRef } from '../state/store'
+import { state, sendMessage, removeEmptyAgents, type Flow, type Step, type StepRef } from '../state/store'
 import { CookContext, FLOW_COLORS, queueOrder, timerEffectiveEnd } from '../lib/cookEngine'
 import { fmtRemaining } from '../lib/tools'
 import { createAgentVoice } from '../lib/agentVoice'
@@ -1580,8 +1580,7 @@ export function Cook(props: {
       <AgentModal open={!external() && props.chatOpen} onClose={props.onCloseChat} voice={voice} />
       <ConfigModal
         open={configOpen()}
-        onClose={() => { removeEmptyAgents(); if (hasValidAgent() || external()) setConfigOpen(false) }}
-        dismissible={hasValidAgent() || external()}
+        onClose={() => { removeEmptyAgents(); setConfigOpen(false) }}
         webmcpMode={external()}
         onToggleWebmcp={() => props.onToggleWebmcp?.()}
       />

@@ -131,13 +131,6 @@ function CookingRoute() {
     void sendMessage(p)
   })
 
-  // Kein gültiger Agent → Konfiguration aufpoppen (nur im internen Modus)
-  createEffect(() => {
-    if (!stateReady()) return
-    if (!hasValidAgent() && state.setupDone && !webmcpMode() && !modals().includes('config'))
-      setModal('config', true)
-  })
-
   return (
     <Show
       when={!showSetup()}

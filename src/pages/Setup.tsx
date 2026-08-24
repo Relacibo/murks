@@ -191,6 +191,7 @@ export function Setup() {
               Schritt {step() + 1} von {STEPS.length}: {STEPS[step()]}
             </p>
           </div>
+          {/* Nur der Agent-Schritt ist Pflicht — alles andere überspringbar */}
           <Show when={step() !== 1}>
             <button
               class="text-xs text-zinc-500 hover:text-zinc-300 transition-colors shrink-0 pt-1"
