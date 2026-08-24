@@ -218,22 +218,17 @@ export function Cook(props: {
     const s = flows().find((x) => x.id === flowId)
     if (!s || !s.steps.some((st) => st.id === stepId)) return
     focusFlow(flowId)
-    if (view !== 'jetzt') setFlowView(flowId)   // 'flow' oder undefined → Detailansicht
-    else setFlowView(null)                        // 'jetzt' → Queue bleibt sichtbar
+    /* Flow-Kontext: Detail-View (volle Breite) — wie mobil. Ausnahme
+       Desktop mit offener Übersicht: dort bleibt die Ziel-Spalte stehen. */
+    if (view === 'jetzt') {
+      setFlowView(null)
+    } else if (!(overviewOpen() && window.matchMedia('(min-width: 640px)').matches)) {
+      setFlowView(flowId)
+    }
     const key = `${flowId}:${stepId}`
     pulseCards([key])
-    /* Desktop-Standalone (Übersicht zu): Übersicht öffnen, damit die
-       Ziel-Spalte existiert — sonst gibt es kein Scrollziel. Mobile
-       (Detail-View statt Spalten) und „jetzt"-View bleiben unberührt. */
-    if (
-      view !== 'jetzt' &&
-      !overviewOpen() &&
-      window.matchMedia('(min-width: 640px)').matches
-    ) {
-      props.onToggleOverview?.()
-    }
     /* Ziel-Karte in den sichtbaren Bereich scrollen — nur im Flow-Kontext
-       (Desktop-Spalte bzw. mobile Flow-View), nicht in der „Jetzt"-Liste */
+       (Desktop-Spalte bzw. Flow-Detail-View), nicht in der „Jetzt"-Liste */
     requestAnimationFrame(() => {
       const scope =
         view === 'jetzt'
@@ -1106,6 +1101,36 @@ export function Cook(props: {
     )
   }
 
+  /* ── Flow-Detail-View (volle Breite): ein Flow als einzelne, scrollende
+        Spalte mit Zurück-Button — mobil Standard, Desktop im Übersicht-zu-
+        Modus beim Klick auf einen Flow-Namen */
+  function FlowDetail(props: { s: Flow; onBack: () => void }) {
+    return (
+      <div class="flex-1 min-h-0 flex flex-col" data-flow-id={props.s.id}>
+        <div class="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-zinc-600">
+          <button
+            class="icon-btn"
+            onClick={props.onBack}
+            aria-label="Zurück zu Jetzt"
+          >
+            <FiChevronLeft size={16} />
+          </button>
+          <span class="text-sm font-semibold truncate">
+            {props.s.icon ? `${props.s.icon} ${props.s.name}` : props.s.name}
+          </span>
+        </div>
+        <div
+          class="flex-1 min-h-0 overflow-y-auto pt-3 px-3 flex flex-col gap-2"
+          style={{ 'padding-bottom': 'calc(var(--composer-h, 0px) + 1rem)' }}
+        >
+          <For each={props.s.steps}>
+            {(_, i) => <StepCard flowId={props.s.id} stepId={props.s.steps[i()].id} />}
+          </For>
+        </div>
+      </div>
+    )
+  }
+
   /* ── Spalten-Header (Desktop) ─────────────────────────────────────── */
   function FlowColumn(props: { s: Flow; isFocused: boolean; onFocus: () => void }) {
     const s = () => props.s
@@ -1331,48 +1356,34 @@ export function Cook(props: {
                 />
               }
             >
-              {(s) => (
-                <div class="flex-1 min-h-0 flex flex-col" data-flow-id={s().id}>
-                  <div class="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-zinc-600">
-                    <button
-                      class="icon-btn"
-                      onClick={() => setFlowView(null)}
-                      aria-label="Zurück zu Jetzt"
-                    >
-                      <FiChevronLeft size={16} />
-                    </button>
-                    <span class="text-sm font-semibold truncate">
-                      {s().icon ? `${s().icon} ${s().name}` : s().name}
-                    </span>
-                  </div>
-                  <div
-                    class="flex-1 min-h-0 overflow-y-auto pt-3 px-3 flex flex-col gap-2"
-                    style={{ 'padding-bottom': 'calc(var(--composer-h, 0px) + 1rem)' }}
-                  >
-                    <For each={s().steps}>
-                      {(_, i) => <StepCard flowId={s().id} stepId={s().steps[i()].id} />}
-                    </For>
-                  </div>
-                </div>
-              )}
+              {(s) => <FlowDetail s={s()} onBack={() => setFlowView(null)} />}
             </Show>
           </div>
 
           {/* Desktop: „Jetzt"-Spalte links + Übersicht (eine Spalte pro Flow) */}
           {/* Übersicht ein-/ausblendbar; zu → „Jetzt" allein wie Mobile:
               gleiche Queue (inkl. geblockter Karten unten, gemutet) über die
-              volle Breite — Scrollbalken am Fensterrand, Karten zentriert */}
+              volle Breite — Scrollbalken am Fensterrand, Karten zentriert.
+              Flow-Namen-Klick öffnet dann die Flow-Detail-View (volle Breite,
+              wie mobil) statt der Übersicht. */}
           {/* Horizontales Scrollen nur im Flow-Bereich — „Jetzt" bleibt stehen */}
           <div class="hidden sm:flex flex-1 min-h-0">
             <Show
               when={overviewOpen()}
               fallback={
-                <JetztQueue
-                  onTitleClick={(flowId, stepId) => revealStep(flowId, stepId)}
-                  scrollerRef={(el) => (jetztScrollerDesktop = el)}
-                  showBlocked
-                  centered
-                />
+                <Show
+                  when={detailFlow()}
+                  fallback={
+                    <JetztQueue
+                      onTitleClick={(flowId, stepId) => revealStep(flowId, stepId)}
+                      scrollerRef={(el) => (jetztScrollerDesktop = el)}
+                      showBlocked
+                      centered
+                    />
+                  }
+                >
+                  {(s) => <FlowDetail s={s()} onBack={() => setFlowView(null)} />}
+                </Show>
               }
             >
               <div class="w-[400px] shrink-0 flex flex-col min-h-0 bg-zinc-900/50">

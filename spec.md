@@ -219,7 +219,8 @@ alles sichtbar.
 - **Horizontales Scrollen nur im Flow-Bereich** — die „Jetzt"-Spalte bleibt stehen.
 - Titel-Tap in der „Jetzt"-Spalte = **Schritt anspringen**: Flow fokussieren + Karte
   in den sichtbaren Bereich scrollen (Spalte horizontal, Karte vertikal) + kurzer Puls —
-  gleiches Verhalten wie `show_step`.
+  gleiches Verhalten wie `show_step`. Bei geschlossener Übersicht öffnet der Tap
+  stattdessen die **Flow-Detail-View** (volle Breite, wie mobil, mit Zurück-Button).
 - **Spaltenreihenfolge:** fix = Anlegereihenfolge.
 - **Spalte ist keine Karte** — nur Header (Emoji + Name, Klick = fokussieren) + Kartenstapel.
 - **Alle Schritt-Karten ausgeklappt** und **identisch zur mobilen Karte** (gleiches Titelband —
