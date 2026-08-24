@@ -1116,12 +1116,24 @@ export function Cook(props: {
   function FlowDetail(props: { s: Flow; onBack: () => void; centered?: boolean }) {
     const wrap = () => (props.centered ? 'mx-auto w-full max-w-[400px]' : '')
     return (
-      <div class="flex-1 min-h-0 flex flex-col" data-flow-id={props.s.id}>
-        {/* Desktop: Zurück + Name ganz links am Seitenrand (ohne volle
-            Zeile) — der zentrierte Content beginnt direkt darunter.
-            Mobile: volle Border-Zeile. */}
-        <div class="shrink-0" classList={{ 'border-b border-zinc-600': !props.centered }}>
-          <div class="flex items-center gap-2 px-3 py-2">
+      <div
+        class="flex-1 min-h-0 flex flex-col"
+        classList={{ relative: props.centered }}
+        data-flow-id={props.s.id}
+      >
+        {/* Desktop: Zurück + Name schweben links oben über dem Content —
+            die zentrierte Spalte beginnt ganz oben. Mobile: volle Border-Zeile. */}
+        <div
+          class="shrink-0"
+          classList={{
+            'border-b border-zinc-600': !props.centered,
+            'absolute left-0 top-0 z-10': props.centered,
+          }}
+        >
+          <div
+            class="flex items-center gap-2 px-3 py-2"
+            classList={{ 'bg-zinc-950/85 backdrop-blur-sm rounded-b-2xl pr-5': props.centered }}
+          >
             <button
               class="icon-btn"
               onClick={props.onBack}
