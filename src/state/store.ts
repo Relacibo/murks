@@ -187,9 +187,14 @@ function hydrate(data: unknown): AppState {
       defaultAgentId = agents[0]?.id ?? null
     }
     const cook = (raw.cook ?? {}) as Record<string, unknown>
+    // Auto-Heilung: gültiger Agent vorhanden, aber Setup nie abgeschlossen
+    // (z.B. Wizard mittendrin geschlossen) → als abgeschlossen behandeln.
+    const defaultAgent = agents.find((a) => a.id === defaultAgentId)
+    const setupDone =
+      raw.setupDone === true || Boolean(defaultAgent?.endpoint && defaultAgent?.model)
     return {
       config: { displayName: loadedConfig.displayName ? String(loadedConfig.displayName) : '' },
-      setupDone: raw.setupDone === true,
+      setupDone,
       stt: {
         mode:
           (raw.stt as Record<string, unknown> | null)?.mode === 'server' ||
