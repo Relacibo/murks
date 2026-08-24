@@ -12,7 +12,7 @@ import { createAgentVoice } from '../lib/agentVoice'
 import {
   FiMic, FiMoreHorizontal, FiFileText, FiSettings, FiMessageSquare,
   FiCheck, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw, FiClock, FiSidebar,
-  FiVolume2, FiVolumeX, FiPause, FiPlay, FiPlus, FiFastForward, FiSend, FiSquare, FiX,
+  FiVolume2, FiVolumeX, FiPause, FiPlay, FiPlus, FiFastForward, FiSend, FiSquare, FiX, FiPower,
 } from 'solid-icons/fi'
 import { toggleMuted, stopSpeaking, speak, pregenCard } from '../lib/tts'
 import { playAlarmBell, playAlarmBing, stopAlarmSounds } from '../lib/alarmSounds'
@@ -1293,15 +1293,16 @@ export function Cook(props: {
               </Show>
             </div>
           </Show>
-          {/* Externer Modus: kein Chat → Konfiguration direkt in der Topbar */}
+          {/* Externer Modus: kein Chat, keine Config — nur ein direkter
+              Ausstieg zurück in den internen Modus */}
           <Show when={external()}>
             <button
               class="mic-btn is-off"
-              onClick={() => setConfigOpen(true)}
-              title="Konfiguration"
-              aria-label="Konfiguration öffnen"
+              onClick={() => props.onToggleWebmcp?.()}
+              title="WebMCP beenden"
+              aria-label="WebMCP beenden"
             >
-              <FiSettings size={16} />
+              <FiPower size={16} />
             </button>
           </Show>
         </div>
@@ -1579,9 +1580,8 @@ export function Cook(props: {
       <IngredientsModal open={props.ingredientsOpen} onClose={props.onCloseIngredients} />
       <AgentModal open={!external() && props.chatOpen} onClose={props.onCloseChat} voice={voice} />
       <ConfigModal
-        open={configOpen()}
+        open={!external() && configOpen()}
         onClose={() => { removeEmptyAgents(); setConfigOpen(false) }}
-        webmcpMode={external()}
         onToggleWebmcp={() => props.onToggleWebmcp?.()}
       />
       <WaitMenu />

@@ -20,7 +20,6 @@ import { SheetModal } from '../components/SheetModal'
 interface ConfigModalProps {
   open: boolean
   onClose: () => void
-  webmcpMode: boolean
   onToggleWebmcp: () => void
 }
 
@@ -230,8 +229,9 @@ export function ConfigModal(props: ConfigModalProps) {
       bodyClass="px-5 py-5 space-y-8"
     >
       <div class="space-y-8">
-          {/* Externer Modus (WebMCP): Browser-Agent steuert Murks — Toggle
-              nur sichtbar, wenn die API verfügbar ist */}
+          {/* Externer Modus (WebMCP): Browser-Agent steuert Murks — Einstieg
+              nur sichtbar, wenn die API verfügbar ist. Im externen Modus
+              gibt es keine Config — zurück geht es über die Topbar. */}
           <Show when={webmcpAvailable()}>
             <section class="space-y-2">
               <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">
@@ -249,29 +249,16 @@ export function ConfigModal(props: ConfigModalProps) {
                   </p>
                 </div>
                 <button
-                  class="shrink-0 h-9 rounded-lg border px-3 text-sm transition-colors"
-                  classList={{
-                    'border-teal-700/50 bg-teal-900/60 text-teal-300 hover:bg-teal-800/70 hover:text-teal-100':
-                      props.webmcpMode,
-                    'border-zinc-600 text-zinc-300 hover:border-zinc-400 hover:text-zinc-100':
-                      !props.webmcpMode,
-                  }}
+                  class="shrink-0 h-9 rounded-lg border border-zinc-600 px-3 text-sm text-zinc-300 hover:border-zinc-400 hover:text-zinc-100 transition-colors"
                   onClick={props.onToggleWebmcp}
                 >
-                  {props.webmcpMode ? 'An' : 'Aus'}
+                  Aktivieren
                 </button>
               </div>
-              <Show when={props.webmcpMode}>
-                <p class="text-xs text-zinc-500">
-                  Agenten-, Sprach- und TTS-Einstellungen sind im externen Modus ausgeblendet —
-                  deaktivieren, um sie wieder zu sehen.
-                </p>
-              </Show>
             </section>
           </Show>
 
           {/* Agents */}
-          <Show when={!props.webmcpMode}>
           <section class="space-y-2">
             <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Agenten</h2>
             <For each={state.agents}>
@@ -378,7 +365,6 @@ export function ConfigModal(props: ConfigModalProps) {
               </Show>
             </div>
           </section>
-          </Show>
 
           {/* Persönlich */}
           <section class="space-y-4">

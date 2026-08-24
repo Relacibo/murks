@@ -70,7 +70,8 @@ function CookingRoute() {
   const webmcpMode = () => params.webmcp === '1'
   const setWebmcpMode = (v: boolean) => {
     if (v === webmcpMode()) return
-    setParams(v ? { webmcp: '1' } : { webmcp: undefined })
+    // Einschalten schließt offene Modals — im externen Modus gibt es keine
+    setParams(v ? { webmcp: '1', modal: undefined } : { webmcp: undefined })
   }
 
   // Setup nur nötig, wenn kein Agent konfiguriert ist UND der interne Modus
