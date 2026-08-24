@@ -12,7 +12,7 @@ import { createAgentVoice } from '../lib/agentVoice'
 import {
   FiMic, FiMoreHorizontal, FiFileText, FiSettings, FiMessageSquare,
   FiCheck, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw, FiClock, FiSidebar,
-  FiVolume2, FiVolumeX, FiPause, FiPlay, FiPlus, FiFastForward, FiSend, FiSquare, FiX, FiPower,
+  FiVolume2, FiVolumeX, FiPause, FiPlay, FiPlus, FiFastForward, FiSend, FiSquare, FiX,
 } from 'solid-icons/fi'
 import { toggleMuted, stopSpeaking, speak, pregenCard } from '../lib/tts'
 import { playAlarmBell, playAlarmBing, stopAlarmSounds } from '../lib/alarmSounds'
@@ -1293,18 +1293,8 @@ export function Cook(props: {
               </Show>
             </div>
           </Show>
-          {/* Externer Modus: kein Chat, keine Config — nur ein direkter
-              Ausstieg zurück in den internen Modus */}
-          <Show when={external()}>
-            <button
-              class="mic-btn is-off"
-              onClick={() => props.onToggleWebmcp?.()}
-              title="WebMCP beenden"
-              aria-label="WebMCP beenden"
-            >
-              <FiPower size={16} />
-            </button>
-          </Show>
+          {/* Externer Modus: kein Chat, keine Config — die Topbar bleibt
+              bewusst karg, zurück geht es nur über den URL-Param */}
         </div>
       </header>
 

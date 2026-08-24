@@ -66,7 +66,7 @@ function CookingRoute() {
   /* ── Externer Modus (WebMCP): Browser-Agent steuert die App ──────────
      Source of Truth = URL-Param ?webmcp=1 (überlebt Reload, teilbar).
      Einweg-Automatik: ruft ein externer Agent ein Tool auf, wird der
-     Param gesetzt — zurück geht es nur explizit über den Config-Toggle. */
+     Param gesetzt — zurück nur durch Entfernen des Params aus der URL. */
   const webmcpMode = () => params.webmcp === '1'
   const setWebmcpMode = (v: boolean) => {
     if (v === webmcpMode()) return
