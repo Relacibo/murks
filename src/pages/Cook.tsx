@@ -5,7 +5,7 @@ import { IngredientsModal } from '../components/IngredientsModal'
 import { AgentModal } from './Agent'
 import { ConfigModal } from './Config'
 import { useConfig } from '../App'
-import { state, sendMessage, removeEmptyAgents, type Flow, type Step, type StepRef } from '../state/store'
+import { state, sendMessage, removeEmptyAgents, hasValidAgent, type Flow, type Step, type StepRef } from '../state/store'
 import { CookContext, FLOW_COLORS, queueOrder, timerEffectiveEnd } from '../lib/cookEngine'
 import { fmtRemaining } from '../lib/tools'
 import { createAgentVoice } from '../lib/agentVoice'
@@ -42,11 +42,6 @@ export function Cook(props: {
   const { configOpen, setConfigOpen } = useConfig()
   const voice = props.voice ?? createAgentVoice({ configOpen })
   const engine = useContext(CookContext)!
-
-  function hasValidAgent() {
-    const agent = state.agents.find((a) => a.id === state.defaultAgentId)
-    return Boolean(agent?.endpoint && agent?.model)
-  }
 
   /* Puls-Sync: alle CSS-Pulsanimationen starten bei derselben Phase.
      Einmalig beim Mount --pulse-offset auf :root setzen = negativer delay

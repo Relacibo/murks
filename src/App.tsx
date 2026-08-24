@@ -7,16 +7,11 @@ import { Setup } from './pages/Setup'
 import { Toasts } from './components/Toasts'
 import { createAgentVoice } from './lib/agentVoice'
 import { registerWebMCPTools } from './lib/webmcp'
-import { state, stateReady, cookEngine, sendMessage, clearMessages } from './state/store'
+import { state, stateReady, cookEngine, sendMessage, clearMessages, hasValidAgent } from './state/store'
 import { CookContext } from './lib/cookEngine'
 
 const base =
   import.meta.env.BASE_URL === '/' ? undefined : import.meta.env.BASE_URL.replace(/\/+$/, '')
-
-function hasValidAgent() {
-  const agent = state.agents.find((a) => a.id === state.defaultAgentId)
-  return Boolean(agent?.endpoint && agent?.model)
-}
 
 interface ConfigCtx {
   configOpen: Accessor<boolean>

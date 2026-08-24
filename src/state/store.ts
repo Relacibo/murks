@@ -532,6 +532,12 @@ export function removeAgent(id: string) {
   setState('agents', (a) => a.filter((x) => x.id !== id))
 }
 
+/** Prüft ob ein nutzbarer Agent konfiguriert ist (endpoint + model vorhanden). */
+export function hasValidAgent(): boolean {
+  const agent = state.agents.find((a) => a.id === state.defaultAgentId)
+  return Boolean(agent?.endpoint && agent?.model)
+}
+
 /** Leere Agenten-Platzhalter aufräumen („+ Neuer Agent" ohne Eingaben) —
     nur komplett leere Agenten, der Default-Zeiger wird notfalls umgehängt */
 export function removeEmptyAgents() {
