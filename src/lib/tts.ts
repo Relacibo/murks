@@ -7,6 +7,13 @@ const PIPER_CACHE_KEY = 'murks-piper'
 const PIPER_BASE_PATH = `${import.meta.env.BASE_URL}piper/`
 const PIPER_VOICE_BASE_URL = 'https://huggingface.co/rhasspy/piper-voices/resolve/main/'
 
+/* Externer Modus (WebMCP): der externe Agent spricht selbst — internes TTS
+   (Vorlesen, Vorgenerierung) komplett aus. Alarmtöne bleiben unberührt. */
+let externalMode = false
+export function setTtsExternalMode(on: boolean): void {
+  externalMode = on
+}
+
 interface PiperBundle {
   engine: import('piper-tts-web').PiperWebEngine
   provider: import('piper-tts-web').RemoteVoiceProvider
@@ -125,7 +132,7 @@ async function generateSegment(text: string): Promise<DecodedAudio> {
 
 /** Vorgeneriert den ersten Satz einer Karte (kein Token-Check — wird als Cache gespeichert). */
 export function pregenCard(id: string, text: string): void {
-  if (pregenCache.has(id) || state.tts.muted || state.tts.mode !== 'wasm') return
+  if (externalMode || pregenCache.has(id) || state.tts.muted || state.tts.mode !== 'wasm') return
   pregenCache.set(id, generateFirstSentence(text))
 }
 
@@ -245,6 +252,8 @@ function speakWebSpeech(text: string) {
 
 export async function speak(text: string) {
   stopSpeaking()
+  // Externer Modus: externer Agent spricht — kein internes TTS
+  if (externalMode) return
   // Mute betrifft nur die Sprachausgabe — Alarmtöne (Timer) bleiben unberührt
   if (state.tts.muted) return
   const myToken = ++token

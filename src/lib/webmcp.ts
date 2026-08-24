@@ -1,3 +1,4 @@
+import { createSignal } from 'solid-js'
 import { TOOLS } from './tools'
 import { cookEngine, SYSTEM_PROMPT } from '../state/store'
 
@@ -29,12 +30,24 @@ function modelContext(): WebModelContext | null {
   return doc.modelContext ?? nav.modelContext ?? null
 }
 
+/** Feature-Detection: WebMCP-API im Browser verfügbar (stabil pro Load). */
+export function webmcpAvailable(): boolean {
+  return modelContext() !== null
+}
+
+/** Anzahl erfolgreich registrierter Tools — für die Config-UI. */
+export const [webmcpToolCount, setWebmcpToolCount] = createSignal(0)
+
 /**
  * Alle Cook-Tools (TOOLS, OpenAI-Schema → WebMCP-inputSchema) plus ein
  * Regeln-Tool mit dem System-Prompt registrieren. Fällt zurück, wenn die
  * API im Browser nicht verfügbar ist (kein Fehler, reine Progression).
+ * onExternalUse: wird bei jedem Tool-Aufruf eines externen Agenten gefeuert —
+ * die App kann darüber den WebMCP-Modus (URL-Param) einwegig einschalten.
  */
-export async function registerWebMCPTools(): Promise<boolean> {
+export async function registerWebMCPTools(opts?: {
+  onExternalUse?: () => void
+}): Promise<boolean> {
   const ctx = modelContext()
   if (!ctx) return false
 
@@ -46,7 +59,10 @@ export async function registerWebMCPTools(): Promise<boolean> {
         name,
         description,
         inputSchema: parameters,
-        execute: (args) => cookEngine.executeTool(name, args),
+        execute: (args) => {
+          opts?.onExternalUse?.()
+          return cookEngine.executeTool(name, args)
+        },
       })
       count++
     } catch (e) {
@@ -68,5 +84,6 @@ export async function registerWebMCPTools(): Promise<boolean> {
   }
 
   if (count > 0) console.info(`WebMCP: ${count} Tools registriert`)
+  setWebmcpToolCount(count)
   return count > 0
 }

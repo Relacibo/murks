@@ -10,6 +10,7 @@ import {
 } from '../state/store'
 import { isSttModelCached, downloadSttModel, deleteSttModel } from '../lib/stt'
 import { isTtsModelCached, downloadTtsModel, deleteTtsModel } from '../lib/tts'
+import { webmcpAvailable, webmcpToolCount } from '../lib/webmcp'
 import { inputCls } from '../components/fields'
 import { ModelPicker } from '../components/ModelPicker'
 import { SttSettings } from '../components/SttSettings'
@@ -19,6 +20,8 @@ interface ConfigModalProps {
   open: boolean
   onClose: () => void
   dismissible: boolean
+  webmcpMode: boolean
+  onToggleWebmcp: () => void
 }
 
 // ── Agent accordion row ───────────────────────────────────────────────────────
@@ -253,7 +256,48 @@ export function ConfigModal(props: ConfigModalProps) {
         </div>
 
         <div class="px-5 py-5 space-y-8">
+          {/* Externer Modus (WebMCP): Browser-Agent steuert MURKS — Toggle
+              nur sichtbar, wenn die API verfügbar ist */}
+          <Show when={webmcpAvailable()}>
+            <section class="space-y-2">
+              <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                Externer Modus (WebMCP)
+              </h2>
+              <div class="flex items-center gap-3 rounded-xl border border-zinc-600 bg-zinc-800 px-4 py-3">
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm text-zinc-300">Browser-Agent steuert MURKS</p>
+                  <p class="text-xs text-zinc-500 mt-0.5">
+                    {webmcpToolCount() > 0
+                      ? `${webmcpToolCount()} Tools registriert`
+                      : 'Keine Tools registriert'}{' '}
+                    — Dialog, Sprache und Chat übernimmt der externe Agent; App-TTS/STT und
+                    Composer sind aus.
+                  </p>
+                </div>
+                <button
+                  class="shrink-0 h-9 rounded-lg border px-3 text-sm transition-colors"
+                  classList={{
+                    'border-teal-700/50 bg-teal-900/60 text-teal-300 hover:bg-teal-800/70 hover:text-teal-100':
+                      props.webmcpMode,
+                    'border-zinc-600 text-zinc-300 hover:border-zinc-400 hover:text-zinc-100':
+                      !props.webmcpMode,
+                  }}
+                  onClick={props.onToggleWebmcp}
+                >
+                  {props.webmcpMode ? 'An' : 'Aus'}
+                </button>
+              </div>
+              <Show when={props.webmcpMode}>
+                <p class="text-xs text-zinc-500">
+                  Agenten-, Sprach- und TTS-Einstellungen sind im externen Modus ausgeblendet —
+                  deaktivieren, um sie wieder zu sehen.
+                </p>
+              </Show>
+            </section>
+          </Show>
+
           {/* Agents */}
+          <Show when={!props.webmcpMode}>
           <section class="space-y-2">
             <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Agenten</h2>
             <For each={state.agents}>
@@ -360,6 +404,7 @@ export function ConfigModal(props: ConfigModalProps) {
               </Show>
             </div>
           </section>
+          </Show>
 
           {/* Persönlich */}
           <section class="space-y-4">

@@ -38,10 +38,15 @@ export function Cook(props: {
   onCloseChat: () => void
   overviewOpen?: boolean
   onToggleOverview?: () => void
+  webmcpMode?: boolean
+  onToggleWebmcp?: () => void
 }) {
   const { configOpen, setConfigOpen } = useConfig()
   const voice = props.voice ?? createAgentVoice({ configOpen })
   const engine = useContext(CookContext)!
+  /* Externer Modus (WebMCP): Composer/Chat/Voice sind ausgeblendet, der
+     externe Agent übernimmt den Dialog — Konfiguration wird Top-Level. */
+  const external = () => props.webmcpMode === true
 
   /* Puls-Sync: alle CSS-Pulsanimationen starten bei derselben Phase.
      Einmalig beim Mount --pulse-offset auf :root setzen = negativer delay
@@ -1147,11 +1152,12 @@ export function Cook(props: {
           </For>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <button
-            class="mic-btn"
-            classList={{
-              'is-on':
-                voice.listening() ||
+          <Show when={!external()}>
+            <button
+              class="mic-btn"
+              classList={{
+                'is-on':
+                  voice.listening() ||
                 voice.transcribing() ||
                 voice.speaking() ||
                 voice.suspended(),
@@ -1182,14 +1188,19 @@ export function Cook(props: {
               <FiMoreHorizontal size={20} class="animate-pulse" />
             </Show>
           </button>
+          </Show>
           <button
             class="mic-btn"
             classList={{ 'is-on': !state.tts.muted, 'is-off': state.tts.muted }}
             onClick={() => toggleMuted()}
             title={
-              state.tts.muted
-                ? 'Sprachausgabe stumm — Timer-Alarme bleiben an'
-                : 'Sprachausgabe stummschalten'
+              external()
+                ? state.tts.muted
+                  ? 'Nicht-kritische Alarm-Töne stumm'
+                  : 'Nicht-kritische Alarm-Töne stummschalten'
+                : state.tts.muted
+                  ? 'Sprachausgabe stumm — Timer-Alarme bleiben an'
+                  : 'Sprachausgabe stummschalten'
             }
             aria-label="Sprachausgabe stummschalten"
           >
@@ -1214,35 +1225,49 @@ export function Cook(props: {
           >
             <FiFileText size={15} />
           </button>
-          <div class="relative shrink-0" ref={moreMenuRef}>
+          {/* Interner Modus: More-Menü (Chat-Verlauf + Konfiguration) */}
+          <Show when={!external()}>
+            <div class="relative shrink-0" ref={moreMenuRef}>
+              <button
+                class="mic-btn is-off"
+                classList={{ 'bg-zinc-700': moreOpen() }}
+                onClick={() => setMoreOpen((v) => !v)}
+                title="Mehr"
+                aria-label="Weitere Optionen"
+              >
+                <FiMoreHorizontal size={16} />
+              </button>
+              <Show when={moreOpen()}>
+                <div class="absolute right-0 top-full mt-1 z-50 min-w-max flex flex-col rounded-lg border border-zinc-700 bg-zinc-800 shadow-xl overflow-hidden">
+                  <button
+                    class="more-menu-item"
+                    onClick={() => { props.onOpenChat(); setMoreOpen(false) }}
+                  >
+                    <FiMessageSquare size={15} />
+                    <span>Chat-Verlauf</span>
+                  </button>
+                  <button
+                    class="more-menu-item"
+                    onClick={() => { setConfigOpen(true); setMoreOpen(false) }}
+                  >
+                    <FiSettings size={15} />
+                    <span>Konfiguration</span>
+                  </button>
+                </div>
+              </Show>
+            </div>
+          </Show>
+          {/* Externer Modus: kein Chat → Konfiguration direkt in der Topbar */}
+          <Show when={external()}>
             <button
               class="mic-btn is-off"
-              classList={{ 'bg-zinc-700': moreOpen() }}
-              onClick={() => setMoreOpen((v) => !v)}
-              title="Mehr"
-              aria-label="Weitere Optionen"
+              onClick={() => setConfigOpen(true)}
+              title="Konfiguration"
+              aria-label="Konfiguration öffnen"
             >
-              <FiMoreHorizontal size={16} />
+              <FiSettings size={16} />
             </button>
-            <Show when={moreOpen()}>
-              <div class="absolute right-0 top-full mt-1 z-50 min-w-max flex flex-col rounded-lg border border-zinc-700 bg-zinc-800 shadow-xl overflow-hidden">
-                <button
-                  class="more-menu-item"
-                  onClick={() => { props.onOpenChat(); setMoreOpen(false) }}
-                >
-                  <FiMessageSquare size={15} />
-                  <span>Chat-Verlauf</span>
-                </button>
-                <button
-                  class="more-menu-item"
-                  onClick={() => { setConfigOpen(true); setMoreOpen(false) }}
-                >
-                  <FiSettings size={15} />
-                  <span>Konfiguration</span>
-                </button>
-              </div>
-            </Show>
-          </div>
+          </Show>
         </div>
       </header>
 
@@ -1349,7 +1374,9 @@ export function Cook(props: {
       </main>
 
       {/* ── Composer-Bar: globale Eingabe (Text + Mikrofon), immer sichtbar.
-             Strips darüber erscheinen nur bei Aktivität. ────────────── */}
+             Strips darüber erscheinen nur bei Aktivität. Im externen Modus
+             (WebMCP) entfällt sie komplett — Dialog macht der externe Agent. */}
+      <Show when={!external()}>
       <div class="composer" classList={{ 'is-collapsed': !composerOpen() }}>
         <div class="composer-inner">
           {/* Erkannte Eingabe (STT-Text) — kurze Zeit sichtbar */}
@@ -1499,13 +1526,16 @@ export function Cook(props: {
           </button>
         </Show>
       </div>
+      </Show>
 
       <IngredientsModal open={props.ingredientsOpen} onClose={props.onCloseIngredients} />
-      <AgentModal open={props.chatOpen} onClose={props.onCloseChat} voice={voice} />
+      <AgentModal open={!external() && props.chatOpen} onClose={props.onCloseChat} voice={voice} />
       <ConfigModal
         open={configOpen()}
-        onClose={() => { removeEmptyAgents(); if (hasValidAgent()) setConfigOpen(false) }}
-        dismissible={hasValidAgent()}
+        onClose={() => { removeEmptyAgents(); if (hasValidAgent() || external()) setConfigOpen(false) }}
+        dismissible={hasValidAgent() || external()}
+        webmcpMode={external()}
+        onToggleWebmcp={() => props.onToggleWebmcp?.()}
       />
       <WaitMenu />
     </div>
