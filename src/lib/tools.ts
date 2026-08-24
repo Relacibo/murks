@@ -26,6 +26,32 @@ const depRefSchema = {
     'Optionale Abhängigkeiten (Schritte, die zuerst erledigt sein müssen). Es gibt KEINE implizite Reihenfolge — ohne depends_on läuft der Schritt sofort parallel. Verkette jeden Folgeschritt explizit an seinen Vorgänger (auch Schritt 2 → Schritt 1). JEDE Zeitangabe im Rezept MUSS als timer_seconds an der Kante zur Folgekarte stehen („10 Minuten kochen" → Folgekarte mit timer_seconds 600). WARTEZEIT vs. aktive Arbeit: Die Kante bedeutet passives Warten (backen, ziehen lassen, kühlen). Bestimmt das ERGEBNIS das Ende („bis goldbraun", „bis sämig") oder ist der Koch aktiv („unter Rühren aufkochen"), gibt es KEINE Kante — die Zeit steht in der Beschreibung der Karte selbst. Zeitangaben stehen am ENDE der auslösenden Karte (Kernaussage zuerst); die wartende Folgekarte nennt KEINE Zeit, nur was nach Ablauf zu tun ist. Endet ein Rezept mit einer Wartezeit, hänge einen finalen Schritt an, der mit timer_seconds darauf wartet („Anschneiden und servieren"). Über Flow-Grenzen ist die Kante das Scheduling-Werkzeug: „Sahne steif schlagen" hängt mit kleinerem timer_seconds am GLEICHEN Anker wie die Wartekarte — erscheint kurz davor.',
 }
 
+/** depends_on in add_flow: Vorgänger im SELBEN neuen Flow per step_index
+    (0-basiert, muss kleiner als der eigene Index sein) ODER auf bereits
+    existierende Schritte anderer Flows per flow_id + step_id. */
+const addFlowDepRefSchema = {
+  type: 'array',
+  items: {
+    type: 'object',
+    properties: {
+      step_index: {
+        type: 'number',
+        description:
+          'Vorgänger innerhalb DIESES neuen Flows: 0-basierter Index des Schritts im steps-Array (muss kleiner als der eigene Index sein).',
+      },
+      flow_id: { type: 'string', description: 'Für Vorgänger in einem anderen, bereits existierenden Flow' },
+      step_id: { type: 'string', description: 'Stabile Schritt-ID (aus get_cook_state)' },
+      timer_seconds: {
+        type: 'number',
+        description:
+          'Optionale Verzögerung in Sekunden: Die Karte wird erst X Sekunden NACH dem Abschluss dieser Abhängigkeit frei („ich komme X nach dieser Karte").',
+      },
+    },
+  },
+  description:
+    'Optionale Abhängigkeiten. Es gibt KEINE implizite Reihenfolge — ohne depends_on läuft der Schritt sofort parallel. Verkette jeden Folgeschritt explizit an seinen Vorgänger: innerhalb dieses neuen Flows per step_index, auf bestehende Schritte anderer Flows per flow_id + step_id. JEDE Zeitangabe im Rezept MUSS als timer_seconds an der Kante zur Folgekarte stehen („10 Minuten kochen" → Folgekarte mit timer_seconds 600). WARTEZEIT vs. aktive Arbeit: Die Kante bedeutet passives Warten (backen, ziehen lassen, kühlen). Bestimmt das ERGEBNIS das Ende („bis goldbraun", „bis sämig") oder ist der Koch aktiv („unter Rühren aufkochen"), gibt es KEINE Kante — die Zeit steht in der Beschreibung der Karte selbst. Zeitangaben stehen am ENDE der auslösenden Karte (Kernaussage zuerst); die wartende Folgekarte nennt KEINE Zeit, nur was nach Ablauf zu tun ist. Endet ein Rezept mit einer Wartezeit, hänge einen finalen Schritt an, der mit timer_seconds darauf wartet („Anschneiden und servieren"). Über Flow-Grenzen ist die Kante das Scheduling-Werkzeug: „Sahne steif schlagen" hängt mit kleinerem timer_seconds am GLEICHEN Anker wie die Wartekarte — erscheint kurz davor.',
+}
+
 const prioritySchema = {
   type: 'string',
   enum: ['normal', 'high'],
@@ -72,7 +98,7 @@ export const TOOLS: ToolDef[] = [
                 description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt); beginne mit einer kurzen Kernaussage' },
                 priority: prioritySchema,
                 score: scoreSchema,
-                depends_on: depRefSchema,
+                depends_on: addFlowDepRefSchema,
               },
               required: ['description'],
             },
