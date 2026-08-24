@@ -1101,30 +1101,38 @@ export function Cook(props: {
     )
   }
 
-  /* ── Flow-Detail-View (volle Breite): ein Flow als einzelne, scrollende
-        Spalte mit Zurück-Button — mobil Standard, Desktop im Übersicht-zu-
-        Modus beim Klick auf einen Flow-Namen */
-  function FlowDetail(props: { s: Flow; onBack: () => void }) {
+  /* ── Flow-Detail-View: ein Flow als einzelne, scrollende Spalte mit
+        Zurück-Button — mobil Standard, Desktop im Übersicht-zu-Modus beim
+        Klick auf einen Flow-Namen. centered (Desktop): Karten schmal
+        zentriert wie die Jetzt-View, Scrollbalken bleibt am Fensterrand. */
+  function FlowDetail(props: { s: Flow; onBack: () => void; centered?: boolean }) {
+    const wrap = () => (props.centered ? 'mx-auto w-full max-w-[400px]' : '')
     return (
       <div class="flex-1 min-h-0 flex flex-col" data-flow-id={props.s.id}>
-        <div class="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-zinc-600">
-          <button
-            class="icon-btn"
-            onClick={props.onBack}
-            aria-label="Zurück zu Jetzt"
-          >
-            <FiChevronLeft size={16} />
-          </button>
-          <span class="text-sm font-semibold truncate">
-            {props.s.icon ? `${props.s.icon} ${props.s.name}` : props.s.name}
-          </span>
+        <div class="shrink-0 border-b border-zinc-600">
+          <div class={`flex items-center gap-2 px-3 py-2 ${wrap()}`}>
+            <button
+              class="icon-btn"
+              onClick={props.onBack}
+              aria-label="Zurück zu Jetzt"
+            >
+              <FiChevronLeft size={16} class="-translate-x-[0.5px]" />
+            </button>
+            <span class="text-sm font-semibold truncate">
+              {props.s.icon ? `${props.s.icon} ${props.s.name}` : props.s.name}
+            </span>
+          </div>
         </div>
         <div
           class="flex-1 min-h-0 overflow-y-auto pt-3 px-3 flex flex-col gap-2"
           style={{ 'padding-bottom': 'calc(var(--composer-h, 0px) + 1rem)' }}
         >
           <For each={props.s.steps}>
-            {(_, i) => <StepCard flowId={props.s.id} stepId={props.s.steps[i()].id} />}
+            {(_, i) => (
+              <div class={wrap()}>
+                <StepCard flowId={props.s.id} stepId={props.s.steps[i()].id} />
+              </div>
+            )}
           </For>
         </div>
       </div>
@@ -1382,7 +1390,7 @@ export function Cook(props: {
                     />
                   }
                 >
-                  {(s) => <FlowDetail s={s()} onBack={() => setFlowView(null)} />}
+                  {(s) => <FlowDetail s={s()} onBack={() => setFlowView(null)} centered />}
                 </Show>
               }
             >
