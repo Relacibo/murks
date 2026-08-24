@@ -46,7 +46,7 @@ export function IngredientsModal(props: { open: boolean; onClose: () => void }) 
   return (
     <Show when={props.open}>
       {/* 1. Visueller Blur — pointer-events-none, deckt alles inkl. Composer ab */}
-      <div class="fixed inset-0 z-[61] bg-zinc-950/80 backdrop-blur-sm pointer-events-none" />
+      <div class="fixed inset-x-0 top-14 bottom-[max(4.5rem,env(safe-area-inset-bottom))] z-[61] bg-zinc-950/80 backdrop-blur-sm pointer-events-none" />
       {/* 2. Backdrop-Catcher für „außen klicken = schließen" (hinter Panel, vor Blur da pe-none) */}
       <div
         class="fixed inset-x-0 top-14 bottom-[max(4.5rem,env(safe-area-inset-bottom))] z-[51]"

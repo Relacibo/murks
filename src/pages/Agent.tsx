@@ -37,7 +37,7 @@ export function AgentModal(props: AgentModalProps) {
 
   return (
     <Show when={props.open}>
-      <div class="fixed inset-0 z-[61] bg-zinc-950/80 backdrop-blur-sm pointer-events-none" />
+      <div class="fixed inset-x-0 top-14 bottom-[max(4.5rem,env(safe-area-inset-bottom))] z-[61] bg-zinc-950/80 backdrop-blur-sm pointer-events-none" />
       <div
         class="fixed inset-x-0 top-14 bottom-[max(4.5rem,env(safe-area-inset-bottom))] z-[51]"
         onClick={props.onClose}
