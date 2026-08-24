@@ -183,7 +183,7 @@ export interface CookEngine {
   readonly alarmEvents: AlarmEvent[]
   /** Zähler für „Nutzer hat abgeschlossen/zurückgenommen" — UI stoppt laufende Alarm-Töne */
   readonly quietNonce: number
-  executeTool(name: string, args: Record<string, unknown>, opts?: { silent?: boolean }): string
+  executeTool(name: string, args: Record<string, unknown>, opts?: { silent?: boolean; toasts?: string[] }): string
   expireTimers(): void
   /** Nach dem Laden des persistierten Zustands aufrufen: abgelaufene Timer
       (Tombstones) als „bereits gemeldet" markieren, damit sie nach Reload
@@ -413,12 +413,25 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
   // Toasts nur bei KI-Aktionen / Engine-Events (Timer abgelaufen) — nicht bei
   // Nutzer-Aktionen aus der UI (der Nutzer sieht die Karte ja direkt).
   let silentToasts = false
+  // Sink statt sofortigem Toast: sammelt die Meldungen einer Tool-Welle
+  // (ein Agent-Turn mit mehreren Tool-Calls) für EINE gebündelte Benachrichtigung.
+  let toastSink: string[] | null = null
   function toast(text: string) {
-    if (!silentToasts) showToast(text)
+    if (silentToasts) return
+    if (toastSink) {
+      toastSink.push(text)
+      return
+    }
+    showToast(text)
   }
 
-  function executeTool(name: string, args: Record<string, unknown>, opts: { silent?: boolean } = {}): string {
+  function executeTool(
+    name: string,
+    args: Record<string, unknown>,
+    opts: { silent?: boolean; toasts?: string[] } = {},
+  ): string {
     silentToasts = opts.silent === true
+    toastSink = opts.toasts ?? null
     try {
       switch (name) {
         case 'get_cook_state': {

@@ -3,7 +3,10 @@ import { toasts, dismissToast } from '../lib/toast'
 
 export function Toasts() {
   return (
-    <div class="fixed bottom-4 left-1/2 z-[70] flex w-full max-w-sm -translate-x-1/2 flex-col gap-2 px-4">
+    <div
+      class="fixed left-1/2 z-[70] flex w-full max-w-sm -translate-x-1/2 flex-col gap-2 px-4"
+      style={{ bottom: 'calc(var(--composer-h, 0px) + 0.75rem)' }}
+    >
       <For each={toasts()}>
         {(t) => (
           <button

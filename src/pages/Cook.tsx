@@ -78,6 +78,29 @@ export function Cook(props: {
   }, 1000)
   onCleanup(() => clearInterval(interval))
 
+  /* Toasts schweben über der Composer-Bar (inkl. Strips): Höhe der Bar
+     als CSS-Variable auf :root, Toasts positionieren sich per calc()
+     darüber. Im externen Modus (keine Bar) bleibt die Variable 0 —
+     Toasts liegen dann ganz unten. */
+  let composerRef: HTMLDivElement | undefined
+  createEffect(() => {
+    const setH = (px: number) =>
+      document.documentElement.style.setProperty('--composer-h', `${px}px`)
+    if (external()) {
+      setH(0)
+      return
+    }
+    const el = composerRef
+    setH(el?.offsetHeight ?? 0)
+    if (!el) return
+    const ro = new ResizeObserver(() => setH(el.offsetHeight))
+    ro.observe(el)
+    onCleanup(() => {
+      ro.disconnect()
+      setH(0)
+    })
+  })
+
   let lastAgentRef: { text: string } | undefined = state.agent.messages[state.agent.messages.length - 1]
   createEffect(() => {
     const msgs = state.agent.messages
@@ -1398,7 +1421,7 @@ export function Cook(props: {
              Strips darüber erscheinen nur bei Aktivität. Im externen Modus
              (WebMCP) entfällt sie komplett — Dialog macht der externe Agent. */}
       <Show when={!external()}>
-      <div class="composer" classList={{ 'is-collapsed': !composerOpen() }}>
+      <div class="composer" classList={{ 'is-collapsed': !composerOpen() }} ref={composerRef}>
         <div class="composer-inner">
           {/* Erkannte Eingabe (STT-Text) — kurze Zeit sichtbar */}
           <Show when={showTranscript()}>

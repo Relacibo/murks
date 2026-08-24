@@ -633,6 +633,9 @@ export async function sendMessage(text: string) {
             function: { name: tc.function.name, arguments: tc.function.arguments },
           })),
         })
+        // Eine Welle Tool-Calls (ein Agent-Turn) → EINE gebündelte Meldung,
+        // nicht ein Toast pro erzeugtem Strang/Schritt.
+        const waveToasts: string[] = []
         for (const tc of toolCalls) {
           let args: Record<string, unknown> = {}
           try {
@@ -640,8 +643,15 @@ export async function sendMessage(text: string) {
           } catch {
             // unbrauchbare Argumente → Fehler an den Agenten zurückmelden
           }
-          const result = cookEngine.executeTool(tc.function.name, args)
+          const result = cookEngine.executeTool(tc.function.name, args, { toasts: waveToasts })
           convo.push({ role: 'tool', tool_call_id: tc.id, content: result })
+        }
+        if (waveToasts.length === 1) {
+          showToast(waveToasts[0])
+        } else if (waveToasts.length > 1) {
+          const shown = waveToasts.slice(0, 3)
+          const more = waveToasts.length - shown.length
+          showToast(shown.join(' · ') + (more > 0 ? ` · … (+${more})` : ''))
         }
         continue
       }
