@@ -81,19 +81,11 @@ function CookingRoute() {
     setParams(v ? { webmcp: '1', modal: undefined } : { webmcp: undefined })
   }
 
-  // Wizard: startet, wenn kein gültiger Agent da ist — auch bei kaputtem oder
-  // geleertem State (setupDone spielt dann keine Rolle). Einmal in der Sitzung
-  // gezeigt, bleibt er offen, bis setupDone gesetzt wird — der Agent wird ja
-  // erst mitten im Wizard gültig und darf den Wizard nicht wegziehen.
-  // Im externen Modus redet der Browser-Agent selbst mit dem Nutzer.
-  const [wizardActive, setWizardActive] = createSignal(false)
-  createEffect(() => {
-    if (state.setupDone) setWizardActive(false)
-  })
-  const showSetup = createMemo(() => !webmcpMode() && (!hasValidAgent() || wizardActive()))
-  createEffect(() => {
-    if (showSetup()) setWizardActive(true)
-  })
+  // Wizard: startet, wenn Setup nie abgeschlossen wurde ODER kein gültiger
+  // Agent da ist (auch bei kaputtem/geleertem State). Einmal offen, bleibt er
+  // bis „Fertig" — der Agent wird erst mitten im Wizard gültig und darf ihn
+  // nicht wegziehen. Im externen Modus redet der Browser-Agent selbst.
+  const showSetup = createMemo(() => !webmcpMode() && (!state.setupDone || !hasValidAgent()))
 
   // WebMCP-Tools registrieren (einmal pro Dokument)
   let webmcpRegistered = false
