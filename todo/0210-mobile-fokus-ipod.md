@@ -29,10 +29,13 @@ daher überall — Desktop unterscheidet sich nur durch die Übersicht.
 - [ ] Kleine Karten (skaliert) als Vorschau oben/unten
 - [ ] Übersicht (Flow-Spalten) bleibt als einziger Desktop-Zusatz
       einblendbar — aber nicht der Default
-- [ ] Entscheiden: Parallelansicht als Default streichen? („Liebling töten")
+- [ ] **„Liebling töten": das Konzept „alle Karten gleich groß" weicht der
+      Größen-Hierarchie** — eine große aktive Karte dominiert, der Rest
+      wird klein (die Übersicht selbst darf bleiben)
 
 ## Notizen
 - Design-Pass ggf. mit Claude Sonnet — eng scoped: nur Darstellung in
   Cook.tsx/CSS; Engine, Tools, Voice-Logik sind Tabu
-- „Ein Liebling töten": die Parallelansicht aller Flows weicht dem Fokus;
-  Stränge bleiben über die Flow-View erreichbar, die Übersicht optional
+- „Ein Liebling töten" heißt NICHT: Übersicht abschaffen — sondern die
+  Gleichheit: statt N gleichgroßer Karten eine Hierarchie aus großer
+  aktiver Karte und kleinen Karten darum herum
