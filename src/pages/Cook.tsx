@@ -127,11 +127,13 @@ export function Cook(props: {
     return t !== null && tick() > 0 && Date.now() - t.at < 10_000
   }
   /* Letzte Agent-Antwort: solange die TTS spricht immer sichtbar,
-     danach noch 12 s */
+     danach noch 12 s. Bei offenem Chat-Modal versteckt — der Text steht
+     dort bereits im Verlauf. */
   const showAgentText = () => {
     const a = lastAgent()
     return (
-      a !== null && tick() > 0 && (voice.ttsSpeaking() || Date.now() - a.at < 12_000)
+      a !== null && tick() > 0 && !props.chatOpen &&
+      (voice.ttsSpeaking() || Date.now() - a.at < 12_000)
     )
   }
 
@@ -1501,17 +1503,23 @@ export function Cook(props: {
 
           {/* Letzte Agent-Antwort (TTS-Text) — sichtbar, solange gesprochen wird,
               danach noch kurz. Im manuellen Modus spricht die KI nicht von
-              selbst → Abspielen-Button */}
+              selbst → Abspielen-Button. Klick auf die Box öffnet den
+              Chatverlauf (dort steht der volle Dialog). */}
           <Show when={showAgentText()}>
-            <div class="transcript-strip gap-3">
+            <div
+              class="transcript-strip gap-3 cursor-pointer"
+              role="button"
+              onClick={() => props.onOpenChat()}
+            >
               <p class="flex-1 text-sm text-zinc-400 line-clamp-4">{lastAgent()!.text}</p>
               <Show when={!state.tts.muted}>
                 <button
                   type="button"
                   class="shrink-0 text-xs text-zinc-400 hover:text-zinc-100 transition-colors inline-flex items-center gap-1"
-                  onClick={() =>
+                  onClick={(e) => {
+                    e.stopPropagation()
                     voice.ttsSpeaking() ? stopSpeaking() : void speak(lastAgent()!.text)
-                  }
+                  }}
                   title={
                     voice.ttsSpeaking() ? 'Sprachausgabe stoppen' : 'Antwort abspielen'
                   }

@@ -1,6 +1,6 @@
 import { createEffect, createSignal } from 'solid-js'
 import { createStore } from 'solid-js/store'
-import { showToast, showChatToast } from '../lib/toast'
+import { showToast } from '../lib/toast'
 import { dbGet, dbPut } from '../lib/db'
 import { TOOLS } from '../lib/tools'
 import { createCookEngine } from '../lib/cookEngine'
@@ -602,7 +602,7 @@ export async function sendMessage(text: string) {
         content: m.text,
       })),
     ]
-    for (let round = 0; round < 6; round++) {
+    for (let round = 0; round < 10; round++) {
       const res = await fetch(`${agent.endpoint.replace(/\/+$/, '')}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -666,7 +666,6 @@ export async function sendMessage(text: string) {
       const content = typeof message.content === 'string' ? message.content.trim() : ''
       if (content && content !== 'OK.') {
         setState('agent', 'messages', (m) => [...m, msg('agent', content)])
-        showChatToast(content)
       }
       return
     }

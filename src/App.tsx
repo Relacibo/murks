@@ -12,7 +12,6 @@ import { state, stateReady, cookEngine, sendMessage, clearMessages, hasValidAgen
 import { CookContext } from './lib/cookEngine'
 import { importRecipe } from './lib/recipeImport'
 import { buildRecipePayload } from './lib/serializeRecipe'
-import { setChatOpenSignal, registerChatOpenHandler } from './lib/toast'
 
 const base =
   import.meta.env.BASE_URL === '/' ? undefined : import.meta.env.BASE_URL.replace(/\/+$/, '')
@@ -102,10 +101,6 @@ function CookingRoute() {
       },
     })
   })
-
-  // Chat-Toast-Integration: Signal für Toasts aktuell halten; Klick-Handler registrieren
-  createEffect(() => setChatOpenSignal(params.modal === 'chat'))
-  registerChatOpenHandler(() => setModal('chat', true))
 
   // Internes TTS im externen Modus komplett aus (der externe Agent spricht)
   createEffect(() => setTtsExternalMode(webmcpMode()))

@@ -1,5 +1,5 @@
-import { For, Match, Switch } from 'solid-js'
-import { toasts, dismissToast, openChatFromToast } from '../lib/toast'
+import { For } from 'solid-js'
+import { toasts, dismissToast } from '../lib/toast'
 
 export function Toasts() {
   return (
@@ -9,24 +9,12 @@ export function Toasts() {
     >
       <For each={toasts()}>
         {(t) => (
-          <Switch>
-            <Match when={t.type === 'chat'}>
-              <button
-                class="rounded-lg border border-sky-700 bg-zinc-900/95 px-4 py-3 text-left text-sm text-zinc-100 shadow-lg backdrop-blur-sm"
-                onClick={() => { dismissToast(t.id); openChatFromToast() }}
-              >
-                💬 {t.text}
-              </button>
-            </Match>
-            <Match when={t.type !== 'chat'}>
-              <button
-                class="rounded-lg border border-red-800 bg-zinc-900/95 px-4 py-3 text-left text-sm text-zinc-100 shadow-lg backdrop-blur-sm"
-                onClick={() => dismissToast(t.id)}
-              >
-                {t.text}
-              </button>
-            </Match>
-          </Switch>
+          <button
+            class="rounded-lg border border-red-800 bg-zinc-900/95 px-4 py-3 text-left text-sm text-zinc-100 shadow-lg backdrop-blur-sm"
+            onClick={() => dismissToast(t.id)}
+          >
+            {t.text}
+          </button>
         )}
       </For>
     </div>
