@@ -307,7 +307,7 @@ export const TOOLS: ToolDef[] = [
     function: {
       name: 'start_new_recipe',
       description:
-        'Ein neues Gericht beginnen: alle Flows und alle Zutaten löschen (leeres Brett). Danach per add_flow/set_ingredients das neue Rezept aufbauen. Das alte Gericht wird verworfen (kein Backup). Beginne ein neues Gericht immer mit set_loading(true) → start_new_recipe → Aufbau → set_loading(false).',
+        'AUSSCHLIESSLICH für ein komplett anderes Gericht — wenn der Nutzer explizit ein neues Gericht kochen will (z.B. „lass uns stattdessen Pasta machen"). Löscht alle Flows und Zutaten (kein Backup). Für Änderungen am laufenden Gericht (Schritt anpassen, Zutat ändern, Menge skalieren, Flow ergänzen) NIEMALS aufrufen — stattdessen update_step / add_step / delete_step / add_flow / delete_flow / set_ingredients / update_flow verwenden. Ablauf: set_loading(true) → start_new_recipe → Aufbau per add_flow/set_ingredients → set_loading(false).',
       parameters: { type: 'object', properties: {} },
     },
   },
@@ -316,7 +316,7 @@ export const TOOLS: ToolDef[] = [
     function: {
       name: 'set_loading',
       description:
-        'Bau-Spinner. JEDER Aufbau einer Schedule — auch ein einzelner add_flow — beginnt mit loading:true als ERSTEM Tool-Aufruf deiner Antwort, BEVOR du die Schedule durchdenkst und aufbaust — der Nutzer soll den Spinner sehen, solange du arbeitest; nie erst denken/bauen und den Spinner später einschalten. Reine Antworten/Fragen ohne Planänderung bekommen keinen Spinner. scope "all" (Standard) = kleiner Spinner links unten (der bestehende Plan bleibt sichtbar); scope "flow" + flow_id = Spinner nur bei diesem bestehenden Flow. loading=false nach dem letzten Tool-Aufruf des Aufbaus (auch bei Abbruch/Fehler); vergisst du es, verschwindet der Spinner spätestens bei der nächsten Nutzeräußerung. Rein visuell: Timer, Karten und Abschlüsse laufen normal weiter.',
+        'Bau-Spinner. JEDER Aufbau einer Schedule — auch ein einzelner add_flow — beginnt mit loading:true als ERSTEM Tool-Aufruf deiner Antwort, BEVOR du die Schedule durchdenkst und aufbaust — der Nutzer soll den Spinner sehen, solange du arbeitest; nie erst denken/bauen und den Spinner später einschalten. Reine Antworten/Fragen ohne Planänderung bekommen keinen Spinner. scope "all" (Standard) = kleiner Spinner links unten (der bestehende Plan bleibt sichtbar); scope "flow" + flow_id = Spinner nur bei diesem bestehenden Flow. loading=false nach dem letzten Tool-Aufruf des Aufbaus (auch bei Abbruch/Fehler). Rein visuell: Timer, Karten und Abschlüsse laufen normal weiter.',
       parameters: {
         type: 'object',
         properties: {

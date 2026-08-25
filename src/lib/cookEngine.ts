@@ -549,6 +549,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           return JSON.stringify({
             id: flowId,
             name: flowName,
+            step_ids: ids,
             ...(warnings.length > 0 ? { warnings } : {}),
           })
         }

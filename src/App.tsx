@@ -10,6 +10,9 @@ import { registerWebMCPTools } from './lib/webmcp'
 import { setTtsExternalMode } from './lib/tts'
 import { state, stateReady, cookEngine, sendMessage, clearMessages, hasValidAgent } from './state/store'
 import { CookContext } from './lib/cookEngine'
+import { importRecipe } from './lib/recipeImport'
+import { buildRecipePayload } from './lib/serializeRecipe'
+import { setChatOpenSignal, registerChatOpenHandler } from './lib/toast'
 
 const base =
   import.meta.env.BASE_URL === '/' ? undefined : import.meta.env.BASE_URL.replace(/\/+$/, '')
@@ -38,6 +41,7 @@ function CookingRoute() {
     flow?: string
     prompt?: string
     reset?: string
+    recipe?: string
     webmcp?: string
   }>()
 
@@ -99,6 +103,10 @@ function CookingRoute() {
     })
   })
 
+  // Chat-Toast-Integration: Signal für Toasts aktuell halten; Klick-Handler registrieren
+  createEffect(() => setChatOpenSignal(params.modal === 'chat'))
+  registerChatOpenHandler(() => setModal('chat', true))
+
   // Internes TTS im externen Modus komplett aus (der externe Agent spricht)
   createEffect(() => setTtsExternalMode(webmcpMode()))
 
@@ -118,6 +126,41 @@ function CookingRoute() {
       setModal(r.modal, r.open)
     })
   })
+
+  // Deeplink: ?recipe=<Payload> — Import erstellt IMMER ein neues Rezept und
+  // entfernt den Param danach aus der URL. Der Teilen-Toggle markiert seinen
+  // eigenen Payload vorher als konsumiert — das teilende Gerät importiert
+  // also nicht, der Param bleibt dort für Firefox „Tab senden" stehen.
+  // Ohne Agent/abgeschlossenes Setup würde der Wizard die App verdecken —
+  // dann direkt in den WebMCP-Modus: das Brett ist sichtbar und von Hand
+  // bedienbar, der externe Agent kann andocken.
+  let recipeConsumed: string | null = null
+  createEffect(() => {
+    const r = typeof params.recipe === 'string' ? params.recipe.trim() : ''
+    if (!r || r === recipeConsumed) return
+    if (!stateReady()) return
+    recipeConsumed = r
+    if (!state.setupDone || !hasValidAgent()) {
+      setParams({ recipe: undefined, webmcp: '1' })
+    } else {
+      setParams({ recipe: undefined })
+    }
+    void importRecipe(cookEngine, r)
+  })
+
+  // Teilen-Modal: ?recipe= in die URL schreiben bzw. wieder entfernen
+  const shareActive = () => Boolean(params.recipe)
+  const toggleShare = async () => {
+    if (params.recipe) {
+      setParams({ recipe: undefined })
+      return
+    }
+    const payload = await buildRecipePayload(state.cook)
+    if (payload !== null) {
+      recipeConsumed = payload
+      setParams({ recipe: payload })
+    }
+  }
 
   // Deeplink: ?prompt=… startet eine Anfrage an den Agenten (z.B. Link aus
   // einem Gemini-Chat: „…/murks/?prompt=Nutzer will Pfannkuchen machen").
@@ -155,6 +198,8 @@ function CookingRoute() {
           onCloseIngredients={() => setModal('ingredients', false)}
           chatOpen={!webmcpMode() && modals().includes('chat')}
           onCloseChat={() => setModal('chat', false)}
+          shareActive={shareActive()}
+          onToggleShare={() => void toggleShare()}
           overviewOpen={overviewOpen()}
           onToggleOverview={toggleOverview}
           flowView={flowViewId()}

@@ -1,6 +1,6 @@
 import { createEffect, createSignal } from 'solid-js'
 import { createStore } from 'solid-js/store'
-import { showToast } from '../lib/toast'
+import { showToast, showChatToast } from '../lib/toast'
 import { dbGet, dbPut } from '../lib/db'
 import { TOOLS } from '../lib/tools'
 import { createCookEngine } from '../lib/cookEngine'
@@ -24,6 +24,7 @@ export const SYSTEM_PROMPT = [
   'If no answer is needed (pure confirmation, noise, garbled transcript), answer exclusively with "OK." — it is neither read aloud nor displayed.',
   'Never delegate anything in the app to the user — their hands belong on the stove, and in the app you can do everything yourself: navigation (show_step, focus_flow), modals (open_ingredients/close_ingredients: ingredients list, open_chat/close_chat: chat history), timers (set_timer/pause_timer/resume_timer) and structure. Sentences like "stell den Timer auf …" or "öffne mal die Flow-Ansicht" are forbidden — just do it. When the user reports reality ("die Sahne ist schon geschlagen", "der Ofen braucht länger"), mirror it into the model immediately via tools (complete_step, set_timer).',
   'Do not comment on tool actions — the interface confirms them itself; answer "OK." or speak only when there is something substantive to say. Answer as briefly as possible. Handle things with tools instead of describing or announcing actions in text.',
+  'start_new_recipe is ONLY for a completely different dish — when the user explicitly wants to cook something else entirely (e.g. "let\'s make pasta instead"). For any modification of the current dish (adjust a step, change quantities, swap an ingredient, scale servings, add or remove a flow) use update_step / add_step / delete_step / add_flow / delete_flow / set_ingredients / update_flow. Never call start_new_recipe for a modification — it wipes the entire board with no backup.',
 ].join(' ')
 
 /**
@@ -665,6 +666,7 @@ export async function sendMessage(text: string) {
       const content = typeof message.content === 'string' ? message.content.trim() : ''
       if (content && content !== 'OK.') {
         setState('agent', 'messages', (m) => [...m, msg('agent', content)])
+        showChatToast(content)
       }
       return
     }
@@ -673,5 +675,7 @@ export async function sendMessage(text: string) {
     showToast(`Agent: ${e instanceof Error ? e.message : String(e)}`)
   } finally {
     setState('agent', 'busy', false)
+    // Spinner immer am Turn-Ende löschen — Fallback falls der Agent set_loading(false) vergisst
+    setState('cook', (c) => ({ ...c, loading: { all: false, flows: [] } }))
   }
 }

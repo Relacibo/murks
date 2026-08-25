@@ -2,6 +2,7 @@ import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount, 
 import { Portal } from 'solid-js/web'
 import { SolidMarkdown as Markdown } from 'solid-markdown'
 import { IngredientsModal } from '../components/IngredientsModal'
+import { QrModal } from '../components/QrModal'
 import { AgentModal } from './Agent'
 import { ConfigModal } from './Config'
 import { useConfig } from '../App'
@@ -12,7 +13,7 @@ import { createAgentVoice } from '../lib/agentVoice'
 import {
   FiMic, FiMoreHorizontal, FiFileText, FiSettings, FiMessageSquare,
   FiCheck, FiLock, FiChevronLeft, FiChevronRight, FiRotateCcw, FiClock, FiSidebar,
-  FiVolume2, FiVolumeX, FiPause, FiPlay, FiPlus, FiFastForward, FiSend, FiSquare, FiX,
+  FiVolume2, FiVolumeX, FiPause, FiPlay, FiPlus, FiFastForward, FiSend, FiSquare, FiX, FiShare2,
 } from 'solid-icons/fi'
 import { toggleMuted, stopSpeaking, speak, pregenCard } from '../lib/tts'
 import { playAlarmBell, playAlarmBing, stopAlarmSounds } from '../lib/alarmSounds'
@@ -36,6 +37,8 @@ export function Cook(props: {
   onCloseIngredients: () => void
   chatOpen: boolean
   onCloseChat: () => void
+  shareActive?: boolean
+  onToggleShare?: () => void
   overviewOpen?: boolean
   onToggleOverview?: () => void
   /** Flow-Detail-View (aus der URL, ?view=flow&flow=…); Mock fällt auf lokales Signal zurück */
@@ -73,6 +76,7 @@ export function Cook(props: {
     props.onToggleOverview ? props.onToggleOverview() : setLocalOverviewOpen((v) => !v)
   const [lastAgent, setLastAgent] = createSignal<{ text: string; at: number } | null>(null)
   const [moreOpen, setMoreOpen] = createSignal(false)
+  const [qrOpen, setQrOpen] = createSignal(false)
   let moreMenuRef: HTMLDivElement | undefined
   function closeMoreOnOutside(e: MouseEvent) {
     if (moreMenuRef && !moreMenuRef.contains(e.target as Node)) setMoreOpen(false)
@@ -1352,6 +1356,13 @@ export function Cook(props: {
                     <FiSettings size={15} />
                     <span>Konfiguration</span>
                   </button>
+                  <button
+                    class="more-menu-item"
+                    onClick={() => { setQrOpen(true); setMoreOpen(false) }}
+                  >
+                    <FiShare2 size={15} />
+                    <span>Teilen</span>
+                  </button>
                 </div>
               </Show>
             </div>
@@ -1618,6 +1629,12 @@ export function Cook(props: {
 
       <IngredientsModal open={props.ingredientsOpen} onClose={props.onCloseIngredients} />
       <AgentModal open={!external() && props.chatOpen} onClose={props.onCloseChat} voice={voice} />
+      <QrModal
+        open={qrOpen()}
+        onClose={() => setQrOpen(false)}
+        shareActive={props.shareActive === true}
+        onToggleShare={props.onToggleShare}
+      />
       <ConfigModal
         open={!external() && configOpen()}
         onClose={() => { removeEmptyAgents(); setConfigOpen(false) }}
