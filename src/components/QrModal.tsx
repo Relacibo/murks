@@ -19,6 +19,15 @@ export function QrModal(props: {
     buildRecipeUrl(state.cook).then(setUrl)
   })
 
+  // Schließen räumt auf: ?recipe= wieder aus der URL entfernen — der Param
+  // war nur für „Tab senden" gedacht, solange das Modal offen ist.
+  let wasOpen = false
+  createEffect(() => {
+    const o = props.open
+    if (wasOpen && !o && props.shareActive) props.onToggleShare?.()
+    wasOpen = o
+  })
+
   const qr = () => {
     const u = url()
     if (!u) return null
@@ -144,7 +153,8 @@ export function QrModal(props: {
               <Show when={props.onToggleShare && !props.shareActive}>
                 <p class="text-center text-[11px] leading-snug text-zinc-500">
                   Schreibt das Rezept in die Adresszeile — danach funktioniert z.B.
-                  Firefox „Tab an Gerät senden".
+                  Firefox „Tab an Gerät senden". Beim Schließen wird der Link
+                  wieder aus der URL entfernt.
                 </p>
               </Show>
             </div>
