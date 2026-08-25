@@ -1328,6 +1328,17 @@ export function Cook(props: {
           >
             <FiFileText size={15} />
           </button>
+          {/* Externer Modus: kein More-Menü — Teilen direkt in der Topbar */}
+          <Show when={external()}>
+            <button
+              class="topbar-accent-btn shrink-0"
+              onClick={() => setQrOpen(true)}
+              title="Teilen"
+              aria-label="Rezept teilen"
+            >
+              <FiShare2 size={15} />
+            </button>
+          </Show>
           {/* Interner Modus: More-Menü (Chat-Verlauf + Konfiguration) */}
           <Show when={!external()}>
             <div class="relative shrink-0" ref={moreMenuRef}>
@@ -1367,8 +1378,8 @@ export function Cook(props: {
               </Show>
             </div>
           </Show>
-          {/* Externer Modus: kein Chat, keine Config — die Topbar bleibt
-              bewusst karg, zurück geht es nur über den URL-Param */}
+          {/* Externer Modus: kein Chat, keine Config, kein More-Menü —
+              nur Teilen (QR/Link) bleibt top-level */}
         </div>
       </header>
 
