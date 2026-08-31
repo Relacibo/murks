@@ -65,10 +65,10 @@ export function QrModal(props: {
     <Show when={props.open}>
       <Portal>
         <div
-          class="fixed inset-0 z-[80] flex items-center justify-center bg-zinc-950/80 backdrop-blur-sm p-4"
+          class="fixed inset-0 z-[80] flex overflow-y-auto bg-zinc-950/80 backdrop-blur-sm p-4"
           onClick={(e) => { if (e.target === e.currentTarget) props.onClose() }}
         >
-          <div class="relative flex flex-col items-center gap-4 rounded-xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl w-full max-w-xs">
+          <div class="relative m-auto flex flex-col items-center gap-4 rounded-xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl w-full max-w-xs">
             {/* Header */}
             <div class="flex w-full items-center justify-between">
               <span class="text-sm font-semibold text-zinc-200">Rezept teilen</span>

@@ -39,6 +39,8 @@ export const WEBMCP_SYSTEM_PROMPT = [
 
 export interface Config {
   displayName: string
+  /** Prio-Alarm: zusätzlich System-Notification + Vibration (neben Weckton) */
+  alarmNotify: boolean
 }
 
 export type SttMode = 'wasm' | 'server' | 'webspeech'
@@ -149,6 +151,7 @@ export interface AppState {
 const defaults: AppState = {
   config: {
     displayName: '',
+    alarmNotify: true,
   },
   setupDone: false,
   stt: {
@@ -189,7 +192,10 @@ function hydrate(data: unknown): AppState {
     }
     const cook = (raw.cook ?? {}) as Record<string, unknown>
     return {
-      config: { displayName: loadedConfig.displayName ? String(loadedConfig.displayName) : '' },
+      config: {
+        displayName: loadedConfig.displayName ? String(loadedConfig.displayName) : '',
+        alarmNotify: loadedConfig.alarmNotify !== false,
+      },
       setupDone: raw.setupDone === true,
       stt: {
         mode:

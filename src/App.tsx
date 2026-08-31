@@ -8,6 +8,7 @@ import { Toasts } from './components/Toasts'
 import { createAgentVoice } from './lib/agentVoice'
 import { registerWebMCPTools } from './lib/webmcp'
 import { setTtsExternalMode } from './lib/tts'
+import { initAutoRequestNotify } from './lib/notifications'
 import { state, stateReady, cookEngine, sendMessage, clearMessages, hasValidAgent } from './state/store'
 import { CookContext } from './lib/cookEngine'
 import { importRecipe } from './lib/recipeImport'
@@ -89,6 +90,14 @@ function CookingRoute() {
   // bis „Fertig" — der Agent wird erst mitten im Wizard gültig und darf ihn
   // nicht wegziehen. Im externen Modus redet der Browser-Agent selbst.
   const showSetup = createMemo(() => !webmcpMode() && (!state.setupDone || !hasValidAgent()))
+
+  // Notification-Berechtigung „beim Start": sobald die App (ohne Wizard)
+  // läuft, wird beim ersten Tipp angefragt — auch im externen MCP-Modus,
+  // der bewusst keine Konfiguration hat. Der Wizard fragt selbst (Alarm-Schritt).
+  createEffect(() => {
+    if (!stateReady() || showSetup() || !state.config.alarmNotify) return
+    initAutoRequestNotify(() => state.config.alarmNotify)
+  })
 
   // WebMCP-Tools registrieren (einmal pro Dokument)
   let webmcpRegistered = false

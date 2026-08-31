@@ -11,6 +11,7 @@ import {
 import { isSttModelCached, downloadSttModel, deleteSttModel } from '../lib/stt'
 import { isTtsModelCached, downloadTtsModel, deleteTtsModel } from '../lib/tts'
 import { inputCls } from '../components/fields'
+import { NotifySettings } from '../components/NotifySettings'
 import { ModelPicker } from '../components/ModelPicker'
 import { SttSettings } from '../components/SttSettings'
 import { TtsSettings } from '../components/TtsSettings'
@@ -347,6 +348,12 @@ export function ConfigModal(props: ConfigModalProps) {
                 onInput={(e) => setConfig({ displayName: e.currentTarget.value })}
               />
             </label>
+          </section>
+
+          {/* Alarm */}
+          <section class="space-y-4">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Alarm</h2>
+            <NotifySettings />
           </section>
 
           <p class="text-xs text-zinc-500 pb-2">Alles lokal gespeichert · Kein Backend</p>

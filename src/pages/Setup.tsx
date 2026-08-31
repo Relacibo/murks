@@ -13,12 +13,13 @@ import { inputCls } from '../components/fields'
 import { ModelPicker } from '../components/ModelPicker'
 import { SttSettings } from '../components/SttSettings'
 import { TtsSettings } from '../components/TtsSettings'
+import { NotifySettings } from '../components/NotifySettings'
 import { webSttAvailable, webTtsAvailable } from '../lib/webSpeech'
 import { isSttModelCached, downloadSttModel } from '../lib/stt'
 import { isTtsModelCached, downloadTtsModel } from '../lib/tts'
 import type { DownloadProgress } from '../lib/modelProgress'
 
-const STEPS = ['Name', 'Agent', 'Stimme', 'Modelle']
+const STEPS = ['Name', 'Agent', 'Stimme', 'Modelle', 'Alarm']
 
 const STT_SIZES: Record<string, string> = {
   tiny: '~41 MB',
@@ -132,7 +133,7 @@ export function Setup() {
      „Stimme" und „Modelle" als OPTIONALE Schritte dazu (überspringbar bzw.
      ohne Downloads abschließbar). */
   const steps =
-    webSttAvailable() && webTtsAvailable() ? STEPS.slice(0, 2) : STEPS
+    webSttAvailable() && webTtsAvailable() ? [...STEPS.slice(0, 2), 'Alarm'] : STEPS
 
   onMount(() => {
     // Keinen Agenten vorab anlegen — erst wenn der Agent-Schritt betreten
@@ -188,8 +189,8 @@ export function Setup() {
   const lastStep = () => step() === steps.length - 1
 
   return (
-    <div class="flex min-h-screen items-center justify-center bg-zinc-950 px-4 py-8">
-      <div class="w-full max-w-lg">
+    <div class="flex h-svh overflow-y-auto bg-zinc-950 px-4">
+      <div class="m-auto w-full max-w-lg py-8">
         {/* Header */}
         <div class="mb-4 flex items-start justify-between gap-4">
           <div>
@@ -364,6 +365,21 @@ export function Setup() {
                   />
                 </Show>
               </Show>
+            </div>
+          </Show>
+
+          <Show when={steps[step()] === 'Alarm'}>
+            <div class="space-y-4">
+              <div>
+                <h2 class="text-lg font-semibold text-zinc-100">Alarm</h2>
+                <p class="text-sm text-zinc-400 mt-1">
+                  Läuft ein Timer mit hoher Priorität ab, klingelt der Wecker. Zusätzlich
+                  kann eine System-Benachrichtigung erscheinen und das Gerät vibrieren —
+                  die Benachrichtigung klingelt über den Klingelton-Kanal, nicht die
+                  Medien-Lautstärke. Jederzeit in der Konfiguration änderbar.
+                </p>
+              </div>
+              <NotifySettings />
             </div>
           </Show>
         </div>

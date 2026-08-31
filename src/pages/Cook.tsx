@@ -17,6 +17,7 @@ import {
 } from 'solid-icons/fi'
 import { toggleMuted, stopSpeaking, speak, pregenCard } from '../lib/tts'
 import { playAlarmBell, playAlarmBing, stopAlarmSounds } from '../lib/alarmSounds'
+import { notifyPrioAlarm } from '../lib/notifications'
 
 /** Gesprächsmodus-Symbol (wie Gemini Live): drei Balken, mittlerer größer */
 function ConvBars() {
@@ -214,8 +215,20 @@ export function Cook(props: {
     const fresh = evs.filter((e) => e.at > lastAlarmAt)
     if (!fresh.length) return
     lastAlarmAt = fresh[fresh.length - 1].at
-    if (fresh.some((e) => e.prio)) playAlarmBell()
-    else if (!state.tts.muted) playAlarmBing()
+    if (fresh.some((e) => e.prio)) {
+      playAlarmBell()
+      if (state.config.alarmNotify) {
+        const texts = fresh
+          .filter((e) => e.prio)
+          .flatMap((e) => {
+            const st = flows()
+              .find((f) => f.id === e.flowId)
+              ?.steps.find((s) => s.id === e.stepId)
+            return st && st.description ? [st.description] : []
+          })
+        if (texts.length) notifyPrioAlarm(texts.join(' · '))
+      }
+    } else if (!state.tts.muted) playAlarmBing()
   })
 
   /* Schritt abgeschlossen/zurückgenommen (auch via Agent) → laufende
