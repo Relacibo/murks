@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount, useContext } from 'solid-js'
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount, untrack, useContext } from 'solid-js'
 import { Portal } from 'solid-js/web'
 import { SolidMarkdown as Markdown } from 'solid-markdown'
 import { IngredientsModal } from '../components/IngredientsModal'
@@ -289,10 +289,15 @@ export function Cook(props: {
     }
   })
 
-  /* KI ruft show_step → gleiches Verhalten wie Titel-Tap */
+  /* KI ruft show_step → gleiches Verhalten wie Titel-Tap.
+     untrack: revealStep liest flows()/flowView()/overviewOpen() — ohne untrack
+     würde der Effekt bei JEDER dieser Änderungen erneut auf die zuletzt
+     markierte Karte springen (u. a. direkt wieder in die Flow-View, wenn der
+     Nutzer gerade den Zurück-Button gedrückt hat). Nur eine NEUE show_step-
+     Navigation (navTarget mit frischem nonce) darf hier laufen. */
   createEffect(() => {
     const t = engine.navTarget
-    if (t) revealStep(t.flowId, t.stepId, t.view)
+    if (t) untrack(() => revealStep(t.flowId, t.stepId, t.view))
   })
 
   /* ── Schritt-Zustände (implizite Verzögerungen: Karte sagt „ich komme X nach Y") ── */
@@ -651,7 +656,7 @@ export function Cook(props: {
           return (
             <Portal>
             <div
-              class="fixed inset-x-0 top-14 bottom-[max(4.5rem,env(safe-area-inset-bottom))] z-[55] flex items-end sm:items-center justify-center bg-black/50"
+              class="fixed inset-x-0 top-[calc(3.5rem+env(safe-area-inset-top))] bottom-[max(4.5rem,env(safe-area-inset-bottom))] z-[55] flex items-end sm:items-center justify-center bg-black/50"
               onClick={() => setWaitMenu(null)}
             >
               <div
@@ -1267,7 +1272,7 @@ export function Cook(props: {
     <div class="fixed inset-0 bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
       {/* ── Topbar: Timer-Chips + Buttons (eine Leiste) ────── */}
       {/* z-[60]: bleibt über Modals nutzbar (Timer-Chips/Buttons) */}
-      <header class="relative z-[60] shrink-0 flex items-center gap-2 px-3 py-2 border-b border-zinc-600 bg-zinc-950">
+      <header class="relative z-[60] shrink-0 flex items-center gap-2 px-3 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 border-b border-zinc-600 bg-zinc-950">
         {/* Wortmarke nur auf dem Desktop — mobile verzichtet zugunsten der Chips */}
         <span class="hidden sm:block shrink-0 text-sm font-bold tracking-widest text-zinc-300 select-none">
           murks

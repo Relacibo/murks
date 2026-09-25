@@ -189,7 +189,7 @@ export function Setup() {
   const lastStep = () => step() === steps.length - 1
 
   return (
-    <div class="flex h-svh overflow-y-auto bg-zinc-950 px-4">
+    <div class="flex h-svh overflow-y-auto bg-zinc-950 px-4 pt-[max(1rem,env(safe-area-inset-top))]">
       <div class="m-auto w-full max-w-lg py-8">
         {/* Header */}
         <div class="mb-4 flex items-start justify-between gap-4">
