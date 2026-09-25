@@ -2,6 +2,7 @@ import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount, 
 import { Portal } from 'solid-js/web'
 import { SolidMarkdown as Markdown } from 'solid-markdown'
 import { IngredientsModal } from '../components/IngredientsModal'
+import { IngredientChip } from '../components/IngredientChip'
 import { QrModal } from '../components/QrModal'
 import { AgentModal } from './Agent'
 import { ConfigModal } from './Config'
@@ -9,6 +10,7 @@ import { useConfig } from '../App'
 import { state, sendMessage, removeEmptyAgents, type Flow, type Step, type StepRef } from '../state/store'
 import { CookContext, FLOW_COLORS, queueOrder, timerEffectiveEnd } from '../lib/cookEngine'
 import { fmtRemaining } from '../lib/tools'
+import { stepSpokenText } from '../lib/ingredients'
 import { createAgentVoice } from '../lib/agentVoice'
 import {
   FiMic, FiMoreHorizontal, FiFileText, FiSettings, FiMessageSquare,
@@ -527,7 +529,7 @@ export function Cook(props: {
     })
     // Erste neue Prio-Karte automatisch vorlesen
     const c = cardByKey(added[0])
-    if (c) speak(c.s.steps[c.i].description)
+    if (c) speak(stepSpokenText(c.s.steps[c.i]))
   })
 
   /* Karten die aktiv werden: ersten Satz vorgenerieren */
@@ -537,7 +539,7 @@ export function Cook(props: {
   createEffect(() => {
     for (const key of allActiveKeys()) {
       const c = cardByKey(key)
-      if (c) pregenCard(key, c.s.steps[c.i].description)
+      if (c) pregenCard(key, stepSpokenText(c.s.steps[c.i]))
     }
   })
 
@@ -867,6 +869,14 @@ export function Cook(props: {
               <Markdown>{st().description}</Markdown>
             </Show>
           </div>
+          {/* Zutaten-Chips (8100): Mengen stehen im Modell, Klick blendet sie ein */}
+          <Show when={st().ingredients.length > 0}>
+            <div class="ing-chip-row mt-2">
+              <For each={st().ingredients}>
+                {(ing) => <IngredientChip name={ing.name} amount={ing.amount} />}
+              </For>
+            </div>
+          </Show>
         </div>
         <div class="step-card-footer">
           <p class="flex-1 min-w-0 text-xs leading-4 opacity-70">

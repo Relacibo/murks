@@ -1,19 +1,70 @@
-import { For, Show, useContext } from 'solid-js'
+import { For, Show, createMemo, createSignal, useContext } from 'solid-js'
 import { FiCopy } from 'solid-icons/fi'
 import { CookContext } from '../lib/cookEngine'
+import {
+  deriveIngredients,
+  entryAmounts,
+  ingredientGradient,
+  type IngredientEntry,
+} from '../lib/ingredients'
 import { showToast } from '../lib/toast'
 import { SheetModal } from './SheetModal'
 
-/** Ingredients-Liste als Modal — Sichtbarkeit steuert die URL (?modal=…), KI über open/close_ingredients */
+/** Ein Listeneintrag als klickbarer Chip: Name sichtbar, Klick blendet die
+    Menge(n) ein. Hintergrund = Farb-Gradient über die beteiligten Stränge
+    (Anteile proportional zur Nutzung); ohne Strang-Zuordnung neutral. */
+function IngredientListChip(props: { entry: IngredientEntry }) {
+  const [revealed, setRevealed] = createSignal(false)
+  const amounts = () => entryAmounts(props.entry)
+  const grad = () => ingredientGradient(props.entry.uses)
+  const style = () =>
+    grad() !== null
+      ? ({ background: grad()!, 'border-color': 'rgba(255,255,255,0.14)', color: '#f4f4f5' } as const)
+      : undefined
+  const classList = () => ({
+    'ing-chip': true,
+    'is-neutral': grad() === null,
+    'is-revealed': revealed() && grad() === null,
+  })
+  return (
+    <Show
+      when={amounts().length > 0}
+      fallback={
+        <span classList={classList()} style={style()}>
+          {props.entry.name}
+        </span>
+      }
+    >
+      <button
+        type="button"
+        classList={classList()}
+        style={style()}
+        title={`${props.entry.name}: ${amounts().join(' · ')}`}
+        onClick={() => setRevealed((v) => !v)}
+      >
+        <span>{props.entry.name}</span>
+        <Show when={revealed()}>
+          <span class="ing-chip-amount">{amounts().join(' · ')}</span>
+        </Show>
+      </button>
+    </Show>
+  )
+}
+
+/** Ingredients-Liste als Modal — Sichtbarkeit steuert die URL (?modal=…), KI über open/close_ingredients.
+    Die Liste ist eine Ableitung der Zutaten-Chips auf den Karten (8100):
+    Farbe nach Strang, freistehende Zutaten (set_ingredients) neutral. */
 export function IngredientsModal(props: { open: boolean; onClose: () => void }) {
   const engine = useContext(CookContext)!
+  const entries = createMemo(() => deriveIngredients(engine.cook))
 
   /* Zutaten als Markdown-Checkliste in die Zwischenablage —
      Abhaken passiert beim Einkaufen, nicht in der App */
   const exportIngredients = async () => {
-    const lines = engine.cook.ingredients.map((it) =>
-      it.amount ? `- [ ] ${it.name} — ${it.amount}` : `- [ ] ${it.name}`,
-    )
+    const lines = entries().map((e) => {
+      const amounts = entryAmounts(e)
+      return amounts.length > 0 ? `- [ ] ${e.name} — ${amounts.join(', ')}` : `- [ ] ${e.name}`
+    })
     const text = `Zutaten\n\n${lines.join('\n')}\n`
     let ok = false
     try {
@@ -46,7 +97,7 @@ export function IngredientsModal(props: { open: boolean; onClose: () => void }) 
         <button
           class="w-9 h-9 rounded-full flex items-center justify-center transition-all disabled:opacity-40 bg-black text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
           onClick={() => void exportIngredients()}
-          disabled={engine.cook.ingredients.length === 0}
+          disabled={entries().length === 0}
           title="Als Markdown-Checkliste kopieren"
         >
           <FiCopy size={16} />
@@ -54,19 +105,12 @@ export function IngredientsModal(props: { open: boolean; onClose: () => void }) 
       }
     >
       <Show
-        when={engine.cook.ingredients.length > 0}
+        when={entries().length > 0}
         fallback={<p class="text-sm text-zinc-500 py-2">Noch keine Zutaten.</p>}
       >
-        <For each={engine.cook.ingredients}>
-          {(item) => (
-            <div class="flex items-baseline gap-3 py-3 px-1 border-b border-zinc-600 last:border-0">
-              <span class="flex-1 text-sm text-zinc-100">{item.name}</span>
-              <Show when={item.amount}>
-                <span class="text-xs text-zinc-400 shrink-0">{item.amount}</span>
-              </Show>
-            </div>
-          )}
-        </For>
+        <div class="ing-chip-row py-2">
+          <For each={entries()}>{(e) => <IngredientListChip entry={e} />}</For>
+        </div>
       </Show>
     </SheetModal>
   )

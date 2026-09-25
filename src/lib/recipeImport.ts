@@ -20,6 +20,7 @@ interface RecipeDep {
 
 interface RecipeStep {
   description: string
+  ingredients: { name: string; amount: string }[]
   priority: 'normal' | 'high'
   score: number
   depends_on: RecipeDep[]
@@ -85,6 +86,16 @@ function parseRecipe(json: string): Recipe {
       const step = (s ?? {}) as Record<string, unknown>
       const description = String(step.description ?? '').trim()
       if (!description) fail(`Rezept-Link kaputt: Schritt ${si + 1} in „${name}" ohne description`)
+      // Zutaten-Chips: tolerant parsen (ungültige Einträge fallen weg, kein harter Fail)
+      const ingredients = Array.isArray(step.ingredients)
+        ? (step.ingredients as unknown[]).flatMap((x) => {
+            if (!x || typeof x !== 'object') return []
+            const it = x as Record<string, unknown>
+            const iname = String(it.name ?? '').trim()
+            if (!iname) return []
+            return [{ name: iname, amount: it.amount ? String(it.amount) : '' }]
+          })
+        : []
       const priority = step.priority === undefined ? 'normal' : step.priority
       if (priority !== 'normal' && priority !== 'high') {
         fail(`Rezept-Link kaputt: priority in „${name}" Schritt ${si + 1} muss "normal" oder "high" sein`)
@@ -130,7 +141,7 @@ function parseRecipe(json: string): Recipe {
       if (priority === 'high' && depends_on.length > 1) {
         fail(`Rezept-Link kaputt: Schritt ${si + 1} in „${name}" hat priority "high" und mehr als eine Abhängigkeit`)
       }
-      return { description, priority: priority as 'normal' | 'high', score, depends_on }
+      return { description, ingredients, priority: priority as 'normal' | 'high', score, depends_on }
     })
     return { name, icon, steps }
   })
@@ -191,6 +202,7 @@ export async function importRecipe(engine: CookEngine, raw: string): Promise<voi
         })
         return {
           description: step.description,
+          ...(step.ingredients.length > 0 ? { ingredients: step.ingredients } : {}),
           priority: step.priority,
           score: step.score,
           depends_on,

@@ -94,9 +94,19 @@ export interface StepTimer {
   pausedAt: number | null
 }
 
+/** Zutaten-Chip einer Karte: {name, amount}. Die Menge lebt hier (klickbarer
+    Chip), nicht im Beschreibungstext — die Zutatenliste ist die Ableitung
+    aller Karten-Chips (+ freistehende Liste aus set_ingredients). */
+export interface IngredientUse {
+  name: string
+  amount: string
+}
+
 export interface Step {
   id: string // stabil — bleibt bei Einfügen/Löschen/Splitten gleich
   description: string
+  /** Zutaten-Chips dieser Karte */
+  ingredients: IngredientUse[]
   done: boolean
   doneAt: number | null
   dependsOn: StepRef[]
@@ -180,6 +190,19 @@ const defaults: AppState = {
     busy: false,
   },
 }
+
+const hydrateIngredientUses = (raw: unknown): IngredientUse[] =>
+  Array.isArray(raw)
+    ? (raw as unknown[])
+        .flatMap((x) => {
+          if (!x || typeof x !== 'object') return []
+          const o = x as Record<string, unknown>
+          const name = String(o.name ?? '').trim().slice(0, 80)
+          if (!name) return []
+          return [{ name, amount: o.amount ? String(o.amount).trim().slice(0, 40) : '' }]
+        })
+        .slice(0, 20)
+    : []
 
 function hydrate(data: unknown): AppState {
   try {
@@ -272,6 +295,7 @@ function hydrate(data: unknown): AppState {
                   activatedAt?: number | null
                   priority?: 'normal' | 'high'
                   score?: number
+                  ingredients?: unknown
                 }
             )[]
             timerEndsAt?: number | null
@@ -366,6 +390,8 @@ function hydrate(data: unknown): AppState {
                     ? st
                     : String(st?.description ?? '').trim() ||
                       (typeof st?.summary === 'string' ? String(st.summary).trim() : ''),
+                ingredients:
+                  typeof st === 'string' ? [] : hydrateIngredientUses(st?.ingredients),
                 done,
                 doneAt,
                 dependsOn: [],

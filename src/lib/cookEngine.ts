@@ -1,7 +1,8 @@
 import { batch, createContext, createSignal } from 'solid-js'
-import type { CookState, Step, StepRef, StepTimer, Flow, FlowColor } from '../state/store'
+import type { CookState, Step, StepRef, StepTimer, Flow, FlowColor, IngredientUse } from '../state/store'
 import { showToast } from './toast'
 import { fmtRemaining, stepLabel } from './tools'
+import { stepSpokenText } from './ingredients'
 import { speak } from './tts'
 
 export const FLOW_COLORS: FlowColor[] = ['cyan', 'violet', 'amber', 'emerald', 'rose', 'sky']
@@ -352,6 +353,20 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
     return typeof raw === 'number' && Number.isFinite(raw) ? raw : 0
   }
 
+  // Zutaten-Chips einer Karte: {name, amount} — Name Pflicht, Menge optional.
+  function parseIngredientUses(raw: unknown): IngredientUse[] {
+    if (!Array.isArray(raw)) return []
+    return (raw as unknown[])
+      .flatMap((x) => {
+        if (!x || typeof x !== 'object') return []
+        const o = x as Record<string, unknown>
+        const name = String(o.name ?? '').trim().slice(0, 80)
+        if (!name) return []
+        return [{ name, amount: o.amount ? String(o.amount).trim().slice(0, 40) : '' }]
+      })
+      .slice(0, 20)
+  }
+
   /* ── Schedule-Lint ─────────────────────────────────────────────────
      Deterministischer Sanity-Check nach Struktur-Änderungen: Die Warnungen
      landen im Tool-Ergebnis (Feld "warnings"), damit der Agent sie direkt
@@ -499,6 +514,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             })
             return {
               description: typeof st === 'string' ? st : String(o.description ?? '').trim(),
+              ingredients: typeof st === 'string' ? [] : parseIngredientUses(o.ingredients),
               dependsOn,
               priority: typeof st === 'string' ? 'normal' as const : parsePriority(o.priority),
               score: typeof st === 'string' ? 0 : parseScore(o.score),
@@ -528,6 +544,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           const steps = parsed.map((st, i) => ({
             id: ids[i],
             description: st.description,
+            ingredients: st.ingredients,
             done: false,
             doneAt: null,
             dependsOn: st.dependsOn,
@@ -573,6 +590,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           const step: Step = {
             id: crypto.randomUUID(),
             description,
+            ingredients: parseIngredientUses(args.ingredients),
             done: false,
             doneAt: null,
             dependsOn,
@@ -618,6 +636,9 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
             const description = String(args.description).trim()
             if (!description) return JSON.stringify({ error: 'description darf nicht leer sein' })
             patch.description = description
+          }
+          if (Array.isArray(args.ingredients)) {
+            patch.ingredients = parseIngredientUses(args.ingredients)
           }
           if (Array.isArray(args.depends_on)) {
             const deps = parseDepRefs(args.depends_on)
@@ -693,6 +714,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           const secondStep: Step = {
             id: crypto.randomUUID(),
             description: second,
+            ingredients: [],
             done: false,
             doneAt: null,
             dependsOn: [{ flow_id: id, step_id: orig.id }],
@@ -1011,7 +1033,7 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           setCook((c) => ({ ...c, focusedFlowId: flowId }))
           const view = args.view === 'jetzt' ? 'jetzt' : 'flow'
           setNavTarget({ flowId, stepId, nonce: Date.now(), view })
-          if (args.speak === true) speak(step.description)
+          if (args.speak === true) speak(stepSpokenText(step))
           return JSON.stringify({ ok: true })
         }
         case 'focus_flow': {
@@ -1021,14 +1043,9 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           return JSON.stringify({ ok: true })
         }
         case 'set_ingredients': {
-          const raw = Array.isArray(args.ingredients) ? args.ingredients : []
-          const items = raw.flatMap((x) => {
-            if (!x || typeof x !== 'object') return []
-            const o = x as Record<string, unknown>
-            const name = String(o.name ?? '').trim()
-            if (!name) return []
-            return { name, amount: o.amount ? String(o.amount) : '' }
-          })
+          // Freistehende Zutaten (keine Schritt-Zuordnung) — normale
+          // Rezept-Zutaten leben als Chips auf den Karten (add_flow/add_step)
+          const items = parseIngredientUses(args.ingredients)
           setCook((c) => ({
             ...c,
             ingredients: items.map((it) => ({

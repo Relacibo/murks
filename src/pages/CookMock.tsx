@@ -1,6 +1,6 @@
 import { createEffect, createSignal } from 'solid-js'
 import { createStore } from 'solid-js/store'
-import type { CookState, Flow, StepRef } from '../state/store'
+import type { CookState, Flow, IngredientUse, StepRef } from '../state/store'
 import { CookContext, createCookEngine } from '../lib/cookEngine'
 import { Cook } from './Cook'
 
@@ -10,9 +10,11 @@ const step = (
   dependsOn: StepRef[] = [],
   doneAt: number | null = null,
   priority: 'normal' | 'high' = 'normal',
+  ingredients: IngredientUse[] = [],
 ) => ({
   id: crypto.randomUUID(),
   description,
+  ingredients,
   done,
   doneAt,
   dependsOn,
@@ -22,10 +24,18 @@ const step = (
   score: 0,
 })
 
-const s1_0 = step('Mehl und Eier in eine Schüssel geben.', true)
-const s1_1 = step('Milch nach und nach einrühren, bis der Teig glatt ist.', true, [
-  { flow_id: 's1', step_id: s1_0.id },
+const s1_0 = step('Mehl und Eier in eine Schüssel geben.', true, [], null, 'normal', [
+  { name: 'Mehl', amount: '250 g' },
+  { name: 'Eier', amount: '2' },
 ])
+const s1_1 = step(
+  'Milch nach und nach einrühren, bis der Teig glatt ist.',
+  true,
+  [{ flow_id: 's1', step_id: s1_0.id }],
+  null,
+  'normal',
+  [{ name: 'Milch', amount: '300 ml' }],
+)
 // Vor 11 Minuten abgeschlossen — Verzögerung 15 min läuft noch ~4 Minuten
 const s1_2 = step(
   'Teig 15 Minuten gehen lassen.',
@@ -33,27 +43,49 @@ const s1_2 = step(
   [{ flow_id: 's1', step_id: s1_1.id }],
   Date.now() - 660_000,
 )
-const s1_3 = step('Pfanne mit etwas Öl erhitzen.', false, [
-  { flow_id: 's1', step_id: s1_2.id, timer_seconds: 900 },
-])
+const s1_3 = step(
+  'Pfanne mit etwas Öl erhitzen.',
+  false,
+  [{ flow_id: 's1', step_id: s1_2.id, timer_seconds: 900 }],
+  null,
+  'normal',
+  [{ name: 'Öl', amount: '' }],
+)
 const s1_4 = step('Teig portionsweise von beiden Seiten goldbraun backen.', false, [
   { flow_id: 's1', step_id: s1_3.id },
 ])
-const s2_0 = step('Zwiebeln fein würfeln und glasig andünsten.')
+const s2_0 = step(
+  'Zwiebeln fein würfeln und glasig andünsten.',
+  false,
+  [],
+  null,
+  'normal',
+  [{ name: 'Zwiebeln', amount: '2' }],
+)
 const s2_1 = step(
   'Passierte Tomaten und Gewürze zugeben.',
   false,
   [{ flow_id: 's1', step_id: s1_2.id, timer_seconds: 900 }],
   null,
   'high',
+  [{ name: 'Passierte Tomaten', amount: '400 g' }],
 )
 const s2_2 = step('Offen ~10 min köcheln, gelegentlich rühren.', false, [
   { flow_id: 's2', step_id: s2_1.id },
 ])
 const s3_0 = step('Salat waschen und trocken schleudern.', true)
-const s3_1 = step('Öl, Essig, Senf und Gewürze verrühren.', true, [
-  { flow_id: 's3', step_id: s3_0.id },
-])
+const s3_1 = step(
+  'Öl, Essig, Senf und Gewürze verrühren.',
+  true,
+  [{ flow_id: 's3', step_id: s3_0.id }],
+  null,
+  'normal',
+  [
+    { name: 'Öl', amount: '3 EL' },
+    { name: 'Essig', amount: '2 EL' },
+    { name: 'Senf', amount: '1 TL' },
+  ],
+)
 const s3_2 = step('Alles in einer Schüssel mischen.', true, [
   { flow_id: 's3', step_id: s3_1.id },
 ])
@@ -85,8 +117,7 @@ const MOCK_FLOWS: Flow[] = [
 const MOCK_COOK: CookState = {
   flows: MOCK_FLOWS,
   ingredients: [
-    { id: 'z1', name: 'Mehl', amount: '250 g' },
-    { id: 'z2', name: 'Passierte Tomaten', amount: '400 g' },
+    { id: 'z0', name: 'Salz', amount: '' }, // freistehend (kein Strang → neutral)
   ],
   focusedFlowId: 's2',
   loading: { all: false, flows: [] },

@@ -28,6 +28,11 @@ export function serializeRecipeCook(cook: CookState): Record<string, unknown> {
         })
         .filter(Boolean)
       const s: Record<string, unknown> = { description: step.description }
+      if (step.ingredients.length > 0) {
+        s.ingredients = step.ingredients.map(({ name, amount }) =>
+          amount ? { name, amount } : { name },
+        )
+      }
       if (step.priority === 'high') s.priority = 'high'
       if (step.score !== 0) s.score = step.score
       if (depends_on.length > 0) s.depends_on = depends_on

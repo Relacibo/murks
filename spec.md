@@ -315,13 +315,28 @@ Mehrere Karten stehen untereinander (Stapel).
 
 ## Zutaten (Ingredients)
 
-- Gehören zum **Flow**, nicht global. UI-Text deutsch: „Zutaten", „Zutatenliste".
-- Zutaten-Modal öffnet sich pro Flow.
-- `open_ingredients` / `set_ingredients` erfordern `flow_id`.
-- Agent hält die Zutatenliste absolut: `set_ingredients` ersetzt die komplette Liste — nach `add_flow` und bei jeder Änderung (Zutat dazu/weg, Mengen-Skalierung).
+- **Chips auf den Karten sind die Quelle (8100):** Jeder Schritt trägt
+  `ingredients[]` ({name, amount}) — gerendert als klickbare Chips unter dem
+  Schritttext. **Klick auf einen Chip blendet die Menge ein** (der Schritttext
+  nennt die Zutat, die Menge steht im Chip, nicht im Text).
+- **Zutatenliste = Ableitung der Chips:** Das Zutaten-Modal gruppiert alle
+  Karten-Chips über normalisierte Namen (gleiche Zutat in mehreren Strängen =
+  ein Eintrag, alle Mengen nebeneinander). Dedupliziert wird pro Kontext
+  (gleiche Menge im gleichen Strang).
+- **Farbe automatisch nach Strang (FLOW_COLORS[Flow-Index]), von der App
+  berechnet:** Karten-Chips tragen die Flow-Farbe ihres Strangs; in der Liste
+  bekommt jede Zutat einen Farb-Gradient über die beteiligten Stränge,
+  Anteile proportional zur Nutzungshäufigkeit pro Strang (z. B. Öl in Strang 1
+  und Strang 3 → cyan/amber-Mix). Freistehende Zutaten (siehe unten) sind neutral.
+- **Freistehende Zutaten:** `set_ingredients` pflegt NUR Zutaten ohne
+  Schritt-Zuordnung (Grundausstattung, importierte Gesamtlisten) — sie erscheinen
+  neutral in der Liste. Normale Rezept-Zutaten gehören als `ingredients[]` in die
+  Schritte (`add_flow`/`add_step`); der Agent pflegt die Liste NICHT doppelt.
 - **Kein Abhaken in der App** — die Liste ist read-only. Abhaken passiert beim Einkauf:
   Export-Button im Modal kopiert die Zutaten als Markdown-Checkliste (`- [ ] Name — Menge`)
   in die Zwischenablage (für Joplin & Co.).
+- **TTS liest Mengen mit:** Sprachausgabe = Beschreibung + „Zutaten: Mehl 250 g, …"
+  (stepSpokenText), da die Mengen nicht mehr im Beschreibungstext stehen.
 - Globale Einkaufsliste (alle Zutaten aggregiert) bleibt als separate Ansicht möglich.
 - Modal-Darstellung: Desktop zentriertes Dialog (max-w-md, Rahmen, abgerundet),
   Mobile Bottom-Sheet; schließt über X, Esc, Klick auf den Hintergrund.
@@ -503,9 +518,9 @@ umbenennen/löschen/teilen, Timer neu setzen oder verlängern.
 | Tool | Semantik |
 |---|---|
 | `get_cook_state` | kompletter Zustand (Flows, Steps mit IDs, Timer, Ingredients) + Feld `queue`: Reihenfolge der „Jetzt"-View (erstes Element = oberste Karte) + `now_local` (lokale Uhrzeit mit Offset) + `waiting` (ref, `ends_in_s`, `ends_at_local` je wartender Karte) — Zeitfragen ohne Epoch-Mathematik |
-| `add_flow` | neuer Flow: `name`, `icon`, `steps[]` mit `description`, `depends_on` (nur auf existierende Steps; Einträge optional mit `timer_seconds`), `priority`, `score` |
-| `add_step` | Step anhängen oder hinter `after_step_id` einfügen; optional `depends_on` (inkl. `timer_seconds` an den Kanten), `priority`, `score` |
-| `update_step` | `description` / `depends_on` (inkl. Kanten-`timer_seconds`) / `priority` / `score` ändern (nur angegebene Felder); Queue-Status wird neu bewertet |
+| `add_flow` | neuer Flow: `name`, `icon`, `steps[]` mit `description`, `ingredients[]` (Zutaten-Chips: `name`, optional `amount` — Menge im Chip, nicht im Text), `depends_on` (nur auf existierende Steps; Einträge optional mit `timer_seconds`), `priority`, `score` |
+| `add_step` | Step anhängen oder hinter `after_step_id` einfügen; optional `ingredients[]` (Zutaten-Chips), `depends_on` (inkl. `timer_seconds` an den Kanten), `priority`, `score` |
+| `update_step` | `description` / `ingredients[]` (ersetzt die Chips der Karte komplett) / `depends_on` (inkl. Kanten-`timer_seconds`) / `priority` / `score` ändern (nur angegebene Felder); Queue-Status wird neu bewertet |
 | `delete_step` | Step entfernen; Refs auf ihn werden entfernt, frei gewordene Steps werden aktiv |
 | `split_step` | Step teilen: Teil 1 bleibt (mit Prio), Teil 2 folgt danach und hängt von Teil 1 ab; Verweise auf den Original-Step zeigen auf Teil 2. Nur nicht-done |
 | `complete_step` | `done` (+ `doneAt`); Verzögerungen der Dependents laufen ab hier; Abhängige kommen in „Jetzt" (waiting/active) |
@@ -520,7 +535,7 @@ umbenennen/löschen/teilen, Timer neu setzen oder verlängern.
 | `set_loading` | Bau-Spinner: `loading` true/false, `scope` "all" (Overlay, auch für neue Flows) oder "flow"+`flow_id`; rein visuell, Fallback-Off bei nächster Nutzeräußerung |
 | `show_step` | gezielt einen Schritt zeigen: Fokus + View-Wechsel (mobil) + Scroll in den sichtbaren Bereich + kurzer Puls — ersetzt `set_step`/`focus_flow`-Navigation |
 | `focus_flow` | Flow fokussieren (Spalten-Hervorhebung), ohne Schritt-Puls |
-| `set_ingredients` | komplette Zutatenliste ersetzen (absolute Liste): `ingredients[]` mit `name`, optional `amount` |
+| `set_ingredients` | NUR freistehende Zutaten (ohne Schritt-Zuordnung, z. B. Grundausstattung) — normale Rezept-Zutaten leben als `ingredients[]` auf den Steps; Liste wird daraus abgeleitet |
 | `open_ingredients` / `close_ingredients` | Zutaten-Modal |
 | `open_chat` / `close_chat` | Chat-Modal |
 

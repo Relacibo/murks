@@ -69,6 +69,23 @@ const stepIdSchema = (description: string) => ({
   description: `${description} (stabile Schritt-ID aus get_cook_state)`,
 })
 
+const ingredientsSchema = {
+  type: 'array',
+  description:
+    'Zutaten dieser Karte als Chips ({name, amount}). Die App zeigt sie unter dem Schritttext als klickbare Chips — Klick blendet die Menge ein. Steht eine Menge hier, NENNE sie NICHT nochmal im description-Text („Mehl einrühren" statt „250 g Mehl einrühren"). Die Zutatenliste (Ingredients-Modal) wird automatisch aus allen Karten-Chips abgeleitet — pro Zutat eine Zeile mit Farbe nach Strang. „Nach Geschmack"-Zutaten (Salz, Öl) ohne amount angeben; nur nennen, wenn die Karte sie wirklich benutzt.',
+  items: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: 'Zutat, z.B. "Basmatireis"' },
+      amount: {
+        type: 'string',
+        description: 'Menge, z.B. "300 g" oder "2 Stück" — leer/weggelassen für "nach Geschmack"',
+      },
+    },
+    required: ['name'],
+  },
+}
+
 export const TOOLS: ToolDef[] = [
   {
     type: 'function',
@@ -96,6 +113,7 @@ export const TOOLS: ToolDef[] = [
               type: 'object',
               properties: {
                 description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt); beginne mit einer kurzen Kernaussage' },
+                ingredients: ingredientsSchema,
                 priority: prioritySchema,
                 score: scoreSchema,
                 depends_on: addFlowDepRefSchema,
@@ -120,6 +138,7 @@ export const TOOLS: ToolDef[] = [
         properties: {
           flow_id: { type: 'string' },
           description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt); beginne mit einer kurzen Kernaussage' },
+          ingredients: ingredientsSchema,
           after_step_id: { type: 'string', description: 'Optional: stabile ID des Schritts, hinter dem eingefügt wird (sonst ans Ende)' },
           priority: prioritySchema,
           score: scoreSchema,
@@ -141,6 +160,11 @@ export const TOOLS: ToolDef[] = [
           flow_id: { type: 'string' },
           step_id: stepIdSchema('Der Schritt'),
           description: { type: 'string', description: 'Neue Anweisung (Markdown erlaubt)' },
+          ingredients: {
+            ...ingredientsSchema,
+            description:
+              'Chips dieser Karte ERSETZEN (komplette Liste angeben, auch unveränderte) — z.B. Menge skaliert oder Zutat ausgetauscht. Mengen stehen NUR hier, nicht im description-Text.',
+          },
           depends_on: depRefSchema,
           priority: prioritySchema,
           score: scoreSchema,
@@ -307,7 +331,7 @@ export const TOOLS: ToolDef[] = [
     function: {
       name: 'start_new_recipe',
       description:
-        'AUSSCHLIESSLICH für ein komplett anderes Gericht — wenn der Nutzer explizit ein neues Gericht kochen will (z.B. „lass uns stattdessen Pasta machen"). Löscht alle Flows und Zutaten (kein Backup). Für Änderungen am laufenden Gericht (Schritt anpassen, Zutat ändern, Menge skalieren, Flow ergänzen) NIEMALS aufrufen — stattdessen update_step / add_step / delete_step / add_flow / delete_flow / set_ingredients / update_flow verwenden. Ablauf: set_loading(true) → start_new_recipe → Aufbau per add_flow/set_ingredients → set_loading(false).',
+        'AUSSCHLIESSLICH für ein komplett anderes Gericht — wenn der Nutzer explizit ein neues Gericht kochen will (z.B. „lass uns stattdessen Pasta machen"). Löscht alle Flows und Zutaten (kein Backup). Für Änderungen am laufenden Gericht (Schritt anpassen, Zutat ändern, Menge skalieren, Flow ergänzen) NIEMALS aufrufen — stattdessen update_step / add_step / delete_step / add_flow / delete_flow / update_flow verwenden. Ablauf: set_loading(true) → start_new_recipe → Aufbau per add_flow (Zutaten als ingredients pro Schritt) → set_loading(false).',
       parameters: { type: 'object', properties: {} },
     },
   },
@@ -370,13 +394,14 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'set_ingredients',
-      description: 'Die komplette Zutatenliste ersetzen (absolute Liste, Einkaufsliste). Aufrufen nach add_flow und bei jeder Änderung: Zutat kommt dazu/fällt weg, Mengen werden skaliert (z.B. doppelte Menge). Vorhandene Einkaufs-Haken bleiben über den Namen erhalten.',
+      description:
+        'NUR für Zutaten OHNE Schritt-Zuordnung (Grundausstattung wie "Salz", "Öl", die zu keiner Karte passen). Normale Rezept-Zutaten gehören als ingredients-Array in die Schritte (add_flow/add_step) — die Zutatenliste wird aus diesen Chips abgeleitet, NICHT hier gepflegt. Ersetzt die Liste der freistehenden Zutaten komplett.',
       parameters: {
         type: 'object',
         properties: {
           ingredients: {
             type: 'array',
-            description: 'Komplette Zutatenliste (alle Zutaten, auch unveränderte)',
+            description: 'Freistehende Zutaten (ohne Schritt-Zuordnung)',
             items: {
               type: 'object',
               properties: {

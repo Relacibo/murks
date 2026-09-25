@@ -114,6 +114,42 @@
     @apply px-2 gap-1;
   }
 
+  /* ── Zutaten-Chip (8100): Klick blendet die Menge ein ─────────────
+     Farbe aus den --flow-*-Variablen des umgebenden data-color-Trägers
+     (Karte = Flow-Farbe); im Zutaten-Modal kann background per Inline-
+     Style mit dem Flow-Farb-Gradient überschrieben werden. */
+  .ing-chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 border text-xs transition-colors max-w-full;
+    background-color: var(--flow-bg);
+    border-color: var(--flow-border);
+    color: var(--flow-text);
+  }
+  button.ing-chip {
+    cursor: pointer;
+  }
+  button.ing-chip:hover {
+    border-color: var(--flow-border-active);
+  }
+  .ing-chip.is-revealed {
+    background-color: var(--flow-bg-active);
+    border-color: var(--flow-border-active);
+    color: var(--flow-text-active);
+  }
+  .ing-chip.is-neutral {
+    --flow-bg: #27272a;
+    --flow-border: #3f3f46;
+    --flow-text: #d4d4d8;
+    --flow-bg-active: #3f3f46;
+    --flow-border-active: #52525b;
+    --flow-text-active: #f4f4f5;
+  }
+  .ing-chip-amount {
+    @apply font-semibold tabular-nums;
+  }
+  .ing-chip-row {
+    @apply flex flex-wrap gap-1.5;
+  }
+
   /* ── Flow-Spalte (Desktop + Mobile-Flow-View): nur Gliederung ── */
   .column {
     @apply shrink-0 flex flex-col min-h-0 max-h-full;
