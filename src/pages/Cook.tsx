@@ -570,42 +570,75 @@ export function Cook(props: {
       engine.executeTool(name, { flow_id: m.flowId, step_id: m.stepId, ...args }, { silent: true })
     }
 
-    /* Editierbarer Timer: Minuten als Texteingabe, Sekunden als Viertel-Schritte */
-    const SEC_STEPS = [0, 15, 30, 45] as const
+    /* Editierbarer Timer: Minuten als Texteingabe, Sekunden als 15-s-Schritte.
+       Klassisch vorhersagbar: OHNE Interaktion zeigt der Dialog die echte
+       Restzeit und läuft pro Sekunde runter. Beim ERSTEN Eingriff friert die
+       Anzeige ein (editTotal) — Raster-Schritte rechnen vom eingefrorenen
+       Wert weiter (44 s: hoch → 45, runter → 30; ab 45 zählt hoch auf 60 =
+       +1 min), bis der Dialog geschlossen wird oder +1 min neu startet. */
+    const SEC_STEPS = 15
     const [editMins, setEditMins] = createSignal<string | null>(null)
-    const [editSecs, setEditSecs] = createSignal<number | null>(null)
+    const [editTotal, setEditTotal] = createSignal<number | null>(null)
+    // Editierzustand verwerfen, sobald der Dialog zu ist — die Signale leben
+    // an der Komponente, nicht an einer Öffnung (sonst kehrt der nächste
+    // Open mit Alt-Werten zurück).
+    createEffect(() => {
+      if (waitMenu() === null) {
+        setEditMins(null)
+        setEditTotal(null)
+      }
+    })
 
-    function currentMins() {
+    /* Echte Restzeit in Sekunden (tick-getrieben — nur im Live-Modus gelesen) */
+    function liveTotal(): number | null {
       const r = pendingUntil(card()!.s, st()!)
-      if (r === null) return 0
-      return Math.floor((r - Date.now()) / 60000)
+      return r === null ? null : Math.max(0, Math.round((r - Date.now()) / 1000))
     }
-    function currentSecs() {
-      const r = pendingUntil(card()!.s, st()!)
-      if (r === null) return 0
-      return Math.round(((r - Date.now()) % 60000) / 1000 / 15) * 15 % 60
+    /* Anzeigewert: eingefroren im Editiermodus, sonst live */
+    const displayTotal = () => {
+      const e = editTotal()
+      return e !== null ? e : liveTotal()
     }
 
-    function applyTimer(m: number, s: number) {
-      const total = Math.max(1, m * 60 + s)
-      act('set_timer', { seconds: total })
+    function applyTotal(total: number) {
+      act('set_timer', { seconds: Math.max(1, total) })
     }
+
+    /* Raster-Schritt relativ zum WERT, nicht zum gerasteten Index — von 44 s
+       zeigt ein Schritt nach oben auf 45 (nicht Wrap auf 00) und nach unten
+       auf 30; exakt auf dem Raster geht es normal weiter. */
+    function stepSecs(dir: 1 | -1) {
+      const cur = displayTotal()
+      if (cur === null) return
+      const next =
+        dir === 1
+          ? (Math.floor(cur / SEC_STEPS) + 1) * SEC_STEPS
+          : Math.max(0, Math.ceil(cur / SEC_STEPS) * SEC_STEPS - SEC_STEPS)
+      setEditTotal(next)
+      applyTotal(next)
+    }
+
+    function openMins() {
+      const cur = displayTotal()
+      if (cur === null) return
+      if (editTotal() === null) setEditTotal(cur) // einfrieren beim Betreten
+      setEditMins(String(Math.floor(cur / 60)))
+    }
+
     function commitMins() {
       const raw = editMins()
       if (raw === null) return
       const m = Math.max(0, Math.min(99, parseInt(raw || '0', 10) || 0))
-      const s = editSecs() ?? currentSecs()
+      const total = m * 60 + ((displayTotal() ?? 0) % 60)
       setEditMins(null)
-      setEditSecs(null)
-      applyTimer(m, s)
+      setEditTotal(total)
+      applyTotal(total)
     }
-    function cycleSecs(dir: 1 | -1) {
-      const cur = editSecs() ?? currentSecs()
-      const idx = SEC_STEPS.indexOf(cur as typeof SEC_STEPS[number])
-      const next = SEC_STEPS[(idx + dir + SEC_STEPS.length) % SEC_STEPS.length]
-      setEditSecs(next)
-      const m = editMins() !== null ? (parseInt(editMins()! || '0', 10) || 0) : currentMins()
-      applyTimer(m, next)
+
+    /* Escape: kompletter Abbruch — zurück zur laufenden Anzeige */
+    function cancelMins() {
+      setEditMins(null)
+      setEditTotal(null)
     }
 
     const iconBtn =
@@ -614,7 +647,6 @@ export function Cook(props: {
     return (
       <Show when={card()}>
         {(c) => {
-          const remaining = () => pendingUntil(c().s, st()!)
           const paused = () => st()!.timer?.pausedAt != null
           return (
             <Portal>
@@ -638,19 +670,17 @@ export function Cook(props: {
                   </div>
                   <div class="flex items-center justify-center gap-1">
                   {/* Minuten: Klick → editierbar */}
-                  <div class="relative">
+                  <div class="relative" data-timer-mins>
                     <Show
                       when={editMins() !== null}
                       fallback={
                         <button
                           class="font-mono text-5xl font-bold tabular-nums w-20 text-center leading-none"
                           classList={{ 'text-amber-300': !paused(), 'text-zinc-500': paused() }}
-                          onClick={() => setEditMins(String(currentMins()))}
+                          onClick={openMins}
                           title="Minuten tippen"
                         >
-                          {remaining() !== null
-                            ? String(Math.floor(Math.max(0, remaining()! - Date.now()) / 60000)).padStart(2, '0')
-                            : '00'}
+                          {String(Math.floor((displayTotal() ?? 0) / 60)).padStart(2, '0')}
                         </button>
                       }
                     >
@@ -669,8 +699,7 @@ export function Cook(props: {
                             e.currentTarget.blur()
                           }
                           if (e.key === 'Escape') {
-                            setEditMins(null)
-                            setEditSecs(null)
+                            cancelMins()
                           }
                         }}
                         ref={(el) => setTimeout(() => { el.focus(); el.select() }, 0)}
@@ -681,19 +710,16 @@ export function Cook(props: {
                     class="font-mono text-5xl font-bold select-none leading-none"
                     classList={{ 'text-amber-300': !paused(), 'text-zinc-500': paused() }}
                   >:</span>
-                  {/* Sekunden: Klick/Scroll → Viertel-Schritte */}
+                  {/* Sekunden: Klick/Scroll → 15-s-Schritte (friert die Anzeige ein) */}
                   <button
+                    data-timer-secs
                     class="font-mono text-5xl font-bold tabular-nums w-20 text-center leading-none"
                     classList={{ 'text-amber-300': !paused(), 'text-zinc-500': paused() }}
-                    onClick={() => cycleSecs(1)}
-                    onWheel={(e) => { e.preventDefault(); cycleSecs(e.deltaY > 0 ? 1 : -1) }}
-                    title="Sekunden (00 / 15 / 30 / 45)"
+                    onClick={() => stepSecs(1)}
+                    onWheel={(e) => { e.preventDefault(); stepSecs(e.deltaY > 0 ? -1 : 1) }}
+                    title="Sekunden — 15-s-Schritte (Klick hoch, Rad richtet sich nach der Drehrichtung)"
                   >
-                    {editSecs() !== null
-                      ? String(editSecs()!).padStart(2, '0')
-                      : remaining() !== null
-                        ? String(Math.round(((Math.max(0, remaining()! - Date.now())) % 60000) / 1000 / 15) * 15 % 60).padStart(2, '0')
-                        : '00'}
+                    {String((displayTotal() ?? 0) % 60).padStart(2, '0')}
                   </button>
                   </div>
                 </div>
@@ -711,7 +737,12 @@ export function Cook(props: {
                   </button>
                   <button
                     class={iconBtn}
-                    onClick={() => act('set_timer', { delta_seconds: 60 })}
+                    onClick={() => {
+                      act('set_timer', { delta_seconds: 60 })
+                      // Editierzustand verwerfen — Anzeige zurück auf live
+                      setEditMins(null)
+                      setEditTotal(null)
+                    }}
                     title="+1 Minute"
                   >
                     <FiPlus size={16} />

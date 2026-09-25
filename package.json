@@ -10,7 +10,8 @@
     "build": "vite build",
     "postbuild": "cp dist/index.html dist/404.html",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:timer": "npm run build && node e2e/timer-menu.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",
