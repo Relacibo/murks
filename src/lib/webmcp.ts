@@ -74,7 +74,7 @@ export async function registerWebMCPTools(opts?: {
     await ctx.registerTool({
       name: 'get_system_prompt',
       description:
-        'Verbindliche Murks-Regeln für dich als externen Agenten: Rolle, Sprache und Grundton. Die Koch-Regeln (Abhängigkeiten, Timer-Kanten, Zutaten, Spinner) stehen direkt in den Beschreibungen der anderen Tools — folge ihnen exakt. Rufe dieses Tool auf, bevor du Gerichte anlegst oder umbaust.',
+        'Binding Murks rules for you as an external agent: role, language and tone. The cooking rules (dependencies, timer edges, ingredients, spinner) live directly in the descriptions of the other tools — follow them exactly. Call this tool before creating or restructuring dishes.',
       inputSchema: { type: 'object', properties: {} },
       execute: () => WEBMCP_SYSTEM_PROMPT,
     })

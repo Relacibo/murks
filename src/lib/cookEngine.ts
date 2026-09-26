@@ -410,14 +410,14 @@ export function createCookEngine(getCook: () => CookState, setCook: SetCookFn): 
           )
           if (!timed) {
             warnings.push(
-              `„${label}" enthält eine Zeitangabe, aber keine Folgekarte wartet mit timer_seconds darauf`,
+              `"${label}" contains a time span, but no follow-up card waits on it via timer_seconds`,
             )
           }
         }
         /* Keine Kante, aber nicht die erste Karte des Flows */
         if (i > 0 && st.dependsOn.length === 0) {
           warnings.push(
-            `„${label}" hat keine depends_on-Kante (ist aber nicht die erste Karte von „${flow.name}") — parallel gedacht? Dann passt das so, nichts zu tun. Sonst an die passende Karte hängen (gleicher oder anderer Flow)`,
+            `"${label}" has no depends_on edge (but is not the first card of "${flow.name}") — meant to be parallel? Then it is fine, nothing to do. Otherwise attach it to the right card (same or different flow)`,
           )
         }
       })

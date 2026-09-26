@@ -13,22 +13,22 @@ const depRefSchema = {
     type: 'object',
     properties: {
       flow_id: { type: 'string' },
-      step_id: { type: 'string', description: 'Stabile Schritt-ID (aus get_cook_state)' },
+      step_id: { type: 'string', description: 'Stable step ID (from get_cook_state)' },
       timer_seconds: {
         type: 'number',
         description:
-          'Optionale Verzögerung in Sekunden: Die Karte wird erst X Sekunden NACH dem Abschluss dieser Abhängigkeit frei („ich komme X nach dieser Karte").',
+          'Optional delay in seconds: the card only becomes free X seconds AFTER this dependency completes ("I will join X seconds after this card").',
       },
     },
     required: ['flow_id', 'step_id'],
   },
   description:
-    'Optionale Abhängigkeiten (Schritte, die zuerst erledigt sein müssen). Es gibt KEINE implizite Reihenfolge — ohne depends_on läuft der Schritt sofort parallel. Verkette jeden Folgeschritt explizit an seinen Vorgänger (auch Schritt 2 → Schritt 1). JEDE Zeitangabe im Rezept MUSS als timer_seconds an der Kante zur Folgekarte stehen („10 Minuten kochen" → Folgekarte mit timer_seconds 600). WARTEZEIT vs. aktive Arbeit: Die Kante bedeutet passives Warten (backen, ziehen lassen, kühlen). Bestimmt das ERGEBNIS das Ende („bis goldbraun", „bis sämig") oder ist der Koch aktiv („unter Rühren aufkochen"), gibt es KEINE Kante — die Zeit steht in der Beschreibung der Karte selbst. Zeitangaben stehen am ENDE der auslösenden Karte (Kernaussage zuerst); die wartende Folgekarte nennt KEINE Zeit, nur was nach Ablauf zu tun ist. Endet ein Rezept mit einer Wartezeit, hänge einen finalen Schritt an, der mit timer_seconds darauf wartet („Anschneiden und servieren"). Über Flow-Grenzen ist die Kante das Scheduling-Werkzeug: „Sahne steif schlagen" hängt mit kleinerem timer_seconds am GLEICHEN Anker wie die Wartekarte — erscheint kurz davor. PLANE SO SPÄT WIE MÖGLICH (mit Puffer): Ergebnisse, die altern (vorgeheizter Ofen, geschlagene Sahne, geschmolzene Butter), gehören NICHT frei an den Anfang — verankere sie so, dass sie genau dann fertig sind, wenn sie gebraucht werden. Beispiel Hirse: [aufkochen] →(540s)→ [quellen lassen] →(600s)→ [lockern]. „Ofen auf 180° vorheizen" (≈ 5 Min) soll heiß sein, wenn das Quellen endet: hänge es mit timer_seconds=300 an die Quell-Karte — Rechnung: timer = Quellzeit 600 − Vorheizzeit 300, der Ofen startet 5 Min vor Quell-Ende und ist exakt pünktlich. Die Rechnung steckt im timer_seconds, nicht in der Beschreibung. Bei Unsicherheit lieber etwas früher starten — ein heißer Ofen hält die Temperatur, wartendes Essen wird kalt.',
+    'Optional dependencies (steps that must finish first). There is NO implicit ordering — without depends_on a step runs immediately in parallel. Chain every follow-up step explicitly to its predecessor (including step 2 → step 1). EVERY time span in the recipe MUST be modeled as timer_seconds on the edge to the follow-up card ("simmer for 10 minutes" → follow-up card with timer_seconds 600). WAITING TIME vs. active work: the edge means passive waiting (baking, steeping, chilling). If the RESULT determines the end ("until golden", "until creamy") or the cook is active ("bring to a boil while stirring"), there is NO edge — the time belongs in the card\'s own description. Time spans go at the END of the triggering card (key statement first); the waiting follow-up card mentions NO time, only what to do once it elapses. If the recipe ends with a waiting period, append a final step that waits via timer_seconds ("carve and serve"). Across flows the edge is the scheduling tool: "whip the cream" hangs with a smaller timer_seconds on the SAME anchor as the waiting card — it appears shortly before it. PLAN AS LATE AS POSSIBLE (with buffer): results that age (preheated oven, whipped cream, melted butter) must NOT sit free at the start — anchor them so they are ready exactly when they are needed. Millet example: [bring to a boil] →(540s)→ [let it swell] →(600s)→ [fluff up]. "Preheat oven to 180°" (≈ 5 min) should be hot when the swelling ends: attach it with timer_seconds=300 to the swelling card — math: timer = swelling time 600 − preheat time 300, so the oven starts 5 min before the swelling ends and is exactly on time. The math lives in timer_seconds, not in the description. When in doubt, start slightly earlier — a hot oven holds its temperature, waiting food gets cold.',
 }
 
-/** depends_on in add_flow: Vorgänger im SELBEN neuen Flow per step_index
-    (0-basiert, muss kleiner als der eigene Index sein) ODER auf bereits
-    existierende Schritte anderer Flows per flow_id + step_id. */
+/** depends_on in add_flow: predecessors within the SAME new flow via
+    step_index (0-based, must be smaller than the own index) OR to already
+    existing steps of other flows via flow_id + step_id. */
 const addFlowDepRefSchema = {
   type: 'array',
   items: {
@@ -37,49 +37,50 @@ const addFlowDepRefSchema = {
       step_index: {
         type: 'number',
         description:
-          'Vorgänger innerhalb DIESES neuen Flows: 0-basierter Index des Schritts im steps-Array (muss kleiner als der eigene Index sein).',
+          'Predecessor within THIS new flow: 0-based index of the step in the steps array (must be smaller than the own index).',
       },
-      flow_id: { type: 'string', description: 'Für Vorgänger in einem anderen, bereits existierenden Flow' },
-      step_id: { type: 'string', description: 'Stabile Schritt-ID (aus get_cook_state)' },
+      flow_id: { type: 'string', description: 'For predecessors in a different, already existing flow' },
+      step_id: { type: 'string', description: 'Stable step ID (from get_cook_state)' },
       timer_seconds: {
         type: 'number',
         description:
-          'Optionale Verzögerung in Sekunden: Die Karte wird erst X Sekunden NACH dem Abschluss dieser Abhängigkeit frei („ich komme X nach dieser Karte").',
+          'Optional delay in seconds: the card only becomes free X seconds AFTER this dependency completes ("I will join X seconds after this card").',
       },
     },
   },
   description:
-    'Optionale Abhängigkeiten. Es gibt KEINE implizite Reihenfolge — ohne depends_on läuft der Schritt sofort parallel. Verkette jeden Folgeschritt explizit an seinen Vorgänger: innerhalb dieses neuen Flows per step_index, auf bestehende Schritte anderer Flows per flow_id + step_id. JEDE Zeitangabe im Rezept MUSS als timer_seconds an der Kante zur Folgekarte stehen („10 Minuten kochen" → Folgekarte mit timer_seconds 600). WARTEZEIT vs. aktive Arbeit: Die Kante bedeutet passives Warten (backen, ziehen lassen, kühlen). Bestimmt das ERGEBNIS das Ende („bis goldbraun", „bis sämig") oder ist der Koch aktiv („unter Rühren aufkochen"), gibt es KEINE Kante — die Zeit steht in der Beschreibung der Karte selbst. Zeitangaben stehen am ENDE der auslösenden Karte (Kernaussage zuerst); die wartende Folgekarte nennt KEINE Zeit, nur was nach Ablauf zu tun ist. Endet ein Rezept mit einer Wartezeit, hänge einen finalen Schritt an, der mit timer_seconds darauf wartet („Anschneiden und servieren"). Über Flow-Grenzen ist die Kante das Scheduling-Werkzeug: „Sahne steif schlagen" hängt mit kleinerem timer_seconds am GLEICHEN Anker wie die Wartekarte — erscheint kurz davor. PLANE SO SPÄT WIE MÖGLICH (mit Puffer): Ergebnisse, die altern (vorgeheizter Ofen, geschlagene Sahne, geschmolzene Butter), gehören NICHT frei an den Anfang — verankere sie so, dass sie genau dann fertig sind, wenn sie gebraucht werden. Beispiel Hirse: [aufkochen] →(540s)→ [quellen lassen] →(600s)→ [lockern]. „Ofen auf 180° vorheizen" (≈ 5 Min) soll heiß sein, wenn das Quellen endet: hänge es mit timer_seconds=300 an die Quell-Karte — Rechnung: timer = Quellzeit 600 − Vorheizzeit 300, der Ofen startet 5 Min vor Quell-Ende und ist exakt pünktlich. Die Rechnung steckt im timer_seconds, nicht in der Beschreibung. Bei Unsicherheit lieber etwas früher starten — ein heißer Ofen hält die Temperatur, wartendes Essen wird kalt.',
+    'Optional dependencies. There is NO implicit ordering — without depends_on a step runs immediately in parallel. Chain every follow-up step explicitly to its predecessor: within this new flow via step_index, to existing steps of other flows via flow_id + step_id. EVERY time span in the recipe MUST be modeled as timer_seconds on the edge to the follow-up card ("simmer for 10 minutes" → follow-up card with timer_seconds 600). WAITING TIME vs. active work: the edge means passive waiting (baking, steeping, chilling). If the RESULT determines the end ("until golden", "until creamy") or the cook is active ("bring to a boil while stirring"), there is NO edge — the time belongs in the card\'s own description. Time spans go at the END of the triggering card (key statement first); the waiting follow-up card mentions NO time, only what to do once it elapses. If the recipe ends with a waiting period, append a final step that waits via timer_seconds ("carve and serve"). Across flows the edge is the scheduling tool: "whip the cream" hangs with a smaller timer_seconds on the SAME anchor as the waiting card — it appears shortly before it. PLAN AS LATE AS POSSIBLE (with buffer): results that age (preheated oven, whipped cream, melted butter) must NOT sit free at the start — anchor them so they are ready exactly when they are needed. Millet example: [bring to a boil] →(540s)→ [let it swell] →(600s)→ [fluff up]. "Preheat oven to 180°" (≈ 5 min) should be hot when the swelling ends: attach it with timer_seconds=300 to the swelling card — math: timer = swelling time 600 − preheat time 300, so the oven starts 5 min before the swelling ends and is exactly on time. The math lives in timer_seconds, not in the description. When in doubt, start slightly earlier — a hot oven holds its temperature, waiting food gets cold.',
 }
 
 const prioritySchema = {
   type: 'string',
   enum: ['normal', 'high'],
-  description: '"high" für zeitkritische Schritte (z.B. etwas im Ofen): Karte steht in „Jetzt" oben und pulsiert (echter Alarm). Ein "high"-Schritt darf höchstens EINE Abhängigkeit haben (den Schritt, dessen Abschluss — ggf. plus Verzögerung — die Wartezeit bestimmt). Sparsam verwenden.',
+  description:
+    '"high" for time-critical steps (e.g. something in the oven): the card sits at the top of "Jetzt" and pulses (a real alarm). A "high" step may have at most ONE dependency (the step whose completion — possibly plus delay — determines the wait). Use sparingly.',
 }
 
 const scoreSchema = {
   type: 'number',
   description:
-    'Optionaler Scheduling-Hinweis (Default 0): je höher, desto weiter oben in der aktiven Queue („mach das zuerst"). Kein Alarm — dafür ist priority "high". Setze den Wert direkt auf den zeitkritischen Schritt (z.B. den Schritt, der nach einer Wartezeit sofort passieren muss: „Benzin abtrennen" nach dem Absetzen, „Teig in den Ofen" nach der Gehzeit). Die Engine zieht alle Schritte davor automatisch rekursiv mit nach oben — der score propagiert rückwärts über depends_on, auch durch Wartezeiten hindurch. Vorgänger brauchen also keinen eigenen score. Nur setzen, wenn der Default falsch wäre.',
+    'Optional scheduling hint (default 0): the higher, the further up in the active queue ("do this first"). Not an alarm — that is priority "high". Put the value directly on the time-critical step (e.g. the step that must happen right after a wait: "drain the fat" after resting, "dough into the oven" after proofing). The engine automatically pulls all preceding steps up with it recursively — the score propagates backwards over depends_on, even through waiting times. Predecessors therefore need no score of their own. Only set it if the default would be wrong.',
 }
 
 const stepIdSchema = (description: string) => ({
   type: 'string',
-  description: `${description} (stabile Schritt-ID aus get_cook_state)`,
+  description: `${description} (stable step ID from get_cook_state)`,
 })
 
 const ingredientsSchema = {
   type: 'array',
   description:
-    'Zutaten dieser Karte als Chips ({name, amount}). Die App zeigt sie unter dem Schritttext als klickbare Chips — Klick blendet die Menge ein. Steht eine Menge hier, NENNE sie NICHT nochmal im description-Text („Mehl einrühren" statt „250 g Mehl einrühren"). Die Zutatenliste (Ingredients-Modal) wird automatisch aus allen Karten-Chips abgeleitet — pro Zutat eine Zeile mit Farbe nach Strang. „Nach Geschmack"-Zutaten (Salz, Öl) ohne amount angeben; nur nennen, wenn die Karte sie wirklich benutzt.',
+    'Ingredients of this card as chips ({name, amount}). The app renders them below the step text as clickable chips — a click reveals the amount. If an amount is given here, do NOT repeat it in the description text ("fold in the flour" instead of "fold in 250 g of flour"). The ingredient list (ingredients modal) is derived automatically from all card chips — one line per ingredient, colored by flow. "To taste" ingredients (salt, oil) go without amount; only list them if the card actually uses them.',
   items: {
     type: 'object',
     properties: {
-      name: { type: 'string', description: 'Zutat, z.B. "Basmatireis"' },
+      name: { type: 'string', description: 'Ingredient, e.g. "Basmatireis" (user-facing — German)' },
       amount: {
         type: 'string',
-        description: 'Menge, z.B. "300 g" oder "2 Stück" — leer/weggelassen für "nach Geschmack"',
+        description: 'Amount, e.g. "300 g" or "2 Stück" — empty/omitted for "to taste"',
       },
     },
     required: ['name'],
@@ -92,7 +93,7 @@ export const TOOLS: ToolDef[] = [
     function: {
       name: 'get_cook_state',
       description:
-        'Aktuellen Kochzustand abrufen: alle Flows, Schritte (mit stabilen IDs), Timer, Ingredients-Modal. Enthält now_local (lokale Wanduhrzeit des Nutzers) und für jede wartende Karte ends_in_s/ends_at_local — rufe das für Zeitfragen auf („fertig um 14:30?", „wie lange läuft der Timer noch?") und immer dann, wenn du den Zustand nicht kennst.',
+        'Fetch the current cooking state: all flows, steps (with stable IDs), timers, ingredients modal. Contains now_local (the user\'s local wall-clock time) and, for every waiting card, ends_in_s/ends_at_local — call this for time questions ("ready by 14:30?", "how long is the timer still running?") and whenever you do not know the current state.',
       parameters: { type: 'object', properties: {} },
     },
   },
@@ -101,18 +102,18 @@ export const TOOLS: ToolDef[] = [
     function: {
       name: 'add_flow',
       description:
-        'Neuen Flow anlegen (parallele Komponente mit eigener Schrittfolge). Schritte können nur auf bereits existierende Schritte anderer Flows verweisen. JEDER Aufbau beginnt mit set_loading({scope:"all", loading:true}) als ERSTEM Tool-Aufruf deiner Antwort (bevor du die Schedule durchdenkst — nicht erst, wenn du anfängst Flows anzulegen) und endet nach dem letzten Tool-Aufruf mit set_loading({loading:false}) — auch bei einem einzelnen Flow. Das Tool-Ergebnis kann "warnings" enthalten (z.B. eine Zeitangabe, auf die keine Folgekarte mit timer_seconds wartet) — behebe sie sofort in derselben Antwort per update_step/add_step, außer die Situation ist gewollt (z.B. eine Karte, die wirklich sofort parallel laufen soll).',
+        'Create a new flow (parallel component with its own step sequence). Steps may only reference steps of other flows that already exist. If the amount basis is unclear (how many portions — or how much of the perishable main ingredient is on hand), ASK first and build only after the answer — never guess portion sizes. EVERY build starts with set_loading({scope:"all", loading:true}) as the FIRST tool call of your reply (before you think through the schedule — not only when you start creating flows) and ends with set_loading({loading:false}) after the last tool call — even for a single flow. The tool result may contain "warnings" (e.g. a time span that no follow-up card waits on via timer_seconds) — fix them immediately in the same reply via update_step/add_step, unless the situation is intentional (e.g. a card that really should run in parallel right away).',
       parameters: {
         type: 'object',
         properties: {
-          name: { type: 'string', description: 'Name, z.B. "Reis"' },
-          icon: { type: 'string', description: 'Passendes Emoji, z.B. "🍚" — identifiziert den Flow visuell' },
+          name: { type: 'string', description: 'Name, e.g. "Reis" (user-facing — German)' },
+          icon: { type: 'string', description: 'Matching emoji, e.g. "🍚" — identifies the flow visually' },
           steps: {
             type: 'array',
             items: {
               type: 'object',
               properties: {
-                description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt); beginne mit einer kurzen Kernaussage' },
+                description: { type: 'string', description: 'Complete, independently executable instruction (Markdown allowed); start with a short key statement (user-facing — German)' },
                 ingredients: ingredientsSchema,
                 priority: prioritySchema,
                 score: scoreSchema,
@@ -120,7 +121,7 @@ export const TOOLS: ToolDef[] = [
               },
               required: ['description'],
             },
-            description: 'Schrittfolge',
+            description: 'Step sequence',
           },
         },
         required: ['name', 'icon', 'steps'],
@@ -132,14 +133,14 @@ export const TOOLS: ToolDef[] = [
     function: {
       name: 'add_step',
       description:
-        'Schritt an einen bestehenden Flow anhängen oder hinter einem bestimmten Schritt einfügen (after_step_id). Das Tool-Ergebnis kann "warnings" enthalten (z.B. eine Zeitangabe ohne Folgekarte mit timer_seconds) — behebe sie sofort per update_step/add_step, außer die Situation ist gewollt.',
+        'Append a step to an existing flow or insert it behind a specific step (after_step_id). The tool result may contain "warnings" (e.g. a time span with no follow-up card on timer_seconds) — fix them immediately via update_step/add_step, unless the situation is intentional.',
       parameters: {
         type: 'object',
         properties: {
           flow_id: { type: 'string' },
-          description: { type: 'string', description: 'Vollständige, eigenständig ausführbare Anweisung (Markdown erlaubt); beginne mit einer kurzen Kernaussage' },
+          description: { type: 'string', description: 'Complete, independently executable instruction (Markdown allowed); start with a short key statement (user-facing — German)' },
           ingredients: ingredientsSchema,
-          after_step_id: { type: 'string', description: 'Optional: stabile ID des Schritts, hinter dem eingefügt wird (sonst ans Ende)' },
+          after_step_id: { type: 'string', description: 'Optional: stable ID of the step to insert behind (otherwise appended at the end)' },
           priority: prioritySchema,
           score: scoreSchema,
           depends_on: depRefSchema,
@@ -153,17 +154,17 @@ export const TOOLS: ToolDef[] = [
     function: {
       name: 'update_step',
       description:
-        'Schritt bearbeiten: Beschreibung, Abhängigkeiten (inkl. Verzögerung an den Kanten), Priorität oder Score ändern (nur angegebene Felder). Wartezeit nach Abschluss einer Karte gehört als timer_seconds an die Kante (depends_on) — nicht auf die abgeschlossene Karte. Das Tool-Ergebnis kann "warnings" enthalten — behebe sie sofort in derselben Antwort.',
+        'Edit a step: change description, ingredients, dependencies (including edge delays), priority or score (only the given fields). A waiting time after a card completes belongs as timer_seconds on the edge (depends_on) — not on the completed card. The tool result may contain "warnings" — fix them immediately in the same reply.',
       parameters: {
         type: 'object',
         properties: {
           flow_id: { type: 'string' },
-          step_id: stepIdSchema('Der Schritt'),
-          description: { type: 'string', description: 'Neue Anweisung (Markdown erlaubt)' },
+          step_id: stepIdSchema('The step'),
+          description: { type: 'string', description: 'New instruction (Markdown allowed; user-facing — German)' },
           ingredients: {
             ...ingredientsSchema,
             description:
-              'Chips dieser Karte ERSETZEN (komplette Liste angeben, auch unveränderte) — z.B. Menge skaliert oder Zutat ausgetauscht. Mengen stehen NUR hier, nicht im description-Text.',
+              'REPLACES this card\'s chips (give the complete list, including unchanged ones) — e.g. scaled amounts or a swapped ingredient. Amounts live ONLY here, not in the description text.',
           },
           depends_on: depRefSchema,
           priority: prioritySchema,
@@ -177,12 +178,13 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'delete_step',
-      description: 'Schritt entfernen. Abhängigkeiten anderer Schritte auf ihn werden mit entfernt; frei gewordene Schritte werden aktiv.',
+      description:
+        'Remove a step. Dependencies of other steps on it are removed with it; steps that become free become active.',
       parameters: {
         type: 'object',
         properties: {
           flow_id: { type: 'string' },
-          step_id: stepIdSchema('Der Schritt'),
+          step_id: stepIdSchema('The step'),
         },
         required: ['flow_id', 'step_id'],
       },
@@ -192,14 +194,15 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'split_step',
-      description: 'Schritt in zwei aufteilen: Teil 1 bleibt an seiner Stelle, Teil 2 wird dahinter eingefügt, hängt von Teil 1 ab. Schritte, die auf den Original-Schritt zeigten, zeigen danach auf Teil 2. Nur für nicht-abgeschlossene Schritte.',
+      description:
+        'Split a step in two: part 1 stays in place, part 2 is inserted behind it and depends on part 1. Steps that pointed at the original step afterwards point at part 2. Only for steps that are not completed yet.',
       parameters: {
         type: 'object',
         properties: {
           flow_id: { type: 'string' },
-          step_id: stepIdSchema('Der zu teilende Schritt'),
-          first_description: { type: 'string', description: 'Anweisung für Teil 1 (bleibt an der Stelle)' },
-          second_description: { type: 'string', description: 'Anweisung für Teil 2 (folgt danach)' },
+          step_id: stepIdSchema('The step to split'),
+          first_description: { type: 'string', description: 'Instruction for part 1 (stays in place; user-facing — German)' },
+          second_description: { type: 'string', description: 'Instruction for part 2 (follows afterwards; user-facing — German)' },
         },
         required: ['flow_id', 'step_id', 'first_description', 'second_description'],
       },
@@ -209,12 +212,13 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'complete_step',
-      description: 'Schritt abschließen (done). Abhängige Karten mit Verzögerung an der Kante (timer_seconds am depends_on-Eintrag) werden erst nach Ablauf frei.',
+      description:
+        'Complete a step (done). Dependent cards with a delay on the edge (timer_seconds on the depends_on entry) only become free after it elapses.',
       parameters: {
         type: 'object',
         properties: {
           flow_id: { type: 'string' },
-          step_id: stepIdSchema('Der Schritt'),
+          step_id: stepIdSchema('The step'),
         },
         required: ['flow_id', 'step_id'],
       },
@@ -224,12 +228,13 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'revert_step',
-      description: 'Abgeschlossenen Schritt wieder auf nicht-erledigt setzen. Nur möglich, wenn keine Karte, die diesen Schritt als Abhängigkeit hat, selbst abgeschlossen ist.',
+      description:
+        'Set a completed step back to not-done. Only possible if no card that depends on this step is itself completed.',
       parameters: {
         type: 'object',
         properties: {
           flow_id: { type: 'string' },
-          step_id: stepIdSchema('Der Schritt'),
+          step_id: stepIdSchema('The step'),
         },
         required: ['flow_id', 'step_id'],
       },
@@ -240,16 +245,16 @@ export const TOOLS: ToolDef[] = [
     function: {
       name: 'set_timer',
       description:
-        'Timer eines Schritts setzen oder überschreiben — ein erneuter Aufruf ersetzt den bisherigen Timer. "seconds": Dauer ab jetzt. Alternativ "delta_seconds" (signed): aktuelles Ende um X Sekunden verschieben — positiv = „noch X länger", negativ = verkürzen (auf einer wartenden Karte ohne eigenen Timer ist die Basis deren Plan-Wartezeit). Auf einer wartenden Karte ersetzt der Timer die Plan-Wartezeit; auf einer aktiven Karte geht sie damit in den Wartezustand. Sein Ablauf macht die Karte frei — die Plan-Wartezeit kommt NICHT zurück.',
+        'Set or overwrite a step\'s timer — calling it again replaces the previous timer. "seconds": duration from now. Alternatively "delta_seconds" (signed): shift the current end by X seconds — positive = "X longer", negative = shorten (on a waiting card without its own timer, the base is that card\'s planned wait). On a waiting card the timer replaces the planned wait; on an active card it puts the card into the waiting state. Its expiry frees the card — the planned wait does NOT come back.',
       parameters: {
         type: 'object',
         properties: {
           flow_id: { type: 'string' },
-          step_id: stepIdSchema('Der Schritt'),
-          seconds: { type: 'number', description: 'Dauer ab jetzt, in Sekunden (ersetzt einen laufenden Timer)' },
+          step_id: stepIdSchema('The step'),
+          seconds: { type: 'number', description: 'Duration from now, in seconds (replaces a running timer)' },
           delta_seconds: {
             type: 'number',
-            description: 'Optional statt seconds: laufenden Timer um diese Sekunden verschieben — positiv verlängert, negativ verkürzt',
+            description: 'Optional instead of seconds: shift the running timer by these seconds — positive extends, negative shortens',
           },
         },
         required: ['flow_id', 'step_id'],
@@ -260,12 +265,13 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'pause_timer',
-      description: 'Laufenden Timer eines Schritts pausieren — die Restzeit friert ein, bis er mit resume_timer fortgesetzt wird. Auf einer wartenden Karte ohne eigenen Timer friert pause_timer deren Wartezeit ein.',
+      description:
+        'Pause a step\'s running timer — the remaining time freezes until it is continued with resume_timer. On a waiting card without its own timer, pause_timer freezes its planned wait.',
       parameters: {
         type: 'object',
         properties: {
           flow_id: { type: 'string' },
-          step_id: stepIdSchema('Der Schritt'),
+          step_id: stepIdSchema('The step'),
         },
         required: ['flow_id', 'step_id'],
       },
@@ -275,12 +281,12 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'resume_timer',
-      description: 'Pausierten Timer eines Schritts fortsetzen.',
+      description: 'Resume a paused step timer.',
       parameters: {
         type: 'object',
         properties: {
           flow_id: { type: 'string' },
-          step_id: stepIdSchema('Der Schritt'),
+          step_id: stepIdSchema('The step'),
         },
         required: ['flow_id', 'step_id'],
       },
@@ -290,7 +296,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'complete_flow',
-      description: 'Flow als fertig markieren (alle Schritte done, alle Timer abgebrochen).',
+      description: 'Mark a flow as finished (all steps done, all timers cancelled).',
       parameters: {
         type: 'object',
         properties: { flow_id: { type: 'string' } },
@@ -302,13 +308,13 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'update_flow',
-      description: 'Flow bearbeiten: Name und/oder Emoji ändern.',
+      description: 'Edit a flow: change name and/or emoji.',
       parameters: {
         type: 'object',
         properties: {
           flow_id: { type: 'string' },
-          name: { type: 'string', description: 'Neuer Name' },
-          icon: { type: 'string', description: 'Neues Emoji (leer entfernt es)' },
+          name: { type: 'string', description: 'New name (user-facing — German)' },
+          icon: { type: 'string', description: 'New emoji (empty removes it)' },
         },
         required: ['flow_id'],
       },
@@ -318,7 +324,8 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'delete_flow',
-      description: 'Flow löschen. Abhängigkeiten anderer Flows auf seine Schritte werden entfernt.',
+      description:
+        'Delete a flow. Dependencies of other flows on its steps are removed.',
       parameters: {
         type: 'object',
         properties: { flow_id: { type: 'string' } },
@@ -331,7 +338,7 @@ export const TOOLS: ToolDef[] = [
     function: {
       name: 'start_new_recipe',
       description:
-        'AUSSCHLIESSLICH für ein komplett anderes Gericht — wenn der Nutzer explizit ein neues Gericht kochen will (z.B. „lass uns stattdessen Pasta machen"). Löscht alle Flows und Zutaten (kein Backup). Für Änderungen am laufenden Gericht (Schritt anpassen, Zutat ändern, Menge skalieren, Flow ergänzen) NIEMALS aufrufen — stattdessen update_step / add_step / delete_step / add_flow / delete_flow / update_flow verwenden. Ablauf: set_loading(true) → start_new_recipe → Aufbau per add_flow (Zutaten als ingredients pro Schritt) → set_loading(false).',
+        'ONLY for a completely different dish — when the user explicitly wants to cook something else entirely (e.g. "let\'s make pasta instead"). Deletes all flows and ingredients (no backup). NEVER call it for changes to the current dish (adjust a step, swap an ingredient, scale amounts, add or remove a flow) — use update_step / add_step / delete_step / add_flow / delete_flow / update_flow instead. Sequence: set_loading(true) → start_new_recipe → build via add_flow (ingredients as per-step chips) → set_loading(false).',
       parameters: { type: 'object', properties: {} },
     },
   },
@@ -340,17 +347,17 @@ export const TOOLS: ToolDef[] = [
     function: {
       name: 'set_loading',
       description:
-        'Bau-Spinner. JEDER Aufbau einer Schedule — auch ein einzelner add_flow — beginnt mit loading:true als ERSTEM Tool-Aufruf deiner Antwort, BEVOR du die Schedule durchdenkst und aufbaust — der Nutzer soll den Spinner sehen, solange du arbeitest; nie erst denken/bauen und den Spinner später einschalten. Reine Antworten/Fragen ohne Planänderung bekommen keinen Spinner. scope "all" (Standard) = kleiner Spinner links unten (der bestehende Plan bleibt sichtbar); scope "flow" + flow_id = Spinner nur bei diesem bestehenden Flow. loading=false nach dem letzten Tool-Aufruf des Aufbaus (auch bei Abbruch/Fehler). Rein visuell: Timer, Karten und Abschlüsse laufen normal weiter.',
+        'Build spinner. EVERY schedule build — even a single add_flow — starts with loading:true as the FIRST tool call of your reply, BEFORE you think through and build the schedule — the user should see the spinner while you work; never think/build first and turn the spinner on later. Pure answers/questions without a plan change get no spinner. scope "all" (default) = small spinner bottom-left (the existing plan stays visible); scope "flow" + flow_id = spinner on that existing flow only. loading=false after the last tool call of the build (also on abort/error). Purely visual: timers, cards and completions keep running normally.',
       parameters: {
         type: 'object',
         properties: {
           scope: {
             type: 'string',
             enum: ['all', 'flow'],
-            description: '"all" = ganze Schedule (Standard), "flow" = einzelner Flow',
+            description: '"all" = whole schedule (default), "flow" = a single flow',
           },
-          flow_id: { type: 'string', description: 'Nur bei scope "flow"' },
-          loading: { type: 'boolean', description: 'true = anzeigen, false = ausblenden' },
+          flow_id: { type: 'string', description: 'Only for scope "flow"' },
+          loading: { type: 'boolean', description: 'true = show, false = hide' },
         },
         required: ['loading'],
       },
@@ -361,18 +368,18 @@ export const TOOLS: ToolDef[] = [
     function: {
       name: 'show_step',
       description:
-        'Dem Nutzer gezielt einen Schritt zeigen: Fokus auf den Flow, Ansicht wechseln, Schritt in den sichtbaren Bereich scrollen und kurz pulsieren lassen. view: "jetzt" (Standard) für aktive Schritte, "flow" für blockierte/fertige; speak:true liest die Beschreibung vor. Sagt der Nutzer „weiter" oder „nächster Schritt" ohne Kontext, meint er die oberste Karte in „Jetzt" (erstes Element des queue-Felds von get_cook_state — exakt die Anzeige-Reihenfolge) — zeige sie mit view "jetzt" und antworte nur "OK.".',
+        'Deliberately show a step to the user: focus the flow, switch the view, scroll the step into the visible area and let it pulse briefly. view: "jetzt" (default) for active steps, "flow" for blocked/done ones; speak:true reads the description aloud. If the user says "weiter" or "nächster Schritt" without context, they mean the topmost card in "Jetzt" (the first element of the queue field of get_cook_state — exactly the display order) — show it with view "jetzt" and answer only "OK.".',
       parameters: {
         type: 'object',
         properties: {
           flow_id: { type: 'string' },
-          step_id: stepIdSchema('Der Schritt'),
+          step_id: stepIdSchema('The step'),
           view: {
             type: 'string',
             enum: ['jetzt', 'flow'],
-            description: '"jetzt" (Standard) für aktive Schritte, "flow" für blockierte/fertige',
+            description: '"jetzt" (default) for active steps, "flow" for blocked/done ones',
           },
-          speak: { type: 'boolean', description: 'Beschreibung der Karte vorlesen (z.B. für „Was mache ich als Nächstes?")' },
+          speak: { type: 'boolean', description: 'Read the card\'s description aloud (e.g. for "Was mache ich als Nächstes?")' },
         },
         required: ['step_id'],
       },
@@ -382,7 +389,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'focus_flow',
-      description: 'Flow fokussieren (hebt die Spalte hervor), ohne einen einzelnen Schritt zu zeigen.',
+      description: 'Focus a flow (highlights the column) without showing a single step.',
       parameters: {
         type: 'object',
         properties: { flow_id: { type: 'string' } },
@@ -395,18 +402,18 @@ export const TOOLS: ToolDef[] = [
     function: {
       name: 'set_ingredients',
       description:
-        'NUR für Zutaten OHNE Schritt-Zuordnung (Grundausstattung wie "Salz", "Öl", die zu keiner Karte passen). Normale Rezept-Zutaten gehören als ingredients-Array in die Schritte (add_flow/add_step) — die Zutatenliste wird aus diesen Chips abgeleitet, NICHT hier gepflegt. Ersetzt die Liste der freistehenden Zutaten komplett.',
+        'ONLY for ingredients WITHOUT a step mapping (staples like "Salz", "Öl" that belong to no card). Regular recipe ingredients belong in the steps\' ingredients arrays (add_flow/add_step) — the ingredient list is derived from those chips, NOT maintained here. Replaces the entire list of free-standing ingredients.',
       parameters: {
         type: 'object',
         properties: {
           ingredients: {
             type: 'array',
-            description: 'Freistehende Zutaten (ohne Schritt-Zuordnung)',
+            description: 'Free-standing ingredients (no step mapping)',
             items: {
               type: 'object',
               properties: {
-                name: { type: 'string', description: 'Zutat, z.B. "Basmatireis"' },
-                amount: { type: 'string', description: 'Menge, z.B. "300 g" oder "2 Stück"' },
+                name: { type: 'string', description: 'Ingredient, e.g. "Basmatireis" (user-facing — German)' },
+                amount: { type: 'string', description: 'Amount, e.g. "300 g" or "2 Stück"' },
               },
               required: ['name'],
             },
@@ -420,7 +427,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'open_ingredients',
-      description: 'Ingredients-Liste (Modal) öffnen.',
+      description: 'Open the ingredients list (modal).',
       parameters: { type: 'object', properties: {} },
     },
   },
@@ -428,7 +435,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'close_ingredients',
-      description: 'Ingredients-Liste (Modal) schließen.',
+      description: 'Close the ingredients list (modal).',
       parameters: { type: 'object', properties: {} },
     },
   },
@@ -436,7 +443,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'open_chat',
-      description: 'Chat-Verlauf (Modal) öffnen.',
+      description: 'Open the chat history (modal).',
       parameters: { type: 'object', properties: {} },
     },
   },
@@ -444,7 +451,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'close_chat',
-      description: 'Chat-Verlauf (Modal) schließen.',
+      description: 'Close the chat history (modal).',
       parameters: { type: 'object', properties: {} },
     },
   },

@@ -6,7 +6,10 @@ Voice-first Kochassistent-PWA. KI navigiert primär per Tool, Nutzer übersteuer
 > Abhängigkeiten erfüllt. Mobile zeigt alle aktiven Karten (statt Strips + eine Karte).
 >
 > **Sprach-Trennung:** visueller Text (UI) = **deutsch** („Strang", „Zutaten", „Zutatenliste");
-> Tools, Parameter und State = **englisch** (`add_flow`, `flow_id`, `set_ingredients`, …).
+> Tools, Parameter und State = **englisch** (`add_flow`, `flow_id`, `set_ingredients`, …) —
+> inklusive Tool-Beschreibungen und Prompts; **ausgenommen** nutzer-sichtbarer Modellinhalt
+> (Schritt-Beschreibungen, Flow-Namen, Zutatennamen — die bleiben deutsch, sie werden
+> angezeigt und vorgelesen).
 
 ---
 
