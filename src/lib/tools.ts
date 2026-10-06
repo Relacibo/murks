@@ -73,7 +73,7 @@ const stepIdSchema = (description: string) => ({
 const ingredientsSchema = {
   type: 'array',
   description:
-    'Ingredients of this card as chips ({name, amount}). The app renders them below the step text as clickable chips — a click reveals the amount. If an amount is given here, do NOT repeat it in the description text ("fold in the flour" instead of "fold in 250 g of flour"). The ingredient list (ingredients modal) is derived automatically from all card chips — one line per ingredient, colored by flow. "To taste" ingredients (salt, oil) go without amount; only list them if the card actually uses them.',
+    'Ingredients of this card as chips ({name, amount}). The app renders them INLINE right after the step text, the amount always visible ("Mehl · 250 g"). If an amount is given here, do NOT repeat it in the description text ("fold in the flour" instead of "fold in 250 g of flour"). The ingredient list (ingredients modal) is derived automatically from all card chips — one line per ingredient, colored by flow. "To taste" ingredients (salt, oil) go without amount; only list them if the card actually uses them.',
   items: {
     type: 'object',
     properties: {

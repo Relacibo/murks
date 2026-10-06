@@ -114,26 +114,15 @@
     @apply px-2 gap-1;
   }
 
-  /* ── Zutaten-Chip (8100): Klick blendet die Menge ein ─────────────
+  /* ── Zutaten-Chip (8100): inline im Schritttext, Menge immer sichtbar ──
      Farbe aus den --flow-*-Variablen des umgebenden data-color-Trägers
      (Karte = Flow-Farbe); im Zutaten-Modal kann background per Inline-
      Style mit dem Flow-Farb-Gradient überschrieben werden. */
   .ing-chip {
-    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 border text-xs transition-colors max-w-full;
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 border text-xs whitespace-nowrap align-baseline;
     background-color: var(--flow-bg);
     border-color: var(--flow-border);
     color: var(--flow-text);
-  }
-  button.ing-chip {
-    cursor: pointer;
-  }
-  button.ing-chip:hover {
-    border-color: var(--flow-border-active);
-  }
-  .ing-chip.is-revealed {
-    background-color: var(--flow-bg-active);
-    border-color: var(--flow-border-active);
-    color: var(--flow-text-active);
   }
   .ing-chip.is-neutral {
     --flow-bg: #27272a;
@@ -143,11 +132,37 @@
     --flow-border-active: #52525b;
     --flow-text-active: #f4f4f5;
   }
+  /* Zutaten-Liste (Modal): Einträge untereinander, größer */
+  .ing-list-item {
+    @apply text-sm px-3 py-1.5;
+  }
   .ing-chip-amount {
     @apply font-semibold tabular-nums;
   }
+  .ing-chip-amount::before {
+    content: '·';
+    @apply mr-1 font-normal opacity-70;
+  }
+  /* Inline im Textfluss: der letzte Absatz wird inline, die Chips laufen
+     dann in derselben Zeile weiter (mit Umbruch). solid-markdown wickelt
+     den Inhalt in ein Wrapper-DIV — display:contents hebt den Wrapper
+     layout-technisch auf, damit der Absatz und die Chips-Zeile wirklich
+     aneinander hängen (ohne :has — unterstützt nicht jeder Browser). */
+  .step-description > div {
+    display: contents;
+  }
+  .step-description > div > p:last-child,
+  .step-description > p:last-child {
+    display: inline;
+  }
+  .step-description > .ing-chip-row {
+    @apply ml-2;
+  }
   .ing-chip-row {
-    @apply flex flex-wrap gap-1.5;
+    display: inline;
+  }
+  .ing-chip-row .ing-chip {
+    @apply mr-1.5 mb-1;
   }
 
   /* ── Flow-Spalte (Desktop + Mobile-Flow-View): nur Gliederung ── */

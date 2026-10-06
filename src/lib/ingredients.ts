@@ -35,8 +35,7 @@ export function flowColorOf(cook: CookState, flowId: string): FlowColor | null {
 /**
  * Zutatenliste als Ableitung der Chips: alle Karten-Chips (in Flow-Reihenfolge,
  * Farbe = Flow-Farbe) + freistehende Zutaten aus set_ingredients (neutral).
- * Identität über normalisierten Namen; gleiche Menge im gleichen Kontext
- * wird dedupliziert, verschiedene Mengen bleiben nebeneinander.
+ * Identität über normalisierten Namen; JEDE Nutzung zählt (Summen!). 
  */
 export function deriveIngredients(cook: CookState): IngredientEntry[] {
   const byKey = new Map<string, IngredientEntry>()
@@ -50,10 +49,7 @@ export function deriveIngredients(cook: CookState): IngredientEntry[] {
     return e
   }
   const push = (name: string, amount: string, color: FlowColor | null) => {
-    const e = entry(name)
-    if (!e.uses.some((u) => u.color === color && u.amount === amount)) {
-      e.uses.push({ amount, color })
-    }
+    entry(name).uses.push({ amount, color })
   }
   for (const flow of cook.flows) {
     const color = flowColorOf(cook, flow.id)
@@ -90,13 +86,78 @@ export function ingredientGradient(uses: IngredientUseRef[]): string | null {
   return `linear-gradient(90deg, ${stops.join(', ')})`
 }
 
-/** Alle Mengen eines Eintrags (in Nutzungs-Reihenfolge, dedupliziert). */
-export function entryAmounts(e: IngredientEntry): string[] {
-  const out: string[] = []
-  for (const u of e.uses) {
-    if (u.amount && !out.includes(u.amount)) out.push(u.amount)
+/** Mengen zusammenaddieren (8100): gleiche Einheiten werden pro Zutat summiert,
+    verschiedene Einheiten bleiben als eigene Summen nebeneinander.
+    "250 g" + "50 g" → "300 g"; "100 g" + "1 EL" → "100 g + 1 EL".
+    Nicht interpretierbare Mengen ("nach Geschmack") bleiben dedupliziert stehen. */
+const UNIT_ALIASES: Record<string, string> = {
+  g: 'g', gr: 'g', gramm: 'g',
+  kg: 'kg',
+  ml: 'ml', milliliter: 'ml',
+  l: 'l', liter: 'l',
+  el: 'EL', esslöffel: 'EL', essloeffel: 'EL',
+  tl: 'TL', teelöffel: 'TL', teeloeffel: 'TL',
+  prise: 'Prise', prisen: 'Prise',
+  stück: 'Stück', stueck: 'Stück', stk: 'Stück',
+  zehe: 'Zehe', zehen: 'Zehe',
+  bund: 'Bund', dosen: 'Dosen', dose: 'Dose', glas: 'Glas', gläser: 'Glas',
+  packung: 'Packung', pack: 'Packung', becher: 'Becher', zweige: 'Zweige', blatt: 'Blatt',
+}
+
+const VULGAR: Record<string, number> = {
+  '½': 0.5, '¼': 0.25, '¾': 0.75, '⅓': 1 / 3, '⅔': 2 / 3, '⅛': 0.125, '⅜': 0.375, '⅝': 0.625, '⅞': 0.875,
+}
+
+const NUMBER_WORDS: Record<string, number> = {
+  ein: 1, eine: 1, einen: 1, einem: 1, einer: 1, zwei: 2, drei: 3,
+}
+
+/** Zahl am String-Anfang: Bruch, Unicode-Bruch, Dezimal (Punkt oder Komma) oder Wortzahl */
+function parseNumber(s: string): { value: number; raw: string } | null {
+  const frac = s.match(/^(\d+)\s*\/\s*(\d+)/)
+  if (frac) return { value: Number(frac[1]) / Number(frac[2]), raw: frac[0] }
+  const vulgar = s.match(/^[½¼¾⅓⅔⅛⅜⅝⅞]/)
+  if (vulgar) return { value: VULGAR[vulgar[0]], raw: vulgar[0] }
+  const dec = s.match(/^(\d+(?:[.,]\d+)?)/)
+  if (dec) return { value: Number.parseFloat(dec[1].replace(',', '.')), raw: dec[1] }
+  const word = s.match(/^(ein|eine|einen|einem|einer|zwei|drei)\b/)
+  if (word) return { value: NUMBER_WORDS[word[1]], raw: word[1] }
+  return null
+}
+
+function parseAmount(raw: string): { value: number; unit: string } | null {
+  const s = raw.trim().toLowerCase()
+  if (!s) return null
+  const num = parseNumber(s)
+  if (num === null || !Number.isFinite(num.value)) return null
+  const unitRaw = s.slice(num.raw.length).trim().split(/\s+/)[0]?.replace(/[().,]/g, '') ?? ''
+  return { value: num.value, unit: UNIT_ALIASES[unitRaw] ?? unitRaw }
+}
+
+function fmtAmount(v: number): string {
+  const rounded = Math.round(v * 100) / 100
+  return String(rounded).replace('.', ',')
+}
+
+export function sumAmounts(amounts: string[]): string[] {
+  const sums = new Map<string, number>()
+  const passthrough: string[] = []
+  for (const raw of amounts) {
+    const parsed = parseAmount(raw)
+    if (parsed === null) {
+      const clean = raw.trim()
+      if (clean && !passthrough.includes(clean)) passthrough.push(clean)
+      continue
+    }
+    sums.set(parsed.unit, (sums.get(parsed.unit) ?? 0) + parsed.value)
   }
-  return out
+  const out = [...sums.entries()].map(([unit, total]) => `${fmtAmount(total)}${unit ? ` ${unit}` : ''}`)
+  return [...out, ...passthrough]
+}
+
+/** Mengen eines Eintrags, pro Einheit zusammenaddiert (Einkaufsliste). */
+export function entryAmounts(e: IngredientEntry): string[] {
+  return sumAmounts(e.uses.map((u) => u.amount))
 }
 
 /** Text zum Vorlesen: Beschreibung + die Mengen der Chips — die stehen

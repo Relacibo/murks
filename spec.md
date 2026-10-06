@@ -319,9 +319,9 @@ Mehrere Karten stehen untereinander (Stapel).
 ## Zutaten (Ingredients)
 
 - **Chips auf den Karten sind die Quelle (8100):** Jeder Schritt trägt
-  `ingredients[]` ({name, amount}) — gerendert als klickbare Chips unter dem
-  Schritttext. **Klick auf einen Chip blendet die Menge ein** (der Schritttext
-  nennt die Zutat, die Menge steht im Chip, nicht im Text).
+  `ingredients[]` ({name, amount}) — gerendert als **inline** Chips direkt im
+  Textfluss nach dem Schritttext, **Menge immer sichtbar** (`Mehl · 250 g`,
+  kein Klicken). Der Schritttext nennt die Zutat, die Menge steht im Chip.
 - **Zutatenliste = Ableitung der Chips:** Das Zutaten-Modal gruppiert alle
   Karten-Chips über normalisierte Namen (gleiche Zutat in mehreren Strängen =
   ein Eintrag, alle Mengen nebeneinander). Dedupliziert wird pro Kontext
@@ -331,6 +331,13 @@ Mehrere Karten stehen untereinander (Stapel).
   bekommt jede Zutat einen Farb-Gradient über die beteiligten Stränge,
   Anteile proportional zur Nutzungshäufigkeit pro Strang (z. B. Öl in Strang 1
   und Strang 3 → cyan/amber-Mix). Freistehende Zutaten (siehe unten) sind neutral.
+- **Zutaten-Modal-Darstellung:** Einträge **untereinander** (eine Zeile pro
+  Zutat), größer als Karten-Chips, **Mengen pro Einheit zusammenaddiert**
+  (Einkaufslisten-Semantik): `Mehl · 300 g` (250 g + 50 g); verschiedene
+  Einheiten als Einzelsummen: `Butter · 100 g + 1 EL`; Unparsbares
+  („nach Geschmack") bleibt dedupliziert stehen. Parser: Brüche (1/2, ½),
+  Komma/Punkt-Dezimal, Wortzahlen (eine/zwei/drei), Einheiten-Aliasse
+  (gr→g, Gramm→g, esslöffel→EL, …).
 - **Freistehende Zutaten:** `set_ingredients` pflegt NUR Zutaten ohne
   Schritt-Zuordnung (Grundausstattung, importierte Gesamtlisten) — sie erscheinen
   neutral in der Liste. Normale Rezept-Zutaten gehören als `ingredients[]` in die

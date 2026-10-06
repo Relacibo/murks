@@ -1,9 +1,27 @@
 # 8100 · Zutaten als Chips (in Text + Liste)
 
-**Prio: ERLEDIGT (2026-09-25)**
+**Prio: ERLEDIGT (2026-09-27, überarbeitet)**
+
+## Nachbesserung (2026-09-27)
+Nutzer-Feedback, drei Änderungen:
+- **Inline statt drunter:** Chips laufen im Textfluss direkt hinter dem
+  Schritttext weiter (CSS: Wrapper `display: contents` + letzter Absatz
+  inline; ohne `:has` — unterstützt nicht jeder Browser).
+- **Menge immer sichtbar** — das Klick-zum-Aufdecken ist entfallen. Chip =
+  `Mehl · 250 g` (statisch).
+- **Zutaten-Modal:** Einträge untereinander, größer (`ing-list-item`), Menge(n)
+  immer dabei.
+
+## Nachbesserung 2 (2026-09-27): Mengen zusammenaddieren
+Einkaufslisten-Semantik: `sumAmounts()` addiert pro Einheit (gleiche Einheit →
+Summe, verschiedene Einheiten → Einzelsummen mit „ + ", Unparsbares bleibt
+dedupliziert stehen). Parser: Brüche (1/2, ½), Komma/Punkt, Wortzahlen
+(ein/zwei/drei), Einheiten-Aliasse (gr→g, Gramm→g, esslöffel→EL …). Jede
+Nutzung zählt jetzt (Dedupe in deriveIngredients entfernt). Modal + Export
+nutzen die Summen; Kartierungs-Gradient zählt Nutzungen weiter proportional.
 
 ## Was (umgesetzt)
-Zutaten sind strukturierte Chips mit Menge — klickbar, Liste als Ableitung:
+Zutaten sind strukturierte Chips mit Menge — Liste als Ableitung:
 
 - **Modell:** `Step.ingredients[]` (`{name, amount}`) — Mengen leben im Chip,
   nicht im Schritttext. Agent setzt sie via `ingredients`-Parameter bei

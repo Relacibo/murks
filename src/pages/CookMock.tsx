@@ -49,7 +49,7 @@ const s1_3 = step(
   [{ flow_id: 's1', step_id: s1_2.id, timer_seconds: 900 }],
   null,
   'normal',
-  [{ name: 'Öl', amount: '' }],
+  [{ name: 'Öl', amount: '1 EL' }],
 )
 const s1_4 = step('Teig portionsweise von beiden Seiten goldbraun backen.', false, [
   { flow_id: 's1', step_id: s1_3.id },

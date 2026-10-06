@@ -904,15 +904,15 @@ export function Cook(props: {
             <Show when={st().description}>
               <Markdown>{st().description}</Markdown>
             </Show>
+            {/* Zutaten-Chips (8100): inline im Textfluss, Menge immer sichtbar */}
+            <Show when={st().ingredients.length > 0}>
+              <span class="ing-chip-row">
+                <For each={st().ingredients}>
+                  {(ing) => <IngredientChip name={ing.name} amount={ing.amount} />}
+                </For>
+              </span>
+            </Show>
           </div>
-          {/* Zutaten-Chips (8100): Mengen stehen im Modell, Klick blendet sie ein */}
-          <Show when={st().ingredients.length > 0}>
-            <div class="ing-chip-row mt-2">
-              <For each={st().ingredients}>
-                {(ing) => <IngredientChip name={ing.name} amount={ing.amount} />}
-              </For>
-            </div>
-          </Show>
         </div>
         <div class="step-card-footer">
           <p class="flex-1 min-w-0 text-xs leading-4 opacity-70">

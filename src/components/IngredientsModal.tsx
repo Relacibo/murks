@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal, useContext } from 'solid-js'
+import { For, Show, createMemo, useContext } from 'solid-js'
 import { FiCopy } from 'solid-icons/fi'
 import { CookContext } from '../lib/cookEngine'
 import {
@@ -10,11 +10,10 @@ import {
 import { showToast } from '../lib/toast'
 import { SheetModal } from './SheetModal'
 
-/** Ein Listeneintrag als klickbarer Chip: Name sichtbar, Klick blendet die
-    Menge(n) ein. Hintergrund = Farb-Gradient über die beteiligten Stränge
-    (Anteile proportional zur Nutzung); ohne Strang-Zuordnung neutral. */
+/** Ein Listeneintrag als Chip: Name + Menge(n) immer sichtbar, untereinander.
+    Hintergrund = Farb-Gradient über die beteiligten Stränge (Anteile
+    proportional zur Nutzung); ohne Strang-Zuordnung neutral. */
 function IngredientListChip(props: { entry: IngredientEntry }) {
-  const [revealed, setRevealed] = createSignal(false)
   const amounts = () => entryAmounts(props.entry)
   const grad = () => ingredientGradient(props.entry.uses)
   const style = () =>
@@ -23,31 +22,16 @@ function IngredientListChip(props: { entry: IngredientEntry }) {
       : undefined
   const classList = () => ({
     'ing-chip': true,
+    'ing-list-item': true,
     'is-neutral': grad() === null,
-    'is-revealed': revealed() && grad() === null,
   })
   return (
-    <Show
-      when={amounts().length > 0}
-      fallback={
-        <span classList={classList()} style={style()}>
-          {props.entry.name}
-        </span>
-      }
-    >
-      <button
-        type="button"
-        classList={classList()}
-        style={style()}
-        title={`${props.entry.name}: ${amounts().join(' · ')}`}
-        onClick={() => setRevealed((v) => !v)}
-      >
-        <span>{props.entry.name}</span>
-        <Show when={revealed()}>
-          <span class="ing-chip-amount">{amounts().join(' · ')}</span>
-        </Show>
-      </button>
-    </Show>
+    <span classList={classList()} style={style()}>
+      <span>{props.entry.name}</span>
+      <Show when={amounts().length > 0}>
+        <span class="ing-chip-amount">{amounts().join(' + ')}</span>
+      </Show>
+    </span>
   )
 }
 
@@ -59,11 +43,11 @@ export function IngredientsModal(props: { open: boolean; onClose: () => void }) 
   const entries = createMemo(() => deriveIngredients(engine.cook))
 
   /* Zutaten als Markdown-Checkliste in die Zwischenablage —
-     Abhaken passiert beim Einkaufen, nicht in der App */
+     Abhaken passiert beim Einkauf, nicht in der App */
   const exportIngredients = async () => {
     const lines = entries().map((e) => {
       const amounts = entryAmounts(e)
-      return amounts.length > 0 ? `- [ ] ${e.name} — ${amounts.join(', ')}` : `- [ ] ${e.name}`
+      return amounts.length > 0 ? `- [ ] ${e.name} — ${amounts.join(' + ')}` : `- [ ] ${e.name}`
     })
     const text = `Zutaten\n\n${lines.join('\n')}\n`
     let ok = false
@@ -108,7 +92,7 @@ export function IngredientsModal(props: { open: boolean; onClose: () => void }) 
         when={entries().length > 0}
         fallback={<p class="text-sm text-zinc-500 py-2">Noch keine Zutaten.</p>}
       >
-        <div class="ing-chip-row py-2">
+        <div class="flex flex-col items-start gap-2 py-2">
           <For each={entries()}>{(e) => <IngredientListChip entry={e} />}</For>
         </div>
       </Show>
